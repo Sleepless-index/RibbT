@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ff2442">
+<title>Media Downloader</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('theme') || 'auto';
+      if (t === 'light' || t === 'dark') {
+        document.documentElement.setAttribute('data-theme', t);
+      }
+    } catch (e) {}
+  })();
+</script>
+{% for sheet in ["base", "form", "cards", "carousel", "toast", "settings", "mascot", "skeleton"] %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/' ~ sheet ~ '.css') }}">
+{% endfor %}
+</head>
+<body data-layout="{{ layout }}">
+
+
+<div id="surface">
+<main id="main">
+  <div class="spacer top" aria-hidden="true"></div>
+  <div class="content" id="content">
+    {% include "partials/mascot.html" %}
+    <form class="row" id="form" autocomplete="off">
+      <div class="field">
+        <span class="ic link-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>
+        </span>
+        <input id="url" type="text" inputmode="url" enterkeyhint="go" placeholder="Paste a link" aria-label="Video link">
+      </div>
+      <div class="actions form-actions">
+        <button id="paste" class="dl tonal" type="button"></button>
+        <button id="parse" class="dl" type="submit">
+          <svg class="play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.54.84l10.29-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14z"/></svg>
+          <span class="spin" aria-hidden="true"></span>
+          <span class="label">Parse</span>
+        </button>
+      </div>
+    </form>
+
+    <div id="err" hidden role="alert" aria-live="polite"></div>
+    <div id="out" class="grid"></div>
+  </div>
+  <div class="spacer bottom" aria-hidden="true"></div>
+</main>
+
+<div id="view-settings" role="region" aria-label="Settings">
+  <header class="settings-header">
+    <h1>Settings</h1>
+    <span class="save-indicator" id="save-indicator" aria-live="polite"></span>
+  </header>
+  <div id="settings-body"></div>
+</div>
+
+
+
+
+<div id="view-services" role="region" aria-label="Supported services">
+  <header class="settings-header">
+    <h1>Supported services</h1>
+    <span class="svc-count">{{ platforms | length }} services</span>
+  </header>
+  <ul class="svc-list">
+    {% for platform in platforms %}<li class="svc-item">
+      <span class="svc-tile" aria-hidden="true"><span class="svc-letter">{{ platform.label[:1] | upper }}</span><img class="svc-icon" src="{{ url_for('static', filename='img/platforms/' ~ platform.name ~ '.png') }}" alt="" loading="lazy" onload="this.parentNode.classList.add('has-img')" onerror="if(!this.dataset.t){this.dataset.t=1;this.src=this.src.replace('.png','.svg')}else{this.remove()}"></span>
+      <span class="svc-text">
+        <span class="svc-name">{{ platform.label }}</span>
+        <span class="svc-hosts">{{ platform.display | join(', ') }}</span>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="svc-note">Listing a service doesn’t imply any affiliation or endorsement.</p>
+</div>
+</div>
+
+<nav id="nav" aria-label="Main">
+  <button id="home-tab" type="button" data-tab="home" aria-label="Home">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
+    <span>home</span>
+  </button>
+  <button id="settings-open" type="button" data-tab="settings" aria-label="Settings">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+    <span>settings</span>
+  </button>
+  <button id="services-open" type="button" data-tab="services" aria-label="Supported services">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+    <span>services</span>
+  </button>
+</nav>
+
+<script type="application/json" id="platforms">{{ platforms | tojson }}</script>
+<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

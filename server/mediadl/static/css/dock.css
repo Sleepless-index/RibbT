@@ -1,0 +1,10 @@
+#dock{position:fixed;left:50%;bottom:calc(46px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  display:flex;gap:4px;padding:5px;border-radius:14px;z-index:30;
+  background:var(--card);border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,.28)}
+#dock button{width:46px;height:46px;padding:0;border:0;border-radius:10px;background:transparent;
+  color:var(--muted);cursor:pointer;display:grid;place-items:center;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  transition:color .15s var(--ease),background .15s var(--ease),transform .15s var(--ease)}
+#dock button:active{transform:scale(.92)}
+#dock button svg{display:block}
+body:not(.settings) #home-btn,body.settings #settings-open{color:var(--accent);background:rgba(255,36,66,.14)}

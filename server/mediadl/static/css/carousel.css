@@ -1,0 +1,20 @@
+.carousel .car-stage{position:relative;margin-bottom:10px;border-radius:14px;overflow:hidden;
+  background:var(--card);aspect-ratio:var(--r,3/4)}
+.car-track{display:flex;height:100%;overflow-x:auto;scroll-snap-type:x mandatory;
+  scrollbar-width:none;overscroll-behavior-x:contain;outline:none;-webkit-overflow-scrolling:touch}
+.car-track::-webkit-scrollbar{display:none}
+.car-track:focus-visible{box-shadow:inset 0 0 0 2px var(--accent)}
+.car-slide{flex:0 0 100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always}
+.car-count{position:absolute;top:10px;right:10px;padding:3px 10px;border-radius:999px;
+  background:rgba(0,0,0,.55);color:#fff;font-size:.74rem;font-weight:600;
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);pointer-events:none}
+.car-nav{position:absolute;top:50%;margin-top:-18px;width:36px;height:36px;border-radius:50%;border:0;
+  background:rgba(0,0,0,.5);color:#fff;display:none;place-items:center;cursor:pointer;padding:0;
+  -webkit-tap-highlight-color:transparent}
+.car-nav.prev{left:8px}.car-nav.next{right:8px}
+@media (hover:hover){.car-nav{display:grid}.car-nav:hover{background:rgba(0,0,0,.7)}}
+.car-nav[disabled]{display:none}
+.car-dots{display:flex;justify-content:center;gap:7px;margin:0 0 10px}
+.car-dots button{width:7px;height:7px;padding:0;border:0;border-radius:50%;background:var(--line);
+  cursor:pointer;transition:background .18s var(--ease),transform .18s var(--ease)}
+.car-dots button.on{background:var(--accent);transform:scale(1.3)}
