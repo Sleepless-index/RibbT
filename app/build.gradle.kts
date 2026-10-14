@@ -65,6 +65,7 @@ chaquopy {
             install("flask>=3.0")
             install("requests>=2.31")
             install("yt-dlp")
+            install("yt-dlp-ejs")
             install("certifi")
             install("websockets")
             install("mutagen")

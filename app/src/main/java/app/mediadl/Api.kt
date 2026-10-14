@@ -270,11 +270,20 @@ class Api(private val context: Context, private val prefs: Prefs) {
         it != MediaStore.VOLUME_EXTERNAL_PRIMARY && it != MediaStore.VOLUME_EXTERNAL && it != MediaStore.VOLUME_INTERNAL
     }
 
+    /** Sorting folder inside RibbT's own folder, by kind of file. */
+    private fun kindFolder(mime: String): String = when {
+        mime.startsWith("video/") -> "Videos"
+        mime.startsWith("image/") -> "Images"
+        mime.startsWith("audio/") -> "Audio"
+        else -> "Other"
+    }
+
     private fun destination(mime: String, saveTo: String): Destination {
+        val sub = kindFolder(mime)
         if (saveTo == "sdcard") {
             val volume = sdVolume()
                 ?: throw ApiException("No SD card found. Insert one, or use “Choose folder…” in Settings.")
-            return Destination(MediaStore.Downloads.getContentUri(volume), "Download/RibbT", "SD card/Download/RibbT")
+            return Destination(MediaStore.Downloads.getContentUri(volume), "Download/RibbT/$sub", "SD card/Download/RibbT/$sub")
         }
         if (saveTo == "gallery") {
             when {
@@ -289,7 +298,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
                 )
             }
         }
-        return Destination(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "Download/RibbT", "Downloads/RibbT")
+        return Destination(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "Download/RibbT/$sub", "Downloads/RibbT/$sub")
     }
 
     private fun openSink(fileName: String, mime: String, saveTo: String): Sink {
@@ -335,7 +344,8 @@ class Api(private val context: Context, private val prefs: Prefs) {
         val tree = Uri.parse(chosen)
         val failure = "Couldn’t write to the chosen folder. Pick it again in Settings."
         val document = try {
-            val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+            val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+            val parent = childFolder(resolver, tree, root, kindFolder(mime)) ?: root
             DocumentsContract.createDocument(resolver, parent, mime, fileName)
         } catch (e: Exception) {
             null
@@ -355,6 +365,27 @@ class Api(private val context: Context, private val prefs: Prefs) {
             commit = {},
             abort = { runCatching { DocumentsContract.deleteDocument(resolver, document) } },
         )
+    }
+
+    /** The sub-folder called [name] inside [parent] in a picked folder; created when it isn't there yet. */
+    private fun childFolder(resolver: android.content.ContentResolver, tree: Uri, parent: Uri, name: String): Uri? {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getDocumentId(parent))
+        resolver.query(
+            children,
+            arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
+            ),
+            null, null, null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1) == name && cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    return DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0))
+                }
+            }
+        }
+        return DocumentsContract.createDocument(resolver, parent, DocumentsContract.Document.MIME_TYPE_DIR, name)
     }
 
     private fun fileNameFrom(disposition: String?): String? {

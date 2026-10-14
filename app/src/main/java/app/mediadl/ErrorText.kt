@@ -50,6 +50,6 @@ object ErrorText {
     fun offline(builtIn: Boolean) = if (builtIn) {
         ErrorInfo("Built-in server isn’t running", "Open Settings → Server and switch to Custom address, or restart the app.")
     } else {
-        ErrorInfo("Server offline", "Start it in Termux (python app.py), then tap Retry.")
+        ErrorInfo("Server offline", "Start the server on that device, then tap Retry.")
     }
 }

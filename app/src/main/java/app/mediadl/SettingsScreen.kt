@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
@@ -83,13 +84,14 @@ import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.delay
 
 private val THEME_CHOICES = listOf(Choice("system", "Auto"), Choice("light", "Light"), Choice("dark", "Dark"))
+private val MOTION_CHOICES = listOf(Choice("system", "Auto"), Choice("on", "Reduced"), Choice("off", "Full"))
 private val LAYOUT_CHOICES = MediaLayout.entries.map { Choice(it.key, it.label) }
 private val CHANNEL_CHOICES = listOf(Choice("stable", "Stable"), Choice("nightly", "Nightly"))
 private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custom", "Custom address"))
 private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Saving", "Server")
 
 private const val PAGE_GENERAL = "General"
-private const val PAGE_SERVER = "Server"
+internal const val PAGE_SERVER = "Server"
 private const val PAGE_SAVING = "Saving"
 private const val PAGE_SERVICES = "Supported services"
 
@@ -255,6 +257,13 @@ private fun GeneralCard(vm: AppViewModel) {
             ChoiceRow("Theme", "Choose a light or dark appearance, or follow your device.", THEME_CHOICES, vm.theme) { vm.updateTheme(it) }
             Separator()
             ChoiceRow("Media layout", "Choose how results are displayed.", LAYOUT_CHOICES, vm.layout) { vm.updateLayout(it) }
+            Separator()
+            ChoiceRow(
+                "Reduce motion",
+                "Calms the mascot: no floating, hops or ear sway. Auto follows Android’s remove-animations setting.",
+                MOTION_CHOICES,
+                vm.reduceMotion,
+            ) { vm.updateReduceMotion(it) }
             Separator()
             ToggleRow(
                 "Paste and go",
@@ -474,6 +483,7 @@ internal fun Dropdown(
     val menuState = remember { MutableTransitionState(false) }
     menuState.targetState = expanded
     val origin = remember { mutableStateOf(TransformOrigin(1f, 0f)) }
+    var anchorWidth by remember { mutableStateOf(0.dp) }
 
     val chevron by animateFloatAsState(if (expanded) 180f else 0f, tween(200, easing = WebEase), label = "dd-chevron")
     val outline by animateColorAsState(
@@ -485,6 +495,7 @@ internal fun Dropdown(
     Box(modifier) {
         Row(
             (if (fill) Modifier.fillMaxWidth() else Modifier.widthIn(min = 120.dp, max = 220.dp))
+                .onSizeChanged { anchorWidth = with(density) { it.width.toDp() } }
                 .clip(buttonShape)
                 .background(palette.bg)
                 .border(1.dp, outline, buttonShape)
@@ -529,7 +540,8 @@ internal fun Dropdown(
                 ) {
                     Column(
                         Modifier
-                            .widthIn(min = 160.dp, max = 280.dp)
+                            // As wide as the button it opened from (or as its longest option), never wider.
+                            .widthIn(min = anchorWidth, max = maxOf(280.dp, anchorWidth))
                             .width(IntrinsicSize.Max)
                             .heightIn(max = 320.dp)
                             .shadow(14.dp, menuShape)
@@ -616,7 +628,7 @@ private fun AddressRow(vm: AppViewModel) {
     var text by remember(vm.baseUrl) { mutableStateOf(vm.baseUrl) }
     val status = when (vm.online) {
         true -> "Connected."
-        false -> "Offline. Start the server in Termux."
+        false -> "Offline. Start the server on that device."
         null -> "Checking…"
     }
     RowShell("Server address", status) {

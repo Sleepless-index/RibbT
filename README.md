@@ -18,8 +18,9 @@ How the pieces fit:
   unpacked once on first launch.
 - yt-dlp ships in the APK; Settings -> Server -> Update downloads the newest wheel from PyPI
   into the app's storage and uses it from then on (no pip needed).
-- Limits: arm64 phones only; the APK is large (about 80 MB); there is no JavaScript runtime in
-  the built-in server, so a few YouTube formats may be missing (use a Custom address for those).
+- Limits: arm64 phones only; the APK is large (about 80 MB); the built-in server
+  solves YouTube's challenges with QuickJS (built in CI as `libqjs.so`, plus the `yt-dlp-ejs`
+  package), which is slower than Deno or Node; use a Custom address if a format is still missing.
 - ffmpeg comes from Termux's build (GPL). Keep that in mind if you ever distribute the APK.
 
 ## Build

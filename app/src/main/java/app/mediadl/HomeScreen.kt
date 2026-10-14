@@ -115,7 +115,13 @@ fun HomeScreen(vm: AppViewModel) {
                     .onSizeChanged { contentHeight = it.height },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Mascot(mood, vm.hopSignal)
+                Mascot(
+                    mood,
+                    vm.hopSignal,
+                    typingSignal = vm.typingSignal,
+                    caret = minOf(vm.input.length, 40) / 40f,
+                    reducedMotion = rememberReducedMotion(vm.reduceMotion),
+                )
                 Spacer(Modifier.height(22.dp))
                 if (vm.online == false && vm.everOnline && !vm.starting) {
                     OfflinePill(vm)
@@ -124,7 +130,7 @@ fun HomeScreen(vm: AppViewModel) {
                 vm.error?.takeIf { it.inline }?.let { info -> ErrorBox(info) }
                 if (((vm.online == false && !vm.everOnline) || vm.starting) && post == null) {
                     Spacer(Modifier.height(14.dp))
-                    OfflineCard(vm)
+                    ServerStatusCard(vm)
                 }
                 if (post == null && vm.loading) {
                     Spacer(Modifier.height(16.dp))
@@ -210,7 +216,7 @@ private fun LinkRow(vm: AppViewModel) {
             VIconView(VIcons.Link, 20.dp, palette.muted, Modifier.padding(start = 14.dp))
             BasicTextField(
                 value = vm.input,
-                onValueChange = { vm.input = it; vm.error = null },
+                onValueChange = { vm.input = it; vm.error = null; vm.typingSignal++ },
                 singleLine = true,
                 textStyle = TextStyle(color = palette.text, fontSize = 16.sp),
                 cursorBrush = SolidColor(Accent),
@@ -290,41 +296,6 @@ private fun ErrorBox(info: ErrorInfo) {
             if (!info.hint.isNullOrBlank()) {
                 T(info.hint, size = 13.44.sp, color = palette.err.copy(alpha = 0.9f), modifier = Modifier.padding(top = 3.dp), lineHeight = 18.sp)
             }
-        }
-    }
-}
-
-@Composable
-private fun OfflineCard(vm: AppViewModel) {
-    val palette = LocalPalette.current
-    CardBox(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                VIconView(VIcons.Cloud, 22.dp, palette.err)
-                T(
-                    if (vm.starting) "Starting the built-in server…" else "Server offline",
-                    modifier = Modifier.padding(start = 10.dp), weight = FontWeight.SemiBold, size = 15.2.sp,
-                )
-            }
-            T(
-                when {
-                    vm.starting -> "This takes a few seconds, a little longer right after installing."
-                    vm.serverMode == "builtin" ->
-                        vm.builtInFailure?.let { "The built-in server couldn’t start: $it" }
-                            ?: "The built-in server isn’t answering. Tap Retry, or pick a Custom address in Settings → Server."
-                    else -> "Start it in Termux:  cd ~/media-downloader && python app.py"
-                },
-                modifier = Modifier.padding(top = 8.dp),
-                size = 13.44.sp,
-                color = palette.muted,
-            )
-            PillButton(
-                text = "Retry",
-                icon = VIcons.Refresh,
-                onClick = { vm.refresh() },
-                modifier = Modifier.padding(top = 12.dp),
-                style = PillStyle.Tonal,
-            )
         }
     }
 }

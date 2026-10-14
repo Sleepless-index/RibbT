@@ -28,7 +28,7 @@ def _write_ca_file(data_dir):
         return None
 
 
-def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port):
+def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port, qjs=None):
     """Start the server once. Returns the port it listens on."""
     global _server
     with _lock:
@@ -47,6 +47,8 @@ def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port):
             env["RIBBT_FFMPEG_LIBS"] = ffmpeg_libs
         if ready_marker:
             env["RIBBT_FFMPEG_READY"] = ready_marker
+        if qjs and os.path.isfile(qjs):
+            env["RIBBT_QJS"] = qjs
         ca_file = _write_ca_file(data_dir)
         if ca_file:
             env["RIBBT_CA_FILE"] = ca_file

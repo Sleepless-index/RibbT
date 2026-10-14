@@ -42,7 +42,7 @@ object BuiltInServer {
 }
 
 /** Paths of the ffmpeg build that ships inside the APK. */
-class BundledTools(val ffmpeg: String, val ffprobe: String, val libs: String, val readyMarker: String)
+class BundledTools(val ffmpeg: String, val ffprobe: String, val libs: String, val readyMarker: String, val qjs: String)
 
 object BundledToolsSetup {
     /**
@@ -58,6 +58,8 @@ object BundledToolsSetup {
             ffprobe = File(nativeDir, "libffprobe.so").absolutePath,
             libs = File(root, "usr/lib").absolutePath,
             readyMarker = File(root, "ready").absolutePath,
+            // QuickJS: the JavaScript runtime yt-dlp uses for YouTube's challenges.
+            qjs = File(nativeDir, "libqjs.so").absolutePath,
         )
     }
 
@@ -132,7 +134,7 @@ class ServerService : Service() {
             // ffmpeg's libraries are unpacked on the first run; the server answers meanwhile and
             // asks for a retry if a conversion is requested before they are ready.
             Python.getInstance().getModule("ribbt_server")
-                .callAttr("start", data, tools.ffmpeg, tools.ffprobe, tools.libs, tools.readyMarker, BuiltInServer.PORT)
+                .callAttr("start", data, tools.ffmpeg, tools.ffprobe, tools.libs, tools.readyMarker, BuiltInServer.PORT, tools.qjs)
             BuiltInServer.ready = true
             BundledToolsSetup.unpackIfNeeded(this)
         } catch (error: Throwable) {

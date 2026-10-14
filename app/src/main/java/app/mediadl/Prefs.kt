@@ -45,6 +45,11 @@ class Prefs(context: Context) {
         get() = sp.getString("layout", "carousel") ?: "carousel"
         set(value) = sp.edit().putString("layout", value).apply()
 
+    /** "system" follows Android's remove-animations switch; "on" / "off" override it for the mascot. */
+    var reduceMotion: String
+        get() = sp.getString("reduceMotion", "system") ?: "system"
+        set(value) = sp.edit().putString("reduceMotion", value).apply()
+
     var pasteAndGo: Boolean
         get() = sp.getBoolean("pasteAndGo", true)
         set(value) = sp.edit().putBoolean("pasteAndGo", value).apply()

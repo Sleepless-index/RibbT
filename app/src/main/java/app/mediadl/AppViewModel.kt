@@ -60,6 +60,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var theme by mutableStateOf(prefs.theme)
     var saveTo by mutableStateOf(prefs.saveTo)
     var pasteAndGo by mutableStateOf(prefs.pasteAndGo)
+    var reduceMotion by mutableStateOf(prefs.reduceMotion)
+
+    /** Bumps on every edit of the link field so the mascot can watch it being typed. */
+    var typingSignal by mutableIntStateOf(0)
     var layout by mutableStateOf(prefs.layout)
     var folderName by mutableStateOf(prefs.folderName)
 
@@ -168,6 +172,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateTheme(value: String) { prefs.theme = value; theme = value; savedPulse++ }
     fun updateSaveTo(value: String) { prefs.saveTo = value; saveTo = value; savedPulse++ }
+    fun updateReduceMotion(value: String) { prefs.reduceMotion = value; reduceMotion = value; savedPulse++ }
     fun updatePasteAndGo(value: Boolean) { prefs.pasteAndGo = value; pasteAndGo = value; savedPulse++ }
     fun updateLayout(value: String) { prefs.layout = value; layout = value; savedPulse++ }
     fun updateYtdlpChannel(value: String) { prefs.ytdlpChannel = value; ytdlpChannel = value; savedPulse++ }

@@ -44,6 +44,22 @@ def _first_entry(info):
     return None
 
 
+def _use_js_runtime(opts):
+    """Point yt-dlp at the bundled QuickJS so YouTube's signature challenges can be solved.
+
+    The options only exist in recent yt-dlp builds, so older ones are left alone. The solver scripts
+    come from the yt-dlp-ejs package; fetching them from GitHub is allowed as a fallback for when
+    an updated yt-dlp wants a newer solver than the one in the APK.
+    """
+    path = os.environ.get("RIBBT_QJS")
+    if not path or not os.path.isfile(path):
+        return
+    if "js_runtimes" in opts:
+        opts["js_runtimes"] = {"quickjs": {"path": path}}
+    if "remote_components" in opts:
+        opts["remote_components"] = ["ejs:github"]
+
+
 def _extract(args, outcome):
     try:
         import yt_dlp
@@ -56,6 +72,7 @@ def _extract(args, outcome):
         opts = dict(parsed.ydl_opts)
         for key in ("forcejson", "dump_single_json", "dumpjson", "print_to_file"):
             opts.pop(key, None)
+        _use_js_runtime(opts)
         opts.update(
             quiet=True, no_warnings=True, logger=capture, skip_download=True,
             noplaylist=opts.get("noplaylist", False), socket_timeout=20,
