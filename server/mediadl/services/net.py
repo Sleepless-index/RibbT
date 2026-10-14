@@ -1,4 +1,6 @@
 import logging
+import os
+import re
 import threading
 from urllib.parse import urljoin, urlparse
 
@@ -6,7 +8,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from ..errors import MediaError
+from ..errors import MediaError, blocked_media_url
 
 from ..config import (
     MAX_REDIRECTS,
@@ -165,6 +167,74 @@ def resolve_media(url):
     if status >= 400:
         return None, None
     return final_url, cache.get(hostname(final_url)) or header_sets(final_url, {})[0]
+
+
+DOWNLOAD_CHUNK_BYTES = 8 * 1024 * 1024
+_RANGE_TOTAL = re.compile(r"bytes\s+\d+-\d+/(\d+|\*)")
+
+
+def download_to_file(url, path):
+    """Save a media URL to ``path`` the way a browser would: in ranged pieces.
+
+    ffmpeg's own HTTP client is fragile with some CDNs (YouTube's in particular: no range
+    requests, throttling, header quirks), so the server fetches the bytes with the same code that
+    already serves previews and ffmpeg only ever reads local files. Returns the size in bytes.
+    """
+    cache = {}
+    start = 0
+    total = None
+    with open(path, "wb") as out:
+        while total is None or start < total:
+            end = start + DOWNLOAD_CHUNK_BYTES - 1
+            response = None
+            for attempt in range(3):
+                try:
+                    response = open_media(url, {"Range": f"bytes={start}-{end}"}, cache, timeout=40)
+                    if response is None:
+                        raise blocked_media_url()
+                    if response.status_code in (200, 206):
+                        break
+                    status = response.status_code
+                    response.close()
+                    if status == 416:
+                        out.flush()
+                        return os.path.getsize(path)
+                    if attempt == 2 or status in (400, 401, 403, 404, 410):
+                        raise MediaError(f"The media server refused the download (HTTP {status}).", 502)
+                    response = None
+                except MediaError:
+                    if attempt == 2:
+                        raise
+                    response = None
+            if response is None:
+                raise MediaError("Could not download the media. Try again.", 502)
+
+            try:
+                if response.status_code == 200:
+                    # The server ignores ranges: take the whole body in one go.
+                    out.seek(0)
+                    out.truncate()
+                    for block in response.iter_content(64 * 1024):
+                        out.write(block)
+                    out.flush()
+                    return os.path.getsize(path)
+                match = _RANGE_TOTAL.match(response.headers.get("Content-Range", ""))
+                if match and match.group(1) != "*":
+                    total = int(match.group(1))
+                got = 0
+                for block in response.iter_content(64 * 1024):
+                    out.write(block)
+                    got += len(block)
+            except requests.RequestException as exc:
+                raise MediaError(f"The download was interrupted ({exc.__class__.__name__}). Try again.", 502) from exc
+            finally:
+                response.close()
+            if got == 0:
+                break
+            start += got
+            if total is None and got < DOWNLOAD_CHUNK_BYTES:
+                break
+    return os.path.getsize(path)
 
 
 def probe(url, kind, cache):

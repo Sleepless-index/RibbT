@@ -5,7 +5,7 @@ from flask import Blueprint, request
 
 from ..config import TWITTER_MEDIA_HOSTS
 from ..errors import blocked_media_url
-from ..services.delivery import passthrough, stream_ffmpeg, transcode_to_file
+from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_to_file
 from ..services.ffmpeg import probe_bitrate
 from ..services.net import content_type_of, host_ok, resolve_media
 from ..services.transforms import (
@@ -14,7 +14,6 @@ from ..services.transforms import (
     audio_transform,
     bitrate_to_bps,
     mux_preview_transform,
-    mux_transform,
     video_transform,
 )
 from .common import audio_url_arg, current_preferences, filename_arg, media_url_arg, require_media_url
@@ -74,9 +73,10 @@ def video():
     container = settings["container"]
     cap = bitrate_to_bps(settings["bitrate"])
     audio_url = audio_url_arg()
+    if audio_url:
+        # YouTube-style: picture and sound are separate files. Fetch both, then join them.
+        return mux_to_file(url, audio_url, name, container, cap)
     if cap is None:
-        if audio_url:
-            return transcode_to_file(url, name, mux_transform(container), audio_url)
         return passthrough(url, name, False, request.headers.get("Range"))
 
     final_url, headers = resolve_media(url)
@@ -85,14 +85,11 @@ def video():
 
     source_bps = probe_bitrate(final_url, headers)
     if source_bps is not None and source_bps <= cap:
-        if audio_url:
-            return transcode_to_file(final_url, name, mux_transform(container), audio_url)
         if container == "mkv":
             return stream_ffmpeg(final_url, name, STREAM_TRANSFORMS["mkv"])
         return passthrough(url, name, False, request.headers.get("Range"))
 
-    transform = video_transform(container, cap, mux=bool(audio_url))
-    return transcode_to_file(final_url, name, transform, audio_url)
+    return transcode_to_file(final_url, name, video_transform(container, cap))
 
 
 @bp.get("/api/audio")

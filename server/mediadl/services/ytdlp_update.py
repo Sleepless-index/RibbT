@@ -9,6 +9,7 @@ import io
 import importlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -147,6 +148,25 @@ def _embedded_update(channel):
         shutil.rmtree(old, ignore_errors=True)
     after = _module_version()
     return {"before": before, "after": after, "updated": after != before, "channel": channel}
+
+
+def _version_key(version):
+    return tuple(int(part) for part in re.findall(r"\d+", version or ""))
+
+
+def check(channel="stable"):
+    """Is a newer yt-dlp out? Looks only, installs nothing. Returns {installed, latest, available}."""
+    if channel not in CHANNELS:
+        channel = "stable"
+    try:
+        meta = requests.get(PYPI_URL, timeout=20)
+        meta.raise_for_status()
+        latest, _ = _pick_wheel(meta.json(), channel)
+    except (requests.RequestException, ValueError) as error:
+        raise UpdateError(f"Couldn’t reach PyPI: {error.__class__.__name__}. Check your connection.")
+    installed = installed_version()
+    available = bool(installed) and _version_key(latest) > _version_key(installed)
+    return {"installed": installed, "latest": latest, "available": available, "channel": channel}
 
 
 def installed_version():

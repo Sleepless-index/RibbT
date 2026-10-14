@@ -107,6 +107,51 @@ def spawn(urls, args, rw_timeout, stdout=subprocess.PIPE):
         raise MediaError(f"Could not start ffmpeg: {exc}", 500) from exc
 
 
+def spawn_local(paths, args, stdout=subprocess.PIPE):
+    """Run ffmpeg on files that are already on disk (no network options needed)."""
+    command = [FFMPEG, "-hide_banner", "-loglevel", "warning", "-nostdin", "-y"]
+    for path in paths:
+        command += ["-i", path]
+    command += args
+    try:
+        return subprocess.Popen(command, stdout=stdout, stderr=subprocess.PIPE, env=child_env())
+    except OSError as exc:
+        raise MediaError(f"Could not start ffmpeg: {exc}", 500) from exc
+
+
+def probe_file_bitrate(path):
+    """Average bits per second of a local file, from the container or else size / duration."""
+    if not FFPROBE:
+        return None
+    command = [
+        FFPROBE, "-v", "error",
+        "-show_entries", "format=bit_rate,duration",
+        "-of", "default=noprint_wrappers=1",
+        path,
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=25, env=child_env())
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    values = {}
+    for line in result.stdout.splitlines():
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    try:
+        return int(values["bit_rate"])
+    except (KeyError, ValueError):
+        pass
+    try:
+        duration = float(values["duration"])
+        if duration > 0:
+            return int(os.path.getsize(path) * 8 / duration)
+    except (KeyError, ValueError):
+        pass
+    return None
+
+
 class StderrTail:
     def __init__(self, process, limit=30):
         self._lines = []

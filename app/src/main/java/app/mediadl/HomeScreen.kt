@@ -180,13 +180,6 @@ private fun LinkRow(vm: AppViewModel) {
     val filled = vm.input.isNotBlank()
     var focused by remember { mutableStateOf(false) }
     val fieldShape = RoundedCornerShape(10.dp)
-    val ready = vm.pasteReady && !filled
-    val ping by rememberInfiniteTransition(label = "ping").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1800, easing = WebEase)),
-        label = "ping-phase",
-    )
 
     Column(
         modifier = Modifier
@@ -244,7 +237,6 @@ private fun LinkRow(vm: AppViewModel) {
                 modifier = Modifier.weight(1f),
                 style = PillStyle.Tonal,
                 height = 40.dp,
-                pulse = if (ready) ping else null,
             )
             PillButton(
                 text = "Parse",

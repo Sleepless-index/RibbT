@@ -71,6 +71,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var ytdlpVersion by mutableStateOf<String?>(null)
     var ytdlpStatus by mutableStateOf<String?>(null)
     var ytdlpBusy by mutableStateOf(false)
+    var ytdlpChecking by mutableStateOf(false)
+
+    /** The newest yt-dlp on PyPI for the chosen channel; [ytdlpAvailable] is null until we've looked. */
+    var ytdlpLatest by mutableStateOf<String?>(null)
+    var ytdlpAvailable by mutableStateOf<Boolean?>(null)
     var ytdlpChannel by mutableStateOf(prefs.ytdlpChannel)
     var baseUrl by mutableStateOf(prefs.baseUrl)
     var serverMode by mutableStateOf(prefs.serverMode)
@@ -175,7 +180,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateReduceMotion(value: String) { prefs.reduceMotion = value; reduceMotion = value; savedPulse++ }
     fun updatePasteAndGo(value: Boolean) { prefs.pasteAndGo = value; pasteAndGo = value; savedPulse++ }
     fun updateLayout(value: String) { prefs.layout = value; layout = value; savedPulse++ }
-    fun updateYtdlpChannel(value: String) { prefs.ytdlpChannel = value; ytdlpChannel = value; savedPulse++ }
+    fun updateYtdlpChannel(value: String) {
+        prefs.ytdlpChannel = value
+        ytdlpChannel = value
+        ytdlpAvailable = null
+        savedPulse++
+        checkYtdlp()
+    }
 
     /** The system folder picker returned a folder (an SD card or any other location). */
     fun chooseFolder(uri: Uri) {
@@ -203,6 +214,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun loadYtdlp() {
         viewModelScope.launch {
             runCatching { api.ytdlpVersion() }.onSuccess { ytdlpVersion = it ?: "" }
+            checkYtdlp()
+        }
+    }
+
+    /** Looks for a newer yt-dlp. Quiet when it runs by itself; [manual] reports the answer as a toast. */
+    fun checkYtdlp(manual: Boolean = false) {
+        if (ytdlpBusy || ytdlpChecking) return
+        ytdlpChecking = true
+        val toast = if (manual) addToast("yt-dlp", "Checking for updates…") else null
+        viewModelScope.launch {
+            try {
+                val result = api.ytdlpLatest(ytdlpChannel)
+                ytdlpLatest = result.latest
+                ytdlpAvailable = result.available
+                toast?.let {
+                    finishToast(it, ToastPhase.Ok, if (result.available) "Update available · ${result.latest}" else "yt-dlp is up to date")
+                }
+            } catch (e: ApiException) {
+                toast?.let { finishToast(it, ToastPhase.Bad, "Couldn’t check · ${e.message.orEmpty().lineSequence().firstOrNull().orEmpty().take(60)}") }
+            } finally {
+                ytdlpChecking = false
+            }
         }
     }
 
@@ -215,6 +248,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val result = api.ytdlpUpdate(ytdlpChannel)
                 result.after?.let { ytdlpVersion = it }
+                ytdlpAvailable = false
                 val text = if (result.updated) "Updated to ${result.after}" else "Already up to date"
                 ytdlpStatus = null
                 finishToast(toast, ToastPhase.Ok, text)

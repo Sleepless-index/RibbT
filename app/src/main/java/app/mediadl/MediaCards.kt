@@ -70,7 +70,10 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
@@ -185,6 +188,7 @@ private fun FullscreenPlayer(player: Player, landscape: Boolean, onExit: () -> U
 @Composable
 private fun VideoStage(
     play: String?,
+    audio: String?,
     fallback: String?,
     poster: String?,
     onRatio: (Float) -> Unit,
@@ -203,9 +207,20 @@ private fun VideoStage(
     var videoRatio by remember(play) { mutableFloatStateOf(0f) }
     val url = if (usingFallback && fallback != null) fallback else play
 
-    val player = remember(url) {
+    val player = remember(url, audio) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+            if (audio != null && !usingFallback) {
+                // The picture and the sound come as two streams; play them together, no conversion.
+                val factory = ProgressiveMediaSource.Factory(DefaultHttpDataSource.Factory())
+                setMediaSource(
+                    MergingMediaSource(
+                        factory.createMediaSource(androidx.media3.common.MediaItem.fromUri(url)),
+                        factory.createMediaSource(androidx.media3.common.MediaItem.fromUri(audio)),
+                    ),
+                )
+            } else {
+                setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
+            }
             playWhenReady = false
             prepare()
         }
@@ -347,6 +362,7 @@ fun MediaCard(
             if (isVideo) {
                 VideoStage(
                     play = vm.absolute(media.play),
+                    audio = vm.absolute(media.playAudio),
                     fallback = vm.absolute(media.playAlt),
                     poster = preview,
                     onRatio = report,

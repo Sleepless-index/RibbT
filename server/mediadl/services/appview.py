@@ -79,7 +79,11 @@ def build_app_post(post, platform, prefs, link):
             "label": f"Video {index}" if len(videos) > 1 else "Video",
             "height": video.get("height"),
             "preview": media_path(cover, f"{post_id}_poster", True) if cover else None,
-            "play": media_path(video["url"], f"{post_id}_video{suffix}", True, video.get("audio_url")),
+            # The app plays the picture and the sound as two streams and joins them itself, so the
+            # preview needs no ffmpeg (and still has sound when ffmpeg isn't available).
+            "play": media_path(video["url"], f"{post_id}_video{suffix}", True),
+            "play_audio": media_path(video["audio_url"], f"{post_id}_audio{suffix}", True)
+            if video.get("audio_url") else None,
             "play_alt": media_path(video["preview"], f"{post_id}_video{suffix}", True)
             if video.get("preview") and video["preview"] != video["url"] else None,
             "downloads": downloads,

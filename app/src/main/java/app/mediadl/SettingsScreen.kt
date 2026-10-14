@@ -256,7 +256,17 @@ private fun GeneralCard(vm: AppViewModel) {
         Column {
             ChoiceRow("Theme", "Choose a light or dark appearance, or follow your device.", THEME_CHOICES, vm.theme) { vm.updateTheme(it) }
             Separator()
-            ChoiceRow("Media layout", "Choose how results are displayed.", LAYOUT_CHOICES, vm.layout) { vm.updateLayout(it) }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                T("Media layout", size = 14.4.sp, lineHeight = 18.7.sp)
+                T(
+                    "How results are shown. Tap the one that looks right.",
+                    size = 12.16.sp,
+                    color = LocalPalette.current.muted,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
+                    lineHeight = 15.8.sp,
+                )
+                LayoutPicker(vm.layout) { vm.updateLayout(it) }
+            }
             Separator()
             ChoiceRow(
                 "Reduce motion",
@@ -307,13 +317,23 @@ private fun SectionCard(
                     vm.ytdlpStatus ?: when (val version = vm.ytdlpVersion) {
                         null -> "Checking version…"
                         "" -> "Not installed on the server"
-                        else -> "Version $version"
+                        else -> if (vm.ytdlpAvailable == true) {
+                            "Update available · ${vm.ytdlpLatest} (you have $version)"
+                        } else {
+                            "Version $version"
+                        }
                     },
                 ) {
+                    // "Check" looks for a newer yt-dlp; once one is found the button turns into "Update".
                     SmallButton(
-                        text = if (vm.ytdlpBusy) "Updating…" else "Update",
-                        enabled = !vm.ytdlpBusy && vm.online == true,
-                        onClick = { vm.updateYtdlp() },
+                        text = when {
+                            vm.ytdlpBusy -> "Updating…"
+                            vm.ytdlpChecking -> "Checking…"
+                            vm.ytdlpAvailable == true -> "Update"
+                            else -> "Check"
+                        },
+                        enabled = !vm.ytdlpBusy && !vm.ytdlpChecking && vm.online == true,
+                        onClick = { if (vm.ytdlpAvailable == true) vm.updateYtdlp() else vm.checkYtdlp(manual = true) },
                     )
                 }
                 Separator()

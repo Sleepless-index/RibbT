@@ -10,6 +10,14 @@ def ytdlp_info():
     return jsonify(version=ytdlp_update.installed_version(), channels=list(ytdlp_update.CHANNELS))
 
 
+@bp.get("/api/ytdlp/latest")
+def ytdlp_latest():
+    try:
+        return jsonify(ytdlp_update.check(request.args.get("channel") or "stable"))
+    except ytdlp_update.UpdateError as failure:
+        return jsonify(error=str(failure)), 502
+
+
 @bp.post("/api/ytdlp/update")
 def ytdlp_update_now():
     payload = request.get_json(silent=True) or {}

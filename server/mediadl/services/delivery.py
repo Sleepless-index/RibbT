@@ -11,7 +11,7 @@ from ..config import REDIRECT_CODES, STREAM_CHUNK_BYTES, TRANSCODE_TIMEOUT_SECON
 from ..errors import MediaError, blocked_media_url
 from . import ffmpeg
 from .mediatypes import content_disposition, extension_for, infer_content_type, sniff_image
-from .net import open_media
+from .net import download_to_file, open_media
 from .transforms import IMAGE_TRANSFORMS
 
 log = logging.getLogger(__name__)
@@ -80,50 +80,94 @@ def stream_ffmpeg(url, name, transform, audio_url=None, inline=False):
     return response
 
 
-def transcode_to_file(url, name, transform, audio_url=None):
-    slot = ffmpeg.acquire_slot()
-    handle, path = tempfile.mkstemp(prefix="mdl_", suffix="." + transform.ext)
+def _temp_path(suffix):
+    handle, path = tempfile.mkstemp(prefix="mdl_", suffix=suffix)
     os.close(handle)
+    return path
+
+
+def fetch_sources(urls):
+    """Download each source into a temp file. On any failure nothing is left behind."""
+    paths = []
+    try:
+        for url in urls:
+            path = _temp_path(".src")
+            paths.append(path)
+            download_to_file(url, path)
+            if os.path.getsize(path) == 0:
+                raise MediaError("The media server sent an empty file.", 502)
+        return paths
+    except BaseException:
+        for path in paths:
+            _remove(path)
+        raise
+
+
+def encode_local(paths, name, transform):
+    """Run ffmpeg over local input files into a temp file and send that. Always cleans ``paths``."""
+    out_path = None
+    slot = None
     process = None
     try:
-        process = ffmpeg.spawn(
-            _sources(url, audio_url),
-            [*transform.args, path],
-            transform.rw_timeout,
-            stdout=subprocess.DEVNULL,
-        )
+        slot = ffmpeg.acquire_slot()
+        out_path = _temp_path("." + transform.ext)
+        process = ffmpeg.spawn_local(paths, [*transform.args, out_path], stdout=subprocess.DEVNULL)
         stderr = ffmpeg.StderrTail(process)
         try:
             process.wait(timeout=TRANSCODE_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             ffmpeg.stop(process)
             raise MediaError(
-                f"Transcode timed out after {TRANSCODE_TIMEOUT_SECONDS // 60} minutes.\n"
-                + stderr.text(),
+                f"Conversion timed out after {TRANSCODE_TIMEOUT_SECONDS // 60} minutes.\n" + stderr.text(),
                 504,
             )
         stderr.join()
         ffmpeg.stop(process)
         slot.release()
+        slot = None
+        for path in paths:
+            _remove(path)
 
-        if process.returncode != 0 or not os.path.exists(path):
+        if process.returncode != 0 or not os.path.exists(out_path):
             raise MediaError(
-                f"Transcode failed (ffmpeg exited {process.returncode}).\n" + stderr.text(),
+                f"Conversion failed (ffmpeg exited {process.returncode}).\n" + stderr.text(),
                 502,
             )
-        if os.path.getsize(path) == 0:
-            raise MediaError("Transcode produced an empty file.\n" + stderr.text(), 502)
+        if os.path.getsize(out_path) == 0:
+            raise MediaError("Conversion produced an empty file.\n" + stderr.text(), 502)
 
-        response = send_file(path, mimetype=transform.mime, conditional=False, etag=False)
+        response = send_file(out_path, mimetype=transform.mime, conditional=False, etag=False)
         response.headers.update(_download_headers(name, transform))
-        response.call_on_close(lambda: _remove(path))
+        done = out_path
+        response.call_on_close(lambda: _remove(done))
         return response
     except BaseException:
         if process is not None:
             ffmpeg.stop(process)
-        slot.release()
-        _remove(path)
+        if slot is not None:
+            slot.release()
+        if out_path:
+            _remove(out_path)
+        for path in paths:
+            _remove(path)
         raise
+
+
+def transcode_to_file(url, name, transform, audio_url=None):
+    return encode_local(fetch_sources(_sources(url, audio_url)), name, transform)
+
+
+def mux_to_file(url, audio_url, name, container, cap_bps):
+    """Join a video-only and an audio-only stream. Copies both unless the video is over the cap."""
+    from .transforms import mux_transform, video_transform
+
+    paths = fetch_sources([url, audio_url])
+    bps = ffmpeg.probe_file_bitrate(paths[0]) if cap_bps is not None else None
+    if cap_bps is not None and bps is not None and bps > cap_bps:
+        transform = video_transform(container, cap_bps, mux=True)
+    else:
+        transform = mux_transform(container)
+    return encode_local(paths, name, transform)
 
 
 def passthrough(url, name, inline, range_header=None):

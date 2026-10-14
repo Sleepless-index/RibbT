@@ -181,6 +181,13 @@ class Api(private val context: Context, private val prefs: Prefs) {
         }
     }
 
+    suspend fun ytdlpLatest(channel: String): YtdlpLatest = withContext(Dispatchers.IO) {
+        guard {
+            val json = requestJson("/api/ytdlp/latest?channel=" + URLEncoder.encode(channel, "UTF-8"), readTimeoutMs = 30_000)
+            YtdlpLatest(json.optStringOrNull("latest"), json.optBoolean("available", false))
+        }
+    }
+
     suspend fun ytdlpUpdate(channel: String): YtdlpResult = withContext(Dispatchers.IO) {
         guard {
             val json = requestJson(
@@ -331,6 +338,11 @@ class Api(private val context: Context, private val prefs: Prefs) {
             commit = {
                 val finished = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
                 resolver.update(uri, finished, null, null)
+                if (mime.startsWith("video/")) {
+                    // Asking for a thumbnail makes the system build and cache one now, so the file
+                    // shows a picture in file managers and galleries instead of a blank icon.
+                    runCatching { resolver.loadThumbnail(uri, android.util.Size(512, 512), null).recycle() }
+                }
             },
             abort = { resolver.delete(uri, null, null) },
         )

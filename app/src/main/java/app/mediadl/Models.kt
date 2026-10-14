@@ -12,6 +12,8 @@ data class MediaItem(
     val downloads: List<DownloadSpec>,
     val play: String? = null,
     val playAlt: String? = null,
+    /** Separate audio track to play together with [play] (YouTube serves video and sound apart). */
+    val playAudio: String? = null,
 )
 
 data class Post(
@@ -77,6 +79,9 @@ data class ServerSettings(
 )
 
 data class YtdlpResult(val before: String?, val after: String?, val updated: Boolean)
+
+/** Result of looking for a newer yt-dlp without installing it. */
+data class YtdlpLatest(val latest: String?, val available: Boolean)
 
 /** [inline] errors show in the box under the field; the others were already shown as a toast. */
 data class ErrorInfo(val title: String, val hint: String?, val inline: Boolean = true)
@@ -144,6 +149,7 @@ fun JSONObject.toPost(): Post = Post(
             preview = item.optStringOrNull("preview"),
             play = item.optStringOrNull("play"),
             playAlt = item.optStringOrNull("play_alt"),
+            playAudio = item.optStringOrNull("play_audio"),
             downloads = (item.optJSONArray("downloads") ?: JSONArray()).mapObjects {
                 DownloadSpec(it.optString("label"), it.optString("url"), it.optString("name"))
             },
