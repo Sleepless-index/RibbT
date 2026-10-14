@@ -15,6 +15,7 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.yausername.youtubedl_common.utils.ZipUtils
 import java.io.File
+import java.util.zip.ZipInputStream
 import kotlin.concurrent.thread
 
 /** State of the server that runs inside the app (the same Python package that runs on a PC or in Termux). */
@@ -78,13 +79,33 @@ object BundledToolsSetup {
         val tools = locate(context)
         val marker = File(tools.readyMarker)
         val root = marker.parentFile ?: return
-        val version = zip.length().toString()
+        val version = zip.length().toString() + "-" + installTime(context)
         if (marker.isFile && marker.readText() == version && File(tools.libs).isDirectory) return
         root.deleteRecursively()
         root.mkdirs()
         ZipUtils.unzip(zip, root)
+        unpackExtra(context, File(tools.libs))
         marker.writeText(version)
     }
+
+    private fun installTime(context: Context): Long =
+        context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+
+    private fun unpackExtra(context: Context, target: File) {
+        if (EXTRA_LIBS !in (context.assets.list("") ?: return)) return
+        target.mkdirs()
+        ZipInputStream(context.assets.open(EXTRA_LIBS)).use { input ->
+            var entry = input.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory) {
+                    File(target, File(entry.name).name).outputStream().use { input.copyTo(it) }
+                }
+                entry = input.nextEntry
+            }
+        }
+    }
+
+    private const val EXTRA_LIBS = "ffmpeg-extra.zip"
 }
 
 /**

@@ -61,6 +61,25 @@ jobs:
           cp "$LIB" app/src/main/jniLibs/arm64-v8a/libc++_shared.so
           ls -lh app/src/main/jniLibs/arm64-v8a/libc++_shared.so
 
+      - name: Add the libraries the bundled ffmpeg still needs
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=https://packages.termux.dev/apt/termux-main
+          curl -fsSL "$BASE/dists/stable/main/binary-aarch64/Packages" -o "$RUNNER_TEMP/Packages"
+          rm -rf "$RUNNER_TEMP/extra" "$RUNNER_TEMP/extra-root"
+          mkdir -p "$RUNNER_TEMP/extra" app/src/main/assets
+          rm -f app/src/main/assets/ffmpeg-extra.zip
+          for pkg in libexpat libjpeg-turbo openssl libandroid-support libandroid-execinfo libandroid-posix-semaphore; do
+            FILE=$(awk -v p="$pkg" '$1=="Package:"{hit=($2==p)} hit&&$1=="Filename:"{print $2; exit}' "$RUNNER_TEMP/Packages")
+            test -n "$FILE" || { echo "$pkg not found in the Termux repository"; exit 1; }
+            curl -fsSL "$BASE/$FILE" -o "$RUNNER_TEMP/$pkg.deb"
+            dpkg-deb -x "$RUNNER_TEMP/$pkg.deb" "$RUNNER_TEMP/extra-root/$pkg"
+            cp -L "$RUNNER_TEMP/extra-root/$pkg"/data/data/com.termux/files/usr/lib/lib*.so* "$RUNNER_TEMP/extra/"
+          done
+          (cd "$RUNNER_TEMP/extra" && zip -qr "$GITHUB_WORKSPACE/app/src/main/assets/ffmpeg-extra.zip" .)
+          unzip -l app/src/main/assets/ffmpeg-extra.zip
+
       - name: Build release APK
         shell: bash
         run: |
