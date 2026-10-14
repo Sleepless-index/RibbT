@@ -19,13 +19,36 @@ _slots = threading.Semaphore(FFMPEG_CONCURRENCY)
 _preview_slots = threading.Semaphore(FFMPEG_PREVIEW_CONCURRENCY)
 
 
+def _library_dirs(libs):
+    """Every folder the bundled ffmpeg might load shared libraries from.
+
+    An executable started from an app does not search the APK's native library folder, and the
+    unpacked zip may keep some libraries in sub-folders, so all of them are put on the loader path.
+    """
+    dirs = [libs]
+    try:
+        for current, subdirs, files in os.walk(libs):
+            subdirs.sort()
+            if current != libs and any(name.endswith(".so") or ".so." in name for name in files):
+                dirs.append(current)
+    except OSError:
+        pass
+    native_dir = os.path.dirname(FFMPEG) if FFMPEG else ""
+    if native_dir and os.path.isdir(native_dir):
+        dirs.append(native_dir)
+    return dirs
+
+
 def child_env():
     """Environment for ffmpeg: the bundled build needs its shared libraries on the loader path."""
     libs = os.environ.get("RIBBT_FFMPEG_LIBS")
     if not libs:
         return None
     env = dict(os.environ)
-    env["LD_LIBRARY_PATH"] = libs + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+    paths = _library_dirs(libs)
+    if env.get("LD_LIBRARY_PATH"):
+        paths.append(env["LD_LIBRARY_PATH"])
+    env["LD_LIBRARY_PATH"] = ":".join(paths)
     return env
 
 

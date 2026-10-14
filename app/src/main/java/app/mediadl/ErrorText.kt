@@ -3,6 +3,7 @@ package app.mediadl
 /** Turns raw server text into a short title plus one concrete next step. */
 object ErrorText {
     private const val CONVERT_TITLE = "Couldn’t convert the file"
+    private val LINKER_PATH = Regex("CANNOT LINK EXECUTABLE \"[^\"]*\": ?")
     private class Rule(val pattern: Regex, val title: String, val hint: String?)
 
     private fun rule(pattern: String, title: String, hint: String?) =
@@ -41,7 +42,10 @@ object ErrorText {
         // A failed ffmpeg run carries ffmpeg's own explanation below the first line. Show it,
         // because "ffmpeg exited 1" alone says nothing about what went wrong.
         if (text.contains("(ffmpeg exited") || text.startsWith("Transcode failed")) {
+            // Android's linker names the whole install path before saying what is missing, which
+            // pushes the useful part (the library name) off a one-line toast, so drop the path.
             val detail = text.lineSequence().drop(1).map { it.trim() }.filter { it.isNotEmpty() }
+                .map { it.replace(LINKER_PATH, "ffmpeg can’t start: ") }
                 .toList().takeLast(3).joinToString("\n").take(300)
             return ErrorInfo(CONVERT_TITLE, detail.ifBlank { fallbackHint })
         }
