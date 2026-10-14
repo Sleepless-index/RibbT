@@ -265,7 +265,7 @@ private fun GeneralCard(vm: AppViewModel) {
                     modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
                     lineHeight = 15.8.sp,
                 )
-                LayoutPicker(vm.layout) { vm.updateLayout(it) }
+                LayoutPicker(vm.layout, onSelect = { vm.updateLayout(it) })
             }
             Separator()
             ChoiceRow(
