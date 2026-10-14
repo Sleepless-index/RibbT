@@ -74,6 +74,7 @@ jobs:
             FILE=$(awk -v p="$pkg" '$1=="Package:"{hit=($2==p)} hit&&$1=="Filename:"{print $2; exit}' "$RUNNER_TEMP/Packages")
             test -n "$FILE" || { echo "$pkg not found in the Termux repository"; exit 1; }
             curl -fsSL "$BASE/$FILE" -o "$RUNNER_TEMP/$pkg.deb"
+            mkdir -p "$RUNNER_TEMP/extra-root/$pkg"
             dpkg-deb -x "$RUNNER_TEMP/$pkg.deb" "$RUNNER_TEMP/extra-root/$pkg"
             cp -L "$RUNNER_TEMP/extra-root/$pkg"/data/data/com.termux/files/usr/lib/lib*.so* "$RUNNER_TEMP/extra/"
           done
