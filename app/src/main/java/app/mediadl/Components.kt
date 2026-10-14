@@ -114,6 +114,27 @@ fun Separator() {
     )
 }
 
+/** Colour of a [StatusPill]: green for good news, the accent for something to act on. */
+enum class PillTone { Good, Accent }
+
+/** A small rounded label that sits next to text, e.g. "Up to date". */
+@Composable
+fun StatusPill(text: String, tone: PillTone, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    val color = when (tone) {
+        PillTone.Good -> if (palette.dark) Color(0xFF5BD68A) else Color(0xFF1E8E4E)
+        PillTone.Accent -> Accent
+    }
+    Box(
+        modifier
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    ) {
+        T(text, size = 11.sp, color = color, weight = FontWeight.SemiBold, maxLines = 1, lineHeight = 14.sp)
+    }
+}
+
 enum class PillStyle { Primary, Tonal, Done }
 
 @Composable

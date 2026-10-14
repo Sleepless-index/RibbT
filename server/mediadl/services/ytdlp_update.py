@@ -5,8 +5,10 @@ next parse without restarting. Inside the Android app (``RIBBT_EMBEDDED=1``) the
 newest pure-Python wheel is downloaded from PyPI into ``RIBBT_YTDLP_DIR`` and put first on
 ``sys.path``.
 """
-import io
+import hashlib
+import hmac
 import importlib
+import io
 import json
 import os
 import re
@@ -16,6 +18,7 @@ import sys
 import threading
 import zipfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import requests
 
@@ -33,7 +36,9 @@ class UpdateError(Exception):
 
 
 PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
+PYPI_FILE_HOST = "files.pythonhosted.org"
 KEEP_VERSIONS = 2
+MAX_WHEEL_BYTES = 40 * 1024 * 1024
 
 
 def _store():
@@ -91,7 +96,7 @@ def _module_version():
 
 
 def _pick_wheel(data, channel):
-    """Newest release of the channel with a pure-Python wheel: (version, url)."""
+    """Newest release of the channel with a pure-Python wheel: (version, url, sha256, size)."""
     best = None
     for version, files in (data.get("releases") or {}).items():
         wheels = [
@@ -105,10 +110,42 @@ def _pick_wheel(data, channel):
             continue
         stamp = wheels[0].get("upload_time_iso_8601") or ""
         if best is None or stamp > best[0]:
-            best = (stamp, version, wheels[0]["url"])
+            wheel = wheels[0]
+            digest = ((wheel.get("digests") or {}).get("sha256") or "").lower()
+            best = (stamp, version, wheel["url"], digest, wheel.get("size"))
     if not best:
         raise UpdateError("PyPI has no yt-dlp release for this channel.")
-    return best[1], best[2]
+    return best[1], best[2], best[3], best[4]
+
+
+def _download_wheel(url, sha256, size):
+    """Fetch the wheel and check it against the SHA-256 that PyPI publishes for that exact file.
+
+    The hash comes from PyPI's metadata, the bytes from its file host, so a corrupted or swapped
+    download is caught before anything is unpacked or run. A release without a published hash is
+    refused rather than trusted.
+    """
+    parts = urlsplit(url)
+    if parts.scheme != "https" or parts.hostname != PYPI_FILE_HOST:
+        raise UpdateError("PyPI pointed at an unexpected download address, so the update was skipped.")
+    if len(sha256) != 64 or any(ch not in "0123456789abcdef" for ch in sha256):
+        raise UpdateError("PyPI didn’t publish a checksum for this release, so the update was skipped.")
+    if isinstance(size, int) and size > MAX_WHEEL_BYTES:
+        raise UpdateError("The yt-dlp download is larger than expected, so the update was skipped.")
+    digest = hashlib.sha256()
+    chunks = []
+    received = 0
+    with requests.get(url, timeout=120, stream=True) as response:
+        response.raise_for_status()
+        for chunk in response.iter_content(64 * 1024):
+            received += len(chunk)
+            if received > MAX_WHEEL_BYTES:
+                raise UpdateError("The yt-dlp download is larger than expected, so the update was skipped.")
+            digest.update(chunk)
+            chunks.append(chunk)
+    if not hmac.compare_digest(digest.hexdigest(), sha256):
+        raise UpdateError("The yt-dlp download didn’t match PyPI’s checksum, so it was not installed.")
+    return b"".join(chunks)
 
 
 def _embedded_update(channel):
@@ -118,12 +155,11 @@ def _embedded_update(channel):
     try:
         meta = requests.get(PYPI_URL, timeout=30)
         meta.raise_for_status()
-        version, url = _pick_wheel(meta.json(), channel)
+        version, url, sha256, size = _pick_wheel(meta.json(), channel)
         before = _module_version()
         if before == version:
             return {"before": before, "after": version, "updated": False, "channel": channel}
-        wheel = requests.get(url, timeout=120)
-        wheel.raise_for_status()
+        wheel = _download_wheel(url, sha256, size)
     except (requests.RequestException, ValueError) as error:
         raise UpdateError(f"Couldn’t reach PyPI: {error.__class__.__name__}. Check your connection.")
 
@@ -131,7 +167,7 @@ def _embedded_update(channel):
     partial = store / (version + ".partial")
     shutil.rmtree(partial, ignore_errors=True)
     try:
-        with zipfile.ZipFile(io.BytesIO(wheel.content)) as archive:
+        with zipfile.ZipFile(io.BytesIO(wheel)) as archive:
             for name in archive.namelist():
                 if name.startswith("yt_dlp/") and ".." not in name.split("/"):
                     archive.extract(name, partial)
@@ -161,7 +197,7 @@ def check(channel="stable"):
     try:
         meta = requests.get(PYPI_URL, timeout=20)
         meta.raise_for_status()
-        latest, _ = _pick_wheel(meta.json(), channel)
+        latest = _pick_wheel(meta.json(), channel)[0]
     except (requests.RequestException, ValueError) as error:
         raise UpdateError(f"Couldn’t reach PyPI: {error.__class__.__name__}. Check your connection.")
     installed = installed_version()

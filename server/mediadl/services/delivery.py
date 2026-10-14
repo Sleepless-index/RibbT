@@ -2,14 +2,13 @@ import contextlib
 import logging
 import os
 import subprocess
-import tempfile
 
 from flask import Response, send_file, stream_with_context
 from urllib3.exceptions import HTTPError
 
 from ..config import REDIRECT_CODES, STREAM_CHUNK_BYTES, TRANSCODE_TIMEOUT_SECONDS
 from ..errors import MediaError, blocked_media_url
-from . import ffmpeg
+from . import ffmpeg, progress, storage
 from .mediatypes import content_disposition, extension_for, infer_content_type, sniff_image
 from .net import download_to_file, open_media
 from .transforms import IMAGE_TRANSFORMS
@@ -50,6 +49,7 @@ def stream_ffmpeg(url, name, transform, audio_url=None, inline=False):
     process = None
     try:
         process = ffmpeg.spawn(_sources(url, audio_url), transform.args, transform.rw_timeout)
+        progress.attach(process)
         stderr = ffmpeg.StderrTail(process)
         try:
             first = process.stdout.read1(STREAM_CHUNK_BYTES)
@@ -81,9 +81,7 @@ def stream_ffmpeg(url, name, transform, audio_url=None, inline=False):
 
 
 def _temp_path(suffix):
-    handle, path = tempfile.mkstemp(prefix="mdl_", suffix=suffix)
-    os.close(handle)
-    return path
+    return storage.temp_path(suffix)
 
 
 def fetch_sources(urls):
@@ -110,8 +108,12 @@ def encode_local(paths, name, transform):
     process = None
     try:
         slot = ffmpeg.acquire_slot()
+        progress.set_phase("converting")
+        # The output is about as big as the inputs (a straight copy) or smaller (a re-encode).
+        storage.require_space(sum(os.path.getsize(path) for path in paths))
         out_path = _temp_path("." + transform.ext)
         process = ffmpeg.spawn_local(paths, [*transform.args, out_path], stdout=subprocess.DEVNULL)
+        progress.attach(process)
         stderr = ffmpeg.StderrTail(process)
         try:
             process.wait(timeout=TRANSCODE_TIMEOUT_SECONDS)
@@ -135,6 +137,14 @@ def encode_local(paths, name, transform):
             )
         if os.path.getsize(out_path) == 0:
             raise MediaError("Conversion produced an empty file.\n" + stderr.text(), 502)
+
+        job = progress.current()
+        if job is not None:
+            # A background download keeps the finished file itself instead of sending it anywhere.
+            response = Response(status=204, mimetype=transform.mime)
+            response.headers.update(_download_headers(name, transform))
+            job.adopt(out_path)
+            return response
 
         response = send_file(out_path, mimetype=transform.mime, conditional=False, etag=False)
         response.headers.update(_download_headers(name, transform))

@@ -1,7 +1,7 @@
 import json
-import os
 import subprocess
 
+from ..services import cookies as cookie_store
 from ..services import ytdlp_runner
 from ..services.candidates import candidate, codec_from_ytdlp
 
@@ -39,8 +39,8 @@ def _error_line(stderr):
 def dump_info(url, label, extra_args=()):
     """Run yt-dlp --dump-json and return the first JSON object, raising ValueError for the UI."""
     command = ["--dump-json", "--no-download", "--no-warnings", *extra_args]
-    cookies = os.environ.get(COOKIES_ENV)
-    if cookies and os.path.isfile(cookies):
+    cookies = cookie_store.active_path()
+    if cookies:
         command += ["--cookies", cookies]
     command.append(url)
 
@@ -55,10 +55,11 @@ def dump_info(url, label, extra_args=()):
         detail = _error_line(result.stderr)
         lowered = detail.lower()
         if "sign in" in lowered or "bot" in lowered or "cookies" in lowered:
-            raise ValueError(
-                f"{label} wants a sign-in or bot check for this video. "
-                f"Set {COOKIES_ENV} to a cookies.txt file on the server."
-            )
+            if ytdlp_runner.embedded():
+                fix = "Import your cookies.txt in Settings → Server → Sign-in cookies."
+            else:
+                fix = f"Import a cookies.txt (POST /api/cookies) or set {COOKIES_ENV} to one on the server."
+            raise ValueError(f"{label} wants a sign-in or bot check for this video. {fix}")
         raise ValueError(f"Could not parse that {label} link." + (f" ({detail})" if detail else ""))
     try:
         return json.loads(result.stdout.strip().splitlines()[0])

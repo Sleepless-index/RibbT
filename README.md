@@ -5,7 +5,7 @@ The app carries its own server: the same Python package as the PC/Termux version
 yt-dlp as a library, and an ffmpeg build. Nothing needs installing besides the APK.
 
 Settings -> Server picks where the app connects:
-- **Built-in** (default): starts inside the app on 127.0.0.1:8765, kept alive by a notification.
+- **Built-in** (default): starts inside the app on 127.0.0.1 (a free port picked at every start), kept alive by a notification.
 - **Custom address**: Termux or a PC, as before (the web server from the RibbT web repo).
 
 How the pieces fit:
@@ -18,6 +18,14 @@ How the pieces fit:
   unpacked once on first launch.
 - yt-dlp ships in the APK; Settings -> Server -> Update downloads the newest wheel from PyPI
   into the app's storage and uses it from then on (no pip needed).
+- Downloads run as background jobs on the server (`services/jobs.py`): the app polls for progress,
+  then copies the finished file with Range-resume. Unfinished jobs are remembered so the app can
+  pick them up after a restart. Temp files live in one folder that is cleaned at every start, and
+  downloads check free space first.
+- Settings -> Server -> Sign-in cookies imports a `cookies.txt` for YouTube's age and bot checks
+  (only cookies for supported sites are kept; stored privately, never sent back to the app).
+- The yt-dlp update checks PyPI's published SHA-256 before installing.
+- Server tests: `cd server && python -m unittest discover -s tests -v`.
 - Limits: arm64 phones only; the APK is large (about 80 MB); the built-in server
   solves YouTube's challenges with QuickJS (built in CI as `libqjs.so`, plus the `yt-dlp-ejs`
   package), which is slower than Deno or Node; use a Custom address if a format is still missing.

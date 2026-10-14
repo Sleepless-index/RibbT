@@ -3,9 +3,15 @@ package app.mediadl
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
+import android.os.StatFs
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -27,6 +33,10 @@ const val KIND_VIDEO = 0
 const val KIND_IMAGE = 1
 const val KIND_AUDIO = 2
 
+private const val MAX_RESUMES = 5
+private const val MAX_POLL_FAILURES = 30
+private const val DEVICE_RESERVE_BYTES = 100L * 1024 * 1024
+
 class Api(private val context: Context, private val prefs: Prefs) {
 
     private fun connection(path: String, method: String = "GET", readTimeoutMs: Int = 20_000): HttpURLConnection {
@@ -46,7 +56,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
         return connection
     }
 
-    private fun <T> guard(block: () -> T): T = try {
+    private inline fun <T> guard(block: () -> T): T = try {
         block()
     } catch (e: ApiException) {
         throw e
@@ -70,13 +80,14 @@ class Api(private val context: Context, private val prefs: Prefs) {
         method: String = "GET",
         body: JSONObject? = null,
         readTimeoutMs: Int = 20_000,
+        text: String? = null,
     ): JSONObject {
         val connection = connection(path, method, readTimeoutMs)
         try {
-            if (body != null) {
+            if (body != null || text != null) {
                 connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                connection.setRequestProperty("Content-Type", if (text != null) "text/plain; charset=utf-8" else "application/json")
+                connection.outputStream.use { it.write((text ?: body.toString()).toByteArray(Charsets.UTF_8)) }
             }
             val code = connection.responseCode
             val text = readText(connection)
@@ -201,72 +212,253 @@ class Api(private val context: Context, private val prefs: Prefs) {
         }
     }
 
+    /**
+     * Downloads [spec] in two steps: the server works on it as a background job (fetching, joining,
+     * converting) while this polls for progress, then the finished file is copied into [saveTo].
+     * [onJob] is called as soon as the job exists, so the caller can remember it.
+     */
     suspend fun download(
         spec: DownloadSpec,
         saveTo: String,
+        onJob: (String) -> Unit,
         onFileName: (String) -> Unit,
-        onProgress: (Float?, Long) -> Unit,
-    ): SavedFile =
-        withContext(Dispatchers.IO) {
-            guard {
-                val connection = connection(spec.url, readTimeoutMs = 600_000)
-                try {
-                    val code = connection.responseCode
-                    if (code !in 200..299) {
-                        val message = readText(connection).trim().ifBlank { "Server responded $code" }.take(1200)
-                        throw ApiException(message, status = code)
-                    }
-                    val mime = (connection.contentType ?: "application/octet-stream")
-                        .substringBefore(";").trim().lowercase()
-                    val fileName = fileNameFrom(connection.getHeaderField("Content-Disposition"))
-                        ?: (spec.name + "." + extensionFor(mime))
-                    onFileName(fileName)
-                    val total = connection.contentLengthLong
-                    val sink = openSink(fileName, mime, saveTo)
-                    var written = 0L
-                    try {
-                        sink.out.use { out ->
-                            connection.inputStream.use { input ->
-                                val buffer = ByteArray(64 * 1024)
-                                var done = 0L
-                                var lastPercent = -1
-                                while (true) {
-                                    val read = input.read(buffer)
-                                    if (read == -1) break
-                                    out.write(buffer, 0, read)
-                                    done += read
-                                    written = done
-                                    if (total > 0) {
-                                        val percent = (done * 100 / total).toInt()
-                                        if (percent != lastPercent) {
-                                            lastPercent = percent
-                                            onProgress(done.toFloat() / total, done)
-                                        }
-                                    } else {
-                                        onProgress(null, done)
-                                    }
-                                }
-                            }
-                        }
-                        sink.commit()
-                    } catch (e: Exception) {
-                        sink.abort()
-                        throw e
-                    }
-                    SavedFile(
-                        sink.label,
-                        written,
-                        when {
-                            mime.startsWith("video/") -> KIND_VIDEO
-                            mime.startsWith("audio/") -> KIND_AUDIO
-                            else -> KIND_IMAGE
-                        },
-                    )
-                } finally {
-                    connection.disconnect()
-                }
+        onProgress: (DlProgress) -> Unit,
+    ): SavedFile = withContext(Dispatchers.IO) {
+        val id = guard { startJob(spec) }
+        onJob(id)
+        collect(id, spec.name, saveTo, onFileName, onProgress)
+    }
+
+    /** Picks up a job that was started earlier (before the app was closed or killed). */
+    suspend fun resumeJob(
+        id: String,
+        name: String,
+        saveTo: String,
+        onFileName: (String) -> Unit,
+        onProgress: (DlProgress) -> Unit,
+    ): SavedFile = withContext(Dispatchers.IO) { collect(id, name, saveTo, onFileName, onProgress) }
+
+    private suspend fun collect(
+        id: String,
+        fallbackName: String,
+        saveTo: String,
+        onFileName: (String) -> Unit,
+        onProgress: (DlProgress) -> Unit,
+    ): SavedFile {
+        val coroutine = currentCoroutineContext()
+        try {
+            val ready = awaitJob(id, onProgress)
+            val saved = guard {
+                transferJobFile(id, ready, saveTo, fallbackName, onFileName, onProgress) { coroutine.ensureActive() }
+            }
+            deleteJobQuietly(id)
+            return saved
+        } catch (e: CancellationException) {
+            // The app was closed mid-download. The job stays on the server and the app finishes it next time.
+            throw e
+        } catch (e: Exception) {
+            deleteJobQuietly(id)
+            throw e
+        }
+    }
+
+    private fun startJob(spec: DownloadSpec): String {
+        val json = requestJson("/api/jobs", "POST", JSONObject().put("path", spec.url).put("name", spec.name))
+        return json.optString("id").ifBlank { throw ApiException("The server didn’t start the download.") }
+    }
+
+    private fun jobInfo(id: String): JobInfo = guard { requestJson("/api/jobs/$id").toJobInfo() }
+
+    private fun deleteJobQuietly(id: String) {
+        runCatching {
+            val connection = connection("/api/jobs/$id", "DELETE", readTimeoutMs = 5_000)
+            try {
+                connection.responseCode
+            } finally {
+                connection.disconnect()
             }
         }
+    }
+
+    /** Polls until the server has the file ready, passing progress along. Throws if the job failed. */
+    private suspend fun awaitJob(id: String, onProgress: (DlProgress) -> Unit): JobInfo {
+        var failures = 0
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val info = try {
+                jobInfo(id).also { failures = 0 }
+            } catch (e: ApiException) {
+                // A brief drop (the phone dozing, a PC server restarting) shouldn't lose a download
+                // the server is still working on.
+                if (!e.offline || ++failures > MAX_POLL_FAILURES) throw e
+                delay(1_000)
+                continue
+            }
+            when (info.state) {
+                "ready" -> return info
+                "error" -> throw ApiException(info.error ?: "The download failed on the server.", status = info.status)
+                "cancelled" -> throw ApiException("The download was cancelled.")
+                else -> {
+                    val phase = when {
+                        info.state == "queued" -> "waiting"
+                        info.phase == "converting" -> "converting"
+                        else -> "downloading"
+                    }
+                    onProgress(DlProgress(phase, info.fraction, info.bytes))
+                }
+            }
+            delay(500)
+        }
+    }
+
+    /** Opens the finished file at [offset]; null when there is nothing left to read. */
+    private fun openJobFile(id: String, offset: Long): HttpURLConnection? {
+        val connection = connection("/api/jobs/$id/file", readTimeoutMs = 60_000)
+        if (offset > 0) connection.setRequestProperty("Range", "bytes=$offset-")
+        try {
+            val code = connection.responseCode
+            if (code == 416) {
+                connection.disconnect()
+                return null
+            }
+            if (code !in 200..299) {
+                val message = readText(connection).trim().ifBlank { "Server responded $code" }.take(1200)
+                throw ApiException(message, status = code)
+            }
+            if (code == 200 && offset > 0) {
+                // The server ignored the Range header and is sending everything again: skip what we already have.
+                val input = connection.inputStream
+                var left = offset
+                while (left > 0) {
+                    val skipped = input.skip(left)
+                    if (skipped > 0) {
+                        left -= skipped
+                    } else if (input.read() == -1) {
+                        break
+                    } else {
+                        left--
+                    }
+                }
+            }
+            return connection
+        } catch (e: Exception) {
+            connection.disconnect()
+            throw e
+        }
+    }
+
+    /** Free space on the phone's own storage; folders on an SD card are checked by the system when writing. */
+    private fun requireDeviceSpace(saveTo: String, bytes: Long) {
+        if (bytes <= 0 || saveTo == "sdcard" || saveTo == "folder") return
+        val free = runCatching { StatFs(Environment.getDataDirectory().path).availableBytes }.getOrNull() ?: return
+        if (free < bytes + DEVICE_RESERVE_BYTES) {
+            throw ApiException(
+                "Not enough free storage on your phone to save this. It needs about ${formatBytes(bytes)}, " +
+                    "but only ${formatBytes(free)} is free. Free up some space and try again.",
+                status = 507,
+            )
+        }
+    }
+
+    /**
+     * Copies the finished file into its destination. If the connection drops half way, the transfer
+     * carries on from the byte it reached (HTTP Range) instead of starting over.
+     */
+    private fun transferJobFile(
+        id: String,
+        ready: JobInfo,
+        saveTo: String,
+        fallbackName: String,
+        onFileName: (String) -> Unit,
+        onProgress: (DlProgress) -> Unit,
+        checkActive: () -> Unit,
+    ): SavedFile {
+        val first = openJobFile(id, 0L) ?: throw ApiException("The server sent an empty file.")
+        var connection: HttpURLConnection? = first
+        try {
+            val mime = (first.contentType ?: ready.mime ?: "application/octet-stream")
+                .substringBefore(";").trim().lowercase()
+            val fileName = fileNameFrom(first.getHeaderField("Content-Disposition"))
+                ?: (fallbackName + "." + extensionFor(mime))
+            onFileName(fileName)
+            val total = if (ready.size > 0) ready.size else first.contentLengthLong
+            requireDeviceSpace(saveTo, total)
+            val sink = openSink(fileName, mime, saveTo)
+            var written = 0L
+            try {
+                sink.out.use { out ->
+                    val buffer = ByteArray(64 * 1024)
+                    var retries = 0
+                    var lastPercent = -1
+                    while (true) {
+                        try {
+                            val active = connection ?: openJobFile(id, written) ?: break
+                            connection = active
+                            val input = active.inputStream
+                            while (true) {
+                                checkActive()
+                                val read = input.read(buffer)
+                                if (read == -1) break
+                                try {
+                                    out.write(buffer, 0, read)
+                                } catch (e: IOException) {
+                                    // Not a network problem, so don't retry: the destination can't take the file.
+                                    throw ApiException("Couldn’t write the file. ${e.message.orEmpty()}".trim())
+                                }
+                                written += read
+                                if (total > 0) {
+                                    val percent = (written * 100 / total).toInt()
+                                    if (percent != lastPercent) {
+                                        lastPercent = percent
+                                        onProgress(DlProgress("saving", (written.toFloat() / total).coerceAtMost(1f), written))
+                                    }
+                                } else {
+                                    onProgress(DlProgress("saving", null, written))
+                                }
+                            }
+                            if (total > 0 && written < total) throw IOException("The transfer ended early.")
+                            break
+                        } catch (e: IOException) {
+                            connection?.disconnect()
+                            connection = null
+                            if (++retries > MAX_RESUMES) throw e
+                            Thread.sleep(1_000L * retries)
+                        }
+                    }
+                }
+                sink.commit()
+            } catch (e: Exception) {
+                sink.abort()
+                throw e
+            }
+            return SavedFile(
+                sink.label,
+                written,
+                when {
+                    mime.startsWith("video/") -> KIND_VIDEO
+                    mime.startsWith("audio/") -> KIND_AUDIO
+                    else -> KIND_IMAGE
+                },
+            )
+        } finally {
+            connection?.disconnect()
+            first.disconnect()
+        }
+    }
+
+    // --- Sign-in cookies (for YouTube's age and bot checks) ---------------------------------------
+
+    suspend fun cookies(): CookieInfo = withContext(Dispatchers.IO) {
+        guard { requestJson("/api/cookies").toCookieInfo() }
+    }
+
+    suspend fun importCookies(text: String): CookieInfo = withContext(Dispatchers.IO) {
+        guard { requestJson("/api/cookies", "POST", text = text, readTimeoutMs = 30_000).toCookieInfo() }
+    }
+
+    suspend fun removeCookies(): CookieInfo = withContext(Dispatchers.IO) {
+        guard { requestJson("/api/cookies", "DELETE").toCookieInfo() }
+    }
 
     private class Destination(val collection: Uri, val folder: String, val label: String)
 

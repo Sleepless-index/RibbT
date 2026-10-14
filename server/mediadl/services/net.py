@@ -9,6 +9,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from ..errors import MediaError, blocked_media_url
+from . import progress, storage
 
 from ..config import (
     MAX_REDIRECTS,
@@ -173,6 +174,13 @@ DOWNLOAD_CHUNK_BYTES = 8 * 1024 * 1024
 _RANGE_TOTAL = re.compile(r"bytes\s+\d+-\d+/(\d+|\*)")
 
 
+def _content_length(response):
+    try:
+        return int(response.headers.get("Content-Length") or 0) or None
+    except ValueError:
+        return None
+
+
 def download_to_file(url, path):
     """Save a media URL to ``path`` the way a browser would: in ranged pieces.
 
@@ -183,6 +191,7 @@ def download_to_file(url, path):
     cache = {}
     start = 0
     total = None
+    space_checked = False
     with open(path, "wb") as out:
         while total is None or start < total:
             end = start + DOWNLOAD_CHUNK_BYTES - 1
@@ -214,17 +223,27 @@ def download_to_file(url, path):
                     # The server ignores ranges: take the whole body in one go.
                     out.seek(0)
                     out.truncate()
+                    whole = _content_length(response)
+                    if whole:
+                        storage.require_space(whole)
+                    written = 0
                     for block in response.iter_content(64 * 1024):
                         out.write(block)
+                        written += len(block)
+                        progress.report(path, written, whole)
                     out.flush()
                     return os.path.getsize(path)
                 match = _RANGE_TOTAL.match(response.headers.get("Content-Range", ""))
                 if match and match.group(1) != "*":
                     total = int(match.group(1))
+                if total and not space_checked:
+                    space_checked = True
+                    storage.require_space(total - start)
                 got = 0
                 for block in response.iter_content(64 * 1024):
                     out.write(block)
                     got += len(block)
+                    progress.report(path, start + got, total)
             except requests.RequestException as exc:
                 raise MediaError(f"The download was interrupted ({exc.__class__.__name__}). Try again.", 502) from exc
             finally:

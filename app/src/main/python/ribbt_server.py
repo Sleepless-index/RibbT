@@ -28,17 +28,39 @@ def _write_ca_file(data_dir):
         return None
 
 
+def _bind(app, preferred):
+    """Listen on ``preferred`` if it is free, otherwise on any free port the system hands out.
+
+    Passing 0 means "any free port", which is what the app does: a fixed port can be taken by another
+    app or by a stuck process from a previous run, and then the server could never start.
+    """
+    from werkzeug.serving import make_server
+
+    attempts = [int(preferred), 0] if preferred else [0]
+    last_error = None
+    for candidate in attempts:
+        try:
+            return make_server("127.0.0.1", candidate, app, threaded=True)
+        except (OSError, SystemExit) as error:  # werkzeug calls sys.exit(1) when the port is taken
+            last_error = error
+            log.warning("port %s is not available: %s", candidate, error)
+    raise last_error
+
+
 def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port, qjs=None):
-    """Start the server once. Returns the port it listens on."""
+    """Start the server once. Returns the port it actually listens on."""
     global _server
     with _lock:
         if _server is not None:
-            return int(port)
+            return int(_server.server_port)
         os.makedirs(data_dir, exist_ok=True)
         env = os.environ
         env["RIBBT_EMBEDDED"] = "1"
         env["MDL_HISTORY_PATH"] = os.path.join(data_dir, "history.json")
         env["RIBBT_YTDLP_DIR"] = os.path.join(data_dir, "ytdlp")
+        # Temp files and unfinished downloads live in one folder that is cleaned at every start.
+        env["RIBBT_TMP_DIR"] = os.path.join(data_dir, "tmp")
+        env["RIBBT_COOKIES_PATH"] = os.path.join(data_dir, "cookies.txt")
         if ffmpeg:
             env["RIBBT_FFMPEG"] = ffmpeg
         if ffprobe:
@@ -59,13 +81,11 @@ def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port, qjs=None):
         active = ytdlp_update.activate()  # a yt-dlp the user updated to beats the bundled one
         log.info("yt-dlp %s", active or "bundled")
 
-        from werkzeug.serving import make_server
-
         from mediadl import create_app
 
-        _server = make_server("127.0.0.1", int(port), create_app(), threaded=True)
+        _server = _bind(create_app(), port)
         threading.Thread(target=_server.serve_forever, name="ribbt-http", daemon=True).start()
-        return int(port)
+        return int(_server.server_port)
 
 
 def stop():

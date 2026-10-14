@@ -265,7 +265,7 @@ private fun GeneralCard(vm: AppViewModel) {
                     modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
                     lineHeight = 15.8.sp,
                 )
-                LayoutPicker(vm.layout, onSelect = { vm.updateLayout(it) })
+                LayoutPicker(vm.layout) { vm.updateLayout(it) }
             }
             Separator()
             ChoiceRow(
@@ -312,17 +312,22 @@ private fun SectionCard(
                 Separator()
                 if (vm.serverMode == "custom") AddressRow(vm) else BuiltInStatusRow(vm)
                 Separator()
+                // "Version X" with a pill beside it once we know whether a newer one exists.
+                val version = vm.ytdlpVersion
+                val showPill = vm.ytdlpStatus == null && !version.isNullOrEmpty() && vm.ytdlpAvailable != null
                 RowShell(
                     "yt-dlp",
-                    vm.ytdlpStatus ?: when (val version = vm.ytdlpVersion) {
+                    vm.ytdlpStatus ?: when (version) {
                         null -> "Checking version…"
                         "" -> "Not installed on the server"
-                        else -> if (vm.ytdlpAvailable == true) {
-                            "Update available · ${vm.ytdlpLatest} (you have $version)"
-                        } else {
-                            "Version $version"
-                        }
+                        else -> "Version $version"
                     },
+                    badge = if (showPill) {
+                        if (vm.ytdlpAvailable == true) "Update available" else "Up to date"
+                    } else {
+                        null
+                    },
+                    badgeTone = if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
                 ) {
                     // "Check" looks for a newer yt-dlp; once one is found the button turns into "Update".
                     SmallButton(
@@ -341,6 +346,8 @@ private fun SectionCard(
                     "Update channel", "Nightly builds receive site fixes sooner but may be less stable.",
                     CHANNEL_CHOICES, vm.ytdlpChannel,
                 ) { vm.updateYtdlpChannel(it) }
+                Separator()
+                CookiesRow(vm)
                 first = false
             }
             rows.forEach { row ->
@@ -431,7 +438,14 @@ private fun NavRow(icon: VIcon, title: String, summary: String?, onClick: () -> 
 }
 
 @Composable
-private fun RowShell(label: String, hint: String?, control: @Composable () -> Unit) {
+private fun RowShell(
+    label: String,
+    hint: String?,
+    /** Text of a small pill shown right after the hint (e.g. "Up to date"); none when null. */
+    badge: String? = null,
+    badgeTone: PillTone = PillTone.Good,
+    control: @Composable () -> Unit,
+) {
     val palette = LocalPalette.current
     Row(
         Modifier
@@ -443,7 +457,18 @@ private fun RowShell(label: String, hint: String?, control: @Composable () -> Un
     ) {
         Column(Modifier.weight(1f)) {
             T(label, size = 14.4.sp, lineHeight = 18.7.sp)
-            if (!hint.isNullOrBlank()) {
+            if (badge != null) {
+                Row(
+                    Modifier.padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (!hint.isNullOrBlank()) {
+                        T(hint, size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp, modifier = Modifier.weight(1f, fill = false))
+                    }
+                    StatusPill(badge, badgeTone)
+                }
+            } else if (!hint.isNullOrBlank()) {
                 T(hint, size = 12.16.sp, color = palette.muted, modifier = Modifier.padding(top = 2.dp), lineHeight = 15.8.sp)
             }
         }
@@ -769,22 +794,63 @@ private fun FilenamePreview(style: String) {
     }
 }
 
+/** Import / replace / remove the YouTube sign-in cookies (a cookies.txt exported from a browser). */
 @Composable
-private fun SmallButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+private fun CookiesRow(vm: AppViewModel) {
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.importCookies(uri)
+    }
+    val info = vm.cookies
+    val present = info?.present == true
+    val status = when {
+        vm.cookiesBusy -> "Working…"
+        info == null -> if (vm.online == true) "Checking…" else "Start the server to import cookies."
+        info.present -> "${info.count} cookies for ${info.domains.take(3).joinToString(", ")}" +
+            if (info.domains.size > 3) " and more" else ""
+        else -> "For age-restricted videos and “confirm you’re not a bot” checks. Import a cookies.txt exported from your browser."
+    }
+    RowShell("Sign-in cookies", status) {
+        val enabled = !vm.cookiesBusy && vm.online == true && info != null
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (present) SmallButton(text = "Remove", enabled = enabled, tonal = true, minWidth = 68.dp, onClick = { vm.removeCookies() })
+            SmallButton(
+                text = if (present) "Replace" else "Import",
+                enabled = enabled,
+                minWidth = 68.dp,
+                // Many file managers label a cookies.txt as plain text or as unknown, so every type is offered.
+                onClick = { picker.launch(arrayOf("*/*")) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SmallButton(
+    text: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    tonal: Boolean = false,
+    minWidth: androidx.compose.ui.unit.Dp = 84.dp,
+) {
+    val palette = LocalPalette.current
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val shape = RoundedCornerShape(10.dp)
+    val background = when {
+        tonal -> if (pressed) palette.line else palette.sep
+        else -> if (pressed) AccentDark else Accent
+    }
     Box(
         Modifier
-            .widthIn(min = 84.dp)
+            .widthIn(min = minWidth)
             .height(34.dp)
             .alpha(if (enabled) 1f else 0.6f)
             .clip(shape)
-            .background(if (pressed) AccentDark else Accent)
+            .background(background)
             .clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        T(text, size = 12.8.sp, color = Color.White, weight = FontWeight.SemiBold, maxLines = 1)
+        T(text, size = 12.8.sp, color = if (tonal) palette.text else Color.White, weight = FontWeight.SemiBold, maxLines = 1)
     }
 }

@@ -4,6 +4,7 @@ import os
 from flask import Flask, Response, request
 
 from .errors import MediaError
+from .services import jobs
 from .routes import register_routes
 
 
@@ -39,4 +40,5 @@ def create_app():
     register_routes(app)
     if os.environ.get("RIBBT_EMBEDDED") == "1":
         _lock_to_app(app)
+    jobs.init(app)
     return app

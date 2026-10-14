@@ -80,6 +80,37 @@ data class ServerSettings(
 
 data class YtdlpResult(val before: String?, val after: String?, val updated: Boolean)
 
+/** What a running download is doing. [phase] is waiting, downloading (on the server), converting or saving. */
+data class DlProgress(val phase: String, val fraction: Float?, val bytes: Long)
+
+/** A background download on the server. [state] is queued, running, ready, error or cancelled. */
+data class JobInfo(
+    val state: String,
+    val phase: String,
+    val fraction: Float?,
+    val bytes: Long,
+    val size: Long,
+    val mime: String?,
+    val error: String?,
+    val status: Int,
+)
+
+/** A download the server is working on that hasn't been saved yet; kept so a restart of the app can finish it. */
+data class PendingJob(
+    val id: String,
+    val name: String,
+    val saveTo: String,
+    val link: String,
+    val title: String,
+    val author: String,
+    val kind: String,
+    val thumb: String,
+    val started: Long,
+)
+
+/** The sign-in cookies stored on the server: a summary only, the cookies themselves never leave it. */
+data class CookieInfo(val present: Boolean, val count: Int, val domains: List<String>)
+
 /** Result of looking for a newer yt-dlp without installing it. */
 data class YtdlpLatest(val latest: String?, val available: Boolean)
 
@@ -155,6 +186,39 @@ fun JSONObject.toPost(): Post = Post(
             },
         )
     },
+)
+
+fun JSONObject.toJobInfo(): JobInfo = JobInfo(
+    state = optString("state"),
+    phase = optString("phase"),
+    fraction = if (isNull("progress")) null else optDouble("progress").toFloat(),
+    bytes = optLong("bytes", 0L),
+    size = optLong("size", 0L),
+    mime = optStringOrNull("mime"),
+    error = optStringOrNull("error"),
+    status = optInt("status", 0),
+)
+
+fun JSONObject.toCookieInfo(): CookieInfo = CookieInfo(
+    present = optBoolean("present", false),
+    count = optInt("count", 0),
+    domains = optJSONArray("domains").strings(),
+)
+
+fun PendingJob.toJson(): JSONObject = JSONObject()
+    .put("id", id).put("name", name).put("saveTo", saveTo).put("link", link).put("title", title)
+    .put("author", author).put("kind", kind).put("thumb", thumb).put("started", started)
+
+fun JSONObject.toPendingJob(): PendingJob = PendingJob(
+    id = optString("id"),
+    name = optString("name"),
+    saveTo = optString("saveTo", "downloads"),
+    link = optString("link"),
+    title = optString("title"),
+    author = optString("author"),
+    kind = optString("kind"),
+    thumb = optString("thumb"),
+    started = optLong("started", 0L),
 )
 
 fun JSONObject.toPlatform(): Platform = Platform(

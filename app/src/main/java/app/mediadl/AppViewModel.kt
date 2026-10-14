@@ -12,13 +12,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 private val LINK_HINT = Regex("https?://|\\w\\.\\w{2,}/", RegexOption.IGNORE_CASE)
+
+private const val COOKIE_MAX_BYTES = 2 * 1024 * 1024
 
 fun formatBytes(bytes: Long): String = when {
     bytes <= 0L -> ""
@@ -80,6 +87,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var baseUrl by mutableStateOf(prefs.baseUrl)
     var serverMode by mutableStateOf(prefs.serverMode)
 
+    /** Sign-in cookies stored on the server (null = not loaded yet). */
+    var cookies by mutableStateOf<CookieInfo?>(null)
+    var cookiesBusy by mutableStateOf(false)
+
     /** True while the built-in server is still booting (a few seconds after launch). */
     var starting by mutableStateOf(false)
 
@@ -89,6 +100,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var toastCounter = 0L
     private val savedCounts = HashMap<String, Int>()
     private val savedSizes = HashMap<String, LongArray>()
+
+    /** Server jobs this app is collecting right now, so a restart-recovery never saves the same file twice. */
+    private val liveJobs: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     init {
         if (prefs.builtIn) BuiltInServer.start(application)
@@ -123,6 +137,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 loadHistory()
                 loadYtdlp()
+                loadCookies()
+                recoverJobs()
             }
         }
     }
@@ -162,6 +178,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (value == "builtin") BuiltInServer.start(getApplication()) else BuiltInServer.stop(getApplication())
         online = null
         ytdlpVersion = null
+        cookies = null
         savedPulse++
         refresh()
     }
@@ -453,17 +470,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun progressText(position: Int, total: Int, fraction: Float?, received: Long): String {
-        val percent = fraction?.let { (it * 100).toInt().coerceIn(0, 99) }
-        if (total > 1) {
-            val base = "Downloading $position of $total"
-            return if (percent != null) "$base · $percent%" else base
-        }
-        val bytes = formatBytes(received)
-        return when {
-            percent != null -> "Downloading · $percent%" + if (bytes.isNotEmpty()) " · $bytes" else ""
-            bytes.isNotEmpty() -> "Downloading · $bytes"
+    /** One bar for the whole download: fetching on the server first, then copying the file onto the phone. */
+    private fun mergedFraction(progress: DlProgress): Float? = when (progress.phase) {
+        "downloading" -> progress.fraction?.let { it * 0.85f }
+        "saving" -> 0.85f + (progress.fraction ?: 0f) * 0.15f
+        else -> null // waiting or converting: nothing to measure, the bar sweeps instead
+    }
+
+    private fun progressText(position: Int, total: Int, progress: DlProgress): String {
+        val verb = when (progress.phase) {
+            "waiting" -> "Waiting"
+            "converting" -> "Converting"
+            "saving" -> "Saving"
             else -> "Downloading"
+        }
+        val measurable = progress.phase == "downloading" || progress.phase == "saving"
+        val percent = if (measurable) progress.fraction?.let { (it * 100).toInt().coerceIn(0, 99) } else null
+        val bytes = if (measurable) formatBytes(progress.bytes) else ""
+        return buildString {
+            append(if (total > 1) "$verb $position of $total" else verb)
+            if (percent != null) append(" · $percent%")
+            if (total == 1 && bytes.isNotEmpty()) append(" · $bytes")
         }
     }
 
@@ -513,23 +540,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         total: Int,
         track: Boolean,
     ): String? {
+        var jobId: String? = null
         return try {
             val saved = api.download(
                 spec,
                 saveTo,
+                onJob = { id ->
+                    jobId = id
+                    liveJobs.add(id)
+                    // Remembered until the file is saved, so the app can finish it after a restart.
+                    prefs.addPendingJob(
+                        PendingJob(
+                            id, spec.name, saveTo, post.link, post.title, post.author, post.kind,
+                            post.thumb.orEmpty(), System.currentTimeMillis(),
+                        ),
+                    )
+                },
                 onFileName = { name -> if (total == 1) updateToast(toast) { it.copy(name = name) } },
-                onProgress = { fraction, received ->
-                    val overall = fraction?.let { (position - 1 + it) / total }
+                onProgress = { progress ->
+                    val overall = mergedFraction(progress)?.let { (position - 1 + it) / total }
                     updateToast(toast) {
-                        it.copy(progress = overall, status = progressText(position, total, fraction, received))
+                        it.copy(progress = overall, status = progressText(position, total, progress))
                     }
                 },
             )
+            jobId?.let { prefs.removePendingJob(it) }
             val folder = saved.label
             if (track) downloads[spec.url] = DlState.Done(folder)
             recordHistory(post, saved)
             folder
         } catch (e: ApiException) {
+            jobId?.let { prefs.removePendingJob(it) }
             if (track) downloads.remove(spec.url)
             val info = if (e.offline) {
                 online = false
@@ -540,6 +581,116 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             error = info.copy(inline = false)
             finishToast(toast, ToastPhase.Bad, "Failed · " + info.title.take(80))
             null
+        } finally {
+            jobId?.let { liveJobs.remove(it) }
+        }
+    }
+
+    /**
+     * Finishes downloads the server was still working on, or had finished, when the app last closed
+     * (an Android kill, or the app swiped away and reopened with a server that kept running).
+     */
+    private fun recoverJobs() {
+        for (job in prefs.pendingJobs()) {
+            if (!liveJobs.add(job.id)) continue
+            val toast = addToast(job.name.ifBlank { job.title.ifBlank { "Download" } }, "Resuming…")
+            viewModelScope.launch {
+                try {
+                    val saved = api.resumeJob(
+                        job.id, job.name, job.saveTo,
+                        onFileName = { name -> updateToast(toast) { it.copy(name = name) } },
+                        onProgress = { progress ->
+                            updateToast(toast) {
+                                it.copy(progress = mergedFraction(progress), status = progressText(1, 1, progress))
+                            }
+                        },
+                    )
+                    prefs.removePendingJob(job.id)
+                    val post = Post(
+                        id = "", platform = "", link = job.link, title = job.title, author = job.author,
+                        avatar = null, kind = job.kind, thumb = job.thumb.ifBlank { null }, items = emptyList(),
+                    )
+                    recordHistory(post, saved)
+                    finishToast(toast, ToastPhase.Ok, "Saved to ${saved.label}")
+                } catch (e: ApiException) {
+                    prefs.removePendingJob(job.id)
+                    val info = if (e.offline) {
+                        online = false
+                        ErrorText.offline(prefs.builtIn)
+                    } else {
+                        ErrorText.explain(e.message, "Download failed", "Start it again from the link.")
+                    }
+                    finishToast(toast, ToastPhase.Bad, "Failed · " + info.title.take(80))
+                } finally {
+                    liveJobs.remove(job.id)
+                }
+            }
+        }
+    }
+
+    // --- Sign-in cookies ---------------------------------------------------------------------------
+
+    fun loadCookies() {
+        viewModelScope.launch { runCatching { api.cookies() }.onSuccess { cookies = it } }
+    }
+
+    private fun readCookieFile(uri: Uri): String {
+        val resolver = getApplication<Application>().contentResolver
+        try {
+            val input = resolver.openInputStream(uri) ?: throw ApiException("Couldn’t open that file.")
+            return input.use { stream ->
+                val out = ByteArrayOutputStream()
+                val buffer = ByteArray(32 * 1024)
+                while (true) {
+                    val read = stream.read(buffer)
+                    if (read == -1) break
+                    out.write(buffer, 0, read)
+                    if (out.size() > COOKIE_MAX_BYTES) throw ApiException("That file is too big to be a cookies.txt.")
+                }
+                out.toString("UTF-8")
+            }
+        } catch (e: IOException) {
+            throw ApiException("Couldn’t read that file.")
+        }
+    }
+
+    private fun shortReason(e: ApiException): String =
+        if (e.offline) "Server offline" else e.message.orEmpty().lineSequence().firstOrNull().orEmpty().take(80).ifBlank { "Something went wrong" }
+
+    /** The file picker returned a cookies.txt: send it to the server, which keeps only what yt-dlp needs. */
+    fun importCookies(uri: Uri) {
+        if (cookiesBusy) return
+        cookiesBusy = true
+        val toast = addToast("Sign-in cookies", "Importing…")
+        viewModelScope.launch {
+            try {
+                val text = withContext(Dispatchers.IO) { readCookieFile(uri) }
+                val info = api.importCookies(text)
+                cookies = info
+                savedPulse++
+                finishToast(toast, ToastPhase.Ok, "Imported ${info.count} cookies")
+            } catch (e: ApiException) {
+                finishToast(toast, ToastPhase.Bad, "Failed · " + shortReason(e))
+            } finally {
+                cookiesBusy = false
+            }
+        }
+    }
+
+    fun removeCookies() {
+        if (cookiesBusy) return
+        cookiesBusy = true
+        val toast = addToast("Sign-in cookies", "Removing…")
+        viewModelScope.launch {
+            try {
+                cookies = api.removeCookies()
+                savedPulse++
+                finishToast(toast, ToastPhase.Ok, "Cookies removed")
+            } catch (e: ApiException) {
+                finishToast(toast, ToastPhase.Bad, "Failed · " + shortReason(e))
+            } finally {
+                cookiesBusy = false
+            }
         }
     }
 

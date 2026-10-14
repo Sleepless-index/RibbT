@@ -19,8 +19,16 @@ import kotlin.concurrent.thread
 
 /** State of the server that runs inside the app (the same Python package that runs on a PC or in Termux). */
 object BuiltInServer {
-    const val PORT = 8765
-    const val URL = "http://127.0.0.1:$PORT"
+    /**
+     * The port the server listens on. The system picks a free one every time the server starts, so
+     * another app (or a stuck process from an earlier run) holding a fixed port can't stop it. It is
+     * 0 until the server is up.
+     */
+    @Volatile var port = 0
+        internal set
+
+    /** Until the server has started this points at a port nothing listens on, so requests fail fast. */
+    val url: String get() = "http://127.0.0.1:${if (port > 0) port else 1}"
 
     @Volatile var ready = false
         internal set
@@ -38,6 +46,7 @@ object BuiltInServer {
     fun stop(context: Context) {
         context.stopService(Intent(context, ServerService::class.java))
         ready = false
+        port = 0
     }
 }
 
@@ -133,8 +142,11 @@ class ServerService : Service() {
             val data = File(filesDir, "server").absolutePath
             // ffmpeg's libraries are unpacked on the first run; the server answers meanwhile and
             // asks for a retry if a conversion is requested before they are ready.
-            Python.getInstance().getModule("ribbt_server")
-                .callAttr("start", data, tools.ffmpeg, tools.ffprobe, tools.libs, tools.readyMarker, BuiltInServer.PORT, tools.qjs)
+            // 0 = "any free port"; Python reports the one it got.
+            val port = Python.getInstance().getModule("ribbt_server")
+                .callAttr("start", data, tools.ffmpeg, tools.ffprobe, tools.libs, tools.readyMarker, 0, tools.qjs)
+                .toInt()
+            BuiltInServer.port = port
             BuiltInServer.ready = true
             BundledToolsSetup.unpackIfNeeded(this)
         } catch (error: Throwable) {
@@ -152,6 +164,7 @@ class ServerService : Service() {
     override fun onDestroy() {
         runCatching { Python.getInstance().getModule("ribbt_server").callAttr("stop") }
         BuiltInServer.ready = false
+        BuiltInServer.port = 0
         super.onDestroy()
     }
 

@@ -1,6 +1,7 @@
 package app.mediadl
 
 import android.content.Context
+import org.json.JSONArray
 
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("mediadl", Context.MODE_PRIVATE)
@@ -17,7 +18,7 @@ class Prefs(context: Context) {
     val builtIn: Boolean get() = serverMode == "builtin"
 
     /** The address every request goes to. */
-    val serverUrl: String get() = if (builtIn) BuiltInServer.URL else baseUrl
+    val serverUrl: String get() = if (builtIn) BuiltInServer.url else baseUrl
 
     var theme: String
         get() = sp.getString("theme", "system") ?: "system"
@@ -58,11 +59,34 @@ class Prefs(context: Context) {
         get() = sp.getString("lastLink", "") ?: ""
         set(value) = sp.edit().putString("lastLink", value).apply()
 
+    /** Downloads handed to the server and not saved yet. Entries older than the server keeps files are ignored. */
+    @Synchronized
+    fun pendingJobs(): List<PendingJob> {
+        val raw = sp.getString("pendingJobs", null) ?: return emptyList()
+        val cutoff = System.currentTimeMillis() - PENDING_MAX_AGE_MS
+        return runCatching { JSONArray(raw).mapObjects { it.toPendingJob() } }
+            .getOrDefault(emptyList())
+            .filter { it.id.isNotBlank() && it.started >= cutoff }
+    }
+
+    @Synchronized
+    fun addPendingJob(job: PendingJob) = savePending(pendingJobs().filter { it.id != job.id } + job)
+
+    @Synchronized
+    fun removePendingJob(id: String) = savePending(pendingJobs().filter { it.id != id })
+
+    private fun savePending(list: List<PendingJob>) {
+        val array = JSONArray()
+        list.forEach { array.put(it.toJson()) }
+        sp.edit().putString("pendingJobs", array.toString()).apply()
+    }
+
     var settingsJson: String?
         get() = sp.getString("settingsJson", null)
         set(value) = sp.edit().putString("settingsJson", value).apply()
 
     companion object {
         const val DEFAULT_URL = "http://127.0.0.1:5000"
+        private const val PENDING_MAX_AGE_MS = 6L * 60 * 60 * 1000
     }
 }

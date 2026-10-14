@@ -8,11 +8,12 @@ object ErrorText {
         Rule(Regex(pattern, RegexOption.IGNORE_CASE), title, hint)
 
     private val rules = listOf(
+        rule("not enough (free )?(storage|space)", "Not enough storage", "Free up some space on your phone, then try again."),
         rule("yt-dlp", "yt-dlp is missing", "Use Settings → Server → Update (or pip install -U yt-dlp in Termux)"),
         rule("ffmpeg is not installed|could not start ffmpeg", "ffmpeg is missing", "In Termux run: pkg install ffmpeg"),
         rule(
             "sign in|log in|login|\\bbot\\b|cookies|confirm you", "The site wants a sign-in",
-            "For YouTube, start the server with YTDLP_COOKIES pointing to your cookies.txt, then try again.",
+            "Import your cookies.txt in Settings → Server → Sign-in cookies, then try again. On your own server, set YTDLP_COOKIES instead.",
         ),
         rule(
             "private|removed|deleted|not available|unavailable|blocked the request|age.restricted", "Can’t access that post",
