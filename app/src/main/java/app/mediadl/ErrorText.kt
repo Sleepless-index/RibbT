@@ -37,6 +37,13 @@ object ErrorText {
 
     fun explain(message: String?, fallbackTitle: String, fallbackHint: String?): ErrorInfo {
         val text = message.orEmpty()
+        // A failed ffmpeg run carries ffmpeg's own explanation below the first line. Show it,
+        // because "ffmpeg exited 1" alone says nothing about what went wrong.
+        if (text.contains("(ffmpeg exited") || text.startsWith("Transcode failed")) {
+            val detail = text.lineSequence().drop(1).map { it.trim() }.filter { it.isNotEmpty() }
+                .toList().takeLast(3).joinToString("\n").take(300)
+            return ErrorInfo("Couldn’t convert the file", detail.ifBlank { fallbackHint })
+        }
         for (rule in rules) {
             if (rule.pattern.containsMatchIn(text)) return ErrorInfo(rule.title, rule.hint)
         }

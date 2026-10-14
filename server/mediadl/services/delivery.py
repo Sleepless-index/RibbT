@@ -131,6 +131,7 @@ def encode_local(paths, name, transform):
             _remove(path)
 
         if process.returncode != 0 or not os.path.exists(out_path):
+            log.warning("ffmpeg exited %s\ncommand: %s\n%s", process.returncode, transform.args, stderr.text(last=30))
             raise MediaError(
                 f"Conversion failed (ffmpeg exited {process.returncode}).\n" + stderr.text(),
                 502,
