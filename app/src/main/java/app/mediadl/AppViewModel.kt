@@ -579,7 +579,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 ErrorText.explain(e.message, "Download failed", "Try again. If it keeps failing, paste the link again.")
             }
             error = info.copy(inline = false)
-            finishToast(toast, ToastPhase.Bad, "Failed · " + info.title.take(80))
+            finishToast(toast, ToastPhase.Bad, "Failed · " + ErrorText.toastLine(info))
             null
         } finally {
             jobId?.let { liveJobs.remove(it) }
@@ -620,7 +620,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         ErrorText.explain(e.message, "Download failed", "Start it again from the link.")
                     }
-                    finishToast(toast, ToastPhase.Bad, "Failed · " + info.title.take(80))
+                    finishToast(toast, ToastPhase.Bad, "Failed · " + ErrorText.toastLine(info))
                 } finally {
                     liveJobs.remove(job.id)
                 }

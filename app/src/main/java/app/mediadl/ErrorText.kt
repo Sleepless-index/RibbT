@@ -2,6 +2,7 @@ package app.mediadl
 
 /** Turns raw server text into a short title plus one concrete next step. */
 object ErrorText {
+    private const val CONVERT_TITLE = "Couldn’t convert the file"
     private class Rule(val pattern: Regex, val title: String, val hint: String?)
 
     private fun rule(pattern: String, title: String, hint: String?) =
@@ -42,7 +43,7 @@ object ErrorText {
         if (text.contains("(ffmpeg exited") || text.startsWith("Transcode failed")) {
             val detail = text.lineSequence().drop(1).map { it.trim() }.filter { it.isNotEmpty() }
                 .toList().takeLast(3).joinToString("\n").take(300)
-            return ErrorInfo("Couldn’t convert the file", detail.ifBlank { fallbackHint })
+            return ErrorInfo(CONVERT_TITLE, detail.ifBlank { fallbackHint })
         }
         for (rule in rules) {
             if (rule.pattern.containsMatchIn(text)) return ErrorInfo(rule.title, rule.hint)
@@ -53,6 +54,12 @@ object ErrorText {
         } else {
             ErrorInfo(fallbackTitle, fallbackHint ?: first.take(200).ifBlank { null })
         }
+    }
+
+    /** One line for the download toast. For a failed conversion that is ffmpeg's own last line. */
+    fun toastLine(info: ErrorInfo): String {
+        val detail = if (info.title == CONVERT_TITLE) info.hint?.lineSequence()?.lastOrNull().orEmpty().trim() else ""
+        return (detail.ifEmpty { info.title }).take(110)
     }
 
     fun offline(builtIn: Boolean) = if (builtIn) {
