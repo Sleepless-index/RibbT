@@ -384,15 +384,7 @@ private fun SectionCard(
                     },
                     badgeTone = if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        val palette = LocalPalette.current
-                        Box(
-                            Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .clickable(onClickLabel = "yt-dlp settings", role = Role.Button) { showYtdlpSettings = true },
-                            contentAlignment = Alignment.Center,
-                        ) { VIconView(VIcons.Settings, 18.dp, palette.muted) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         // "Check" looks for a newer yt-dlp; once one is found the button turns into "Update".
                         SmallButton(
                             text = when {
@@ -404,6 +396,7 @@ private fun SectionCard(
                             enabled = !vm.ytdlpBusy && !vm.ytdlpChecking && vm.online == true,
                             onClick = { if (vm.ytdlpAvailable == true) vm.updateYtdlp() else vm.checkYtdlp(manual = true) },
                         )
+                        IconSquareButton(VIcons.Settings, "yt-dlp settings") { showYtdlpSettings = true }
                     }
                 }
                 if (showYtdlpSettings) YtdlpSettingsDialog(vm) { showYtdlpSettings = false }
@@ -500,7 +493,7 @@ private fun NavRow(icon: VIcon, title: String, summary: String?, onClick: () -> 
 private fun RowShell(
     label: String,
     hint: String?,
-    /** Text of a small pill shown right after the hint (e.g. "Up to date"); none when null. */
+    /** Text of a small pill shown right after the label (e.g. "Up to date"); none when null. */
     badge: String? = null,
     badgeTone: PillTone = PillTone.Good,
     control: @Composable () -> Unit,
@@ -515,19 +508,15 @@ private fun RowShell(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
-            T(label, size = 14.4.sp, lineHeight = 18.7.sp)
             if (badge != null) {
-                Row(
-                    Modifier.padding(top = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (!hint.isNullOrBlank()) {
-                        T(hint, size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp, modifier = Modifier.weight(1f, fill = false))
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    T(label, size = 14.4.sp, lineHeight = 18.7.sp, modifier = Modifier.weight(1f, fill = false))
                     StatusPill(badge, badgeTone)
                 }
-            } else if (!hint.isNullOrBlank()) {
+            } else {
+                T(label, size = 14.4.sp, lineHeight = 18.7.sp)
+            }
+            if (!hint.isNullOrBlank()) {
                 T(hint, size = 12.16.sp, color = palette.muted, modifier = Modifier.padding(top = 2.dp), lineHeight = 15.8.sp)
             }
         }
@@ -959,6 +948,22 @@ private fun CookiesRow(vm: AppViewModel) {
             )
         }
     }
+}
+
+/** A square button with just an icon, styled like the tonal [SmallButton]. */
+@Composable
+private fun IconSquareButton(icon: VIcon, label: String, onClick: () -> Unit) {
+    val palette = LocalPalette.current
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    Box(
+        Modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (pressed) palette.line else palette.sep)
+            .clickable(interactionSource = source, indication = null, onClickLabel = label, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { VIconView(icon, 18.dp, palette.text) }
 }
 
 @Composable

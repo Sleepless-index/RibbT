@@ -71,6 +71,7 @@ object VIcons {
     )
 
     val Clear = VIcon(listOf("M18 6 6 18", "m6 6 12 12"), 2f)
+    val Search = VIcon(listOf(circle(11f, 11f, 7f), "m21 21-4.3-4.3"), 2f)
     val CloseSmall = VIcon(listOf("M6 6l12 12M18 6 6 18"), 2.4f)
     val Download = VIcon(listOf("M12 4v11", "m7 11 5 5 5-5", "M5 20h14"), 2.2f)
     val Check = VIcon(listOf("m5 12 5 5 9-11"), 2.6f)

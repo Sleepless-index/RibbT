@@ -151,13 +151,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var historyPlatform by mutableStateOf("")
     var historyType by mutableStateOf("")
     var historySort by mutableStateOf("newest")
+    var historyQuery by mutableStateOf("")
 
     /** History after the platform / type filters and the chosen order. */
     val visibleHistory: List<HistoryEntry>
         get() {
+            val query = historyQuery.trim()
             val filtered = history.filter { entry ->
                 (historyPlatform.isEmpty() || entry.platform == historyPlatform) &&
-                    (historyType.isEmpty() || entry.hasType(historyType))
+                    (historyType.isEmpty() || entry.hasType(historyType)) &&
+                    (query.isEmpty() || entry.title.contains(query, ignoreCase = true) ||
+                        entry.author.contains(query, ignoreCase = true))
             }
             return when (historySort) {
                 "oldest" -> filtered.sortedBy { it.time }

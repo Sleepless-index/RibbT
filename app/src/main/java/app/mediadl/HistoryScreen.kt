@@ -1,5 +1,8 @@
 package app.mediadl
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,11 +40,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 @Composable
 fun HistoryScreen(vm: AppViewModel) {
     val palette = LocalPalette.current
     var confirmClear by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<HistoryEntry?>(null) }
 
     LaunchedEffect(Unit) { vm.loadHistory() }
 
@@ -69,8 +90,10 @@ fun HistoryScreen(vm: AppViewModel) {
             if (vm.history.isNotEmpty()) {
                 StorageCard(vm.history)
                 Spacer(Modifier.height(12.dp))
+                SearchField(vm)
+                Spacer(Modifier.height(8.dp))
                 FilterRow(vm)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
             }
 
             if (vm.history.isEmpty()) {
@@ -89,19 +112,41 @@ fun HistoryScreen(vm: AppViewModel) {
                 }
             } else if (vm.visibleHistory.isEmpty()) {
                 Box(Modifier.fillMaxWidth().padding(top = 36.dp), contentAlignment = Alignment.Center) {
-                    T("Nothing matches these filters.", size = 13.6.sp, color = palette.muted)
+                    T("Nothing matches your search or filters.", size = 13.6.sp, color = palette.muted)
                 }
             } else {
-                CardBox(Modifier.fillMaxWidth()) {
-                    Column {
-                        vm.visibleHistory.forEachIndexed { index, entry ->
-                            if (index > 0) Separator()
-                            HistoryRow(vm, entry)
+                val visible = vm.visibleHistory
+                if (vm.historySort == "largest") {
+                    // Size order has no days to group by, so it stays one list.
+                    CardBox(Modifier.fillMaxWidth()) {
+                        Column {
+                            visible.forEachIndexed { index, entry ->
+                                if (index > 0) Separator()
+                                HistoryRow(vm, entry) { selected = entry }
+                            }
+                        }
+                    }
+                } else {
+                    // Newest or oldest first: one card per day group (Today, Yesterday, This week, Earlier).
+                    visible.groupBy { dayBucket(it.time) }.entries.forEachIndexed { groupIndex, (bucket, items) ->
+                        if (groupIndex > 0) Spacer(Modifier.height(16.dp))
+                        SectionTitle(DAY_LABELS[bucket])
+                        CardBox(Modifier.fillMaxWidth()) {
+                            Column {
+                                items.forEachIndexed { index, entry ->
+                                    if (index > 0) Separator()
+                                    HistoryRow(vm, entry) { selected = entry }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    selected?.let { entry ->
+        HistoryDetail(vm, entry) { selected = null }
     }
 
     if (confirmClear) {
@@ -205,7 +250,7 @@ private fun FilterRow(vm: AppViewModel) {
 }
 
 @Composable
-private fun HistoryRow(vm: AppViewModel, entry: HistoryEntry) {
+private fun HistoryRow(vm: AppViewModel, entry: HistoryEntry, onOpen: () -> Unit) {
     val palette = LocalPalette.current
     val thumb = vm.absolute(entry.thumb.ifBlank { null })
     val platformLabel = vm.platforms.firstOrNull { it.name == entry.platform }?.label ?: entry.platform
@@ -213,7 +258,7 @@ private fun HistoryRow(vm: AppViewModel, entry: HistoryEntry) {
         Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .clickable { vm.openFromHistory(entry) }
+            .clickable(onClick = onOpen)
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -241,11 +286,158 @@ private fun HistoryRow(vm: AppViewModel, entry: HistoryEntry) {
             val size = if (entry.totalBytes > 0) " · ${formatBytes(entry.totalBytes)}" else ""
             T("$ago · $files$size", size = 12.16.sp, color = palette.muted, maxLines = 1, lineHeight = 16.4.sp)
         }
-        Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).clickable { vm.deleteHistory(entry) },
-            contentAlignment = Alignment.Center,
+    }
+}
+
+
+private val DAY_LABELS = listOf("Today", "Yesterday", "This week", "Earlier")
+
+/** 0 = today, 1 = yesterday, 2 = the last week, 3 = older. [epochSeconds] is when the download was saved. */
+private fun dayBucket(epochSeconds: Long): Int {
+    val zone = ZoneId.systemDefault()
+    val day = Instant.ofEpochSecond(epochSeconds).atZone(zone).toLocalDate()
+    val days = ChronoUnit.DAYS.between(day, LocalDate.now(zone))
+    return when {
+        days <= 0L -> 0
+        days == 1L -> 1
+        days < 7L -> 2
+        else -> 3
+    }
+}
+
+@Composable
+private fun SearchField(vm: AppViewModel) {
+    val palette = LocalPalette.current
+    val focus = LocalFocusManager.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(palette.card)
+            .padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        VIconView(VIcons.Search, 18.dp, palette.muted)
+        Box(Modifier.weight(1f).padding(horizontal = 10.dp), contentAlignment = Alignment.CenterStart) {
+            if (vm.historyQuery.isEmpty()) T("Search title or author", color = palette.muted, size = 14.4.sp, maxLines = 1)
+            BasicTextField(
+                value = vm.historyQuery,
+                onValueChange = { vm.historyQuery = it },
+                singleLine = true,
+                textStyle = TextStyle(color = palette.text, fontSize = 14.4.sp),
+                cursorBrush = SolidColor(Accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (vm.historyQuery.isNotEmpty()) {
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClickLabel = "Clear search", role = Role.Button) { vm.historyQuery = "" },
+                contentAlignment = Alignment.Center,
+            ) { VIconView(VIcons.Clear, 16.dp, palette.muted) }
+        }
+    }
+}
+
+/** What opens when a history row is tapped: the picture, the link under it, and what you can do with it. */
+@Composable
+private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -> Unit) {
+    val palette = LocalPalette.current
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
+    val thumb = vm.absolute(entry.thumb.ifBlank { null })
+    val platformLabel = vm.platforms.firstOrNull { it.name == entry.platform }?.label ?: entry.platform
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier
+                .padding(horizontal = 24.dp)
+                .widthIn(max = 420.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(palette.card)
+                .verticalScroll(rememberScrollState()),
         ) {
-            VIconView(VIcons.Trash, 20.dp, palette.muted)
+            Box(
+                Modifier.fillMaxWidth().aspectRatio(16f / 10f).background(palette.sep),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (thumb != null) {
+                    AsyncImage(model = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    VIconView(if (entry.kind == "video") VIcons.Video else VIcons.Photo, 36.dp, palette.muted)
+                }
+            }
+            Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+                T(
+                    entry.title.ifBlank { entry.author.ifBlank { "Untitled" } },
+                    weight = FontWeight.SemiBold, size = 16.sp, maxLines = 3, lineHeight = 21.sp,
+                )
+                val sub = listOf(platformLabel, entry.author).filter { it.isNotBlank() }.joinToString(" · ")
+                if (sub.isNotBlank()) T(sub, size = 12.8.sp, color = palette.muted, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                T(
+                    entry.link,
+                    size = 12.5.sp,
+                    color = Accent,
+                    maxLines = 2,
+                    lineHeight = 17.sp,
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(palette.bg)
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                )
+                val ago = DateUtils.getRelativeTimeSpanString(
+                    entry.time * 1000, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
+                ).toString()
+                val files = if (entry.files > 1) "${entry.files} files" else "1 file"
+                val size = if (entry.totalBytes > 0) " · ${formatBytes(entry.totalBytes)}" else ""
+                T("$ago · $files$size", size = 12.16.sp, color = palette.muted, maxLines = 1, modifier = Modifier.padding(top = 10.dp))
+                if (entry.savedTo.isNotBlank()) T("Saved to ${entry.savedTo}", size = 12.16.sp, color = palette.muted, maxLines = 1)
+            }
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PillButton(
+                    text = "Download again",
+                    icon = VIcons.Download,
+                    onClick = { vm.openFromHistory(entry); onDismiss() },
+                    modifier = Modifier.fillMaxWidth(),
+                    height = 40.dp,
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PillButton(
+                        text = if (copied) "Copied" else "Copy link",
+                        icon = if (copied) VIcons.Check else VIcons.Link,
+                        onClick = {
+                            val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                            manager?.setPrimaryClip(ClipData.newPlainText("RibbT link", entry.link))
+                            copied = true
+                        },
+                        modifier = Modifier.weight(1f),
+                        style = PillStyle.Tonal,
+                        height = 40.dp,
+                    )
+                    PillButton(
+                        text = "Delete",
+                        icon = VIcons.Trash,
+                        onClick = { vm.deleteHistory(entry); onDismiss() },
+                        modifier = Modifier.weight(1f),
+                        style = PillStyle.Tonal,
+                        height = 40.dp,
+                    )
+                }
+            }
         }
     }
 }
