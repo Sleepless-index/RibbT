@@ -71,10 +71,7 @@ object VIcons {
     )
 
     val Clear = VIcon(listOf("M18 6 6 18", "m6 6 12 12"), 2f)
-    val Share = VIcon(
-        listOf(circle(18f, 5f, 3f), circle(6f, 12f, 3f), circle(18f, 19f, 3f), "m8.6 13.5 6.8 4", "m15.4 6.5-6.8 4"),
-        1.9f,
-    )
+    val Filter = VIcon(listOf("M3 6h18", "M7 12h10", "M10 18h4"), 2f)
     val Open = VIcon(listOf("M14 3h7v7", "M21 3l-9 9", "M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"), 2f)
     val Folder = VIcon(listOf("M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"), 1.8f)
     val Search = VIcon(listOf(circle(11f, 11f, 7f), "m21 21-4.3-4.3"), 2f)

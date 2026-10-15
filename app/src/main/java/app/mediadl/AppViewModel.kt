@@ -603,7 +603,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             prefs.removePendingJob(serverJob)
             viewModelScope.launch { runCatching { api.cancelJob(serverJob) } }
         }
-        dismissToast(id)
+        // Say it was cancelled for a moment, so it is clear the press worked, then clear the toast.
+        retryActions.remove(id)
+        updateToast(id) { it.copy(status = "Cancelled", progress = null, phase = ToastPhase.Cancelled, canCancel = false, canRetry = false) }
+        viewModelScope.launch {
+            delay(1800)
+            dismissToast(id)
+        }
     }
 
     fun retryDownload(id: Long) {

@@ -43,6 +43,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -110,16 +112,19 @@ private fun ToastCard(toast: DlToast, onCancel: () -> Unit, onRetry: () -> Unit,
                     ToastPhase.Active -> Accent.copy(alpha = 0.16f)
                     ToastPhase.Ok -> Accent
                     ToastPhase.Bad -> palette.errBg
+                    ToastPhase.Cancelled -> palette.sep
                 }
                 val iconColor = when (toast.phase) {
                     ToastPhase.Active -> Accent
                     ToastPhase.Ok -> Color.White
                     ToastPhase.Bad -> palette.err
+                    ToastPhase.Cancelled -> palette.muted
                 }
                 val icon = when (toast.phase) {
                     ToastPhase.Active -> VIcons.Download
                     ToastPhase.Ok -> VIcons.Check
                     ToastPhase.Bad -> VIcons.Error
+                    ToastPhase.Cancelled -> VIcons.CloseSmall
                 }
                 Box(
                     Modifier
@@ -143,19 +148,25 @@ private fun ToastCard(toast: DlToast, onCancel: () -> Unit, onRetry: () -> Unit,
                         modifier = Modifier.padding(top = 1.dp),
                     )
                 }
-                if (toast.canCancel && toast.phase == ToastPhase.Active) {
-                    ToastAction("Cancel", palette.muted, onCancel)
+                // While a download runs, Cancel is the only button: a close X next to it is what made them easy
+                // to mix up. The X comes back once the download is over.
+                val cancelling = toast.canCancel && toast.phase == ToastPhase.Active
+                if (cancelling) {
+                    ToastAction("Cancel", palette.text, palette.sep, palette.line, onCancel)
                 }
                 if (toast.canRetry && toast.phase == ToastPhase.Bad) {
-                    ToastAction("Retry", Accent, onRetry)
+                    ToastAction("Retry", Accent, Accent.copy(alpha = 0.14f), Color.Transparent, onRetry)
                 }
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(4.dp),
-                ) {
-                    VIconView(VIcons.CloseSmall, 14.dp, palette.muted)
+                if (!cancelling) {
+                    Box(
+                        Modifier
+                            .padding(start = 6.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onDismiss)
+                            .padding(4.dp),
+                    ) {
+                        VIconView(VIcons.CloseSmall, 14.dp, palette.muted)
+                    }
                 }
             }
             if (toast.phase == ToastPhase.Active) {
@@ -165,15 +176,23 @@ private fun ToastCard(toast: DlToast, onCancel: () -> Unit, onRetry: () -> Unit,
     }
 }
 
+/** A real button (filled, with an edge) so it can't be taken for plain text or for the close X. */
 @Composable
-private fun ToastAction(label: String, color: Color, onClick: () -> Unit) {
+private fun ToastAction(label: String, textColor: Color, background: Color, edge: Color, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    val shape = RoundedCornerShape(10.dp)
     Box(
         Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .clip(shape)
+            .background(background)
+            .border(1.dp, edge, shape)
+            .clickable(role = Role.Button) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            }
+            .padding(horizontal = 14.dp, vertical = 7.dp),
     ) {
-        T(label, size = 12.8.sp, color = color, weight = FontWeight.SemiBold, maxLines = 1)
+        T(label, size = 12.8.sp, color = textColor, weight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 

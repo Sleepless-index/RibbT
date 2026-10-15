@@ -124,7 +124,7 @@ sealed interface DlState {
     data class Done(val where: String) : DlState
 }
 
-enum class ToastPhase { Active, Ok, Bad }
+enum class ToastPhase { Active, Ok, Bad, Cancelled }
 
 data class DlToast(
     val id: Long,

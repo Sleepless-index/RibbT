@@ -204,7 +204,7 @@ private fun SettingsHome(vm: AppViewModel) {
     }
 
     Column {
-        SectionTitle("Downloads")
+        SectionTitle("Media")
         CardBox(Modifier.fillMaxWidth()) {
             Column {
                 data.sections.filter { it != PAGE_SERVER }.forEachIndexed { index, title ->

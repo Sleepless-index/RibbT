@@ -57,6 +57,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 
 @Composable
 fun HistoryScreen(vm: AppViewModel) {
@@ -88,7 +90,7 @@ fun HistoryScreen(vm: AppViewModel) {
             }
 
             if (vm.history.isNotEmpty()) {
-                StorageCard(vm.history)
+                StorageCard(vm.history, vm.historyType) { vm.historyType = it }
                 Spacer(Modifier.height(12.dp))
                 SearchField(vm)
                 Spacer(Modifier.height(8.dp))
@@ -170,7 +172,7 @@ private val AudioColor = Color(0xFF5B8DEF)
 
 /** What the saved downloads take up, split by type like a phone's storage screen. */
 @Composable
-private fun StorageCard(history: List<HistoryEntry>) {
+private fun StorageCard(history: List<HistoryEntry>, selectedType: String, onPickType: (String) -> Unit) {
     val palette = LocalPalette.current
     val video = history.sumOf { it.videoBytes }
     val photos = history.sumOf { it.imageBytes }
@@ -207,18 +209,25 @@ private fun StorageCard(history: List<HistoryEntry>) {
                 }
             }
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                LegendItem("Video", video, VideoColor)
-                LegendItem("Photos", photos, PhotoColor)
-                LegendItem("Audio", audio, AudioColor)
+                LegendItem("Video", video, VideoColor, selectedType == "video") { onPickType(if (selectedType == "video") "" else "video") }
+                LegendItem("Photos", photos, PhotoColor, selectedType == "image") { onPickType(if (selectedType == "image") "" else "image") }
+                LegendItem("Audio", audio, AudioColor, selectedType == "audio") { onPickType(if (selectedType == "audio") "" else "audio") }
             }
         }
     }
 }
 
 @Composable
-private fun LegendItem(label: String, bytes: Long, color: Color) {
+private fun LegendItem(label: String, bytes: Long, color: Color, selected: Boolean, onClick: () -> Unit) {
     val palette = LocalPalette.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) color.copy(alpha = 0.16f) else Color.Transparent)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
         Column(Modifier.padding(start = 6.dp)) {
             T(label, size = 12.sp, weight = FontWeight.SemiBold)
@@ -228,24 +237,117 @@ private fun LegendItem(label: String, bytes: Long, color: Color) {
 }
 
 private val TYPE_CHOICES = listOf(
-    Choice("", "All types"), Choice("video", "Videos"), Choice("image", "Photos"), Choice("audio", "Audio"),
+    Choice("", "All"), Choice("video", "Video"), Choice("image", "Photos"), Choice("audio", "Audio"),
 )
 private val SORT_CHOICES = listOf(
     Choice("newest", "Newest"), Choice("oldest", "Oldest"), Choice("largest", "Largest"),
 )
 
-/** Platform, type and sort each get their own dropdown. */
+/** Type chips on the page; platform and sort live behind the filter button. */
 @Composable
 private fun FilterRow(vm: AppViewModel) {
+    val palette = LocalPalette.current
+    var showFilters by remember { mutableStateOf(false) }
+    val active = vm.historyPlatform.isNotEmpty() || vm.historySort != "newest"
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        TYPE_CHOICES.forEach { choice ->
+            OptionChip(choice.label, vm.historyType == choice.value, Modifier.weight(1f), palette.card) { vm.historyType = choice.value }
+        }
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (active) Accent.copy(alpha = 0.14f) else palette.card)
+                .clickable(onClickLabel = "Filter and sort", role = Role.Button) { showFilters = true },
+            contentAlignment = Alignment.Center,
+        ) {
+            VIconView(VIcons.Filter, 18.dp, if (active) Accent else palette.text)
+            if (active) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(Accent),
+                )
+            }
+        }
+    }
+    if (showFilters) FilterDialog(vm) { showFilters = false }
+}
+
+/** Platform and sort, tucked behind the filter button. */
+@Composable
+private fun FilterDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val palette = LocalPalette.current
     val platformChoices = remember(vm.platforms, vm.history.size) {
         val present = vm.history.map { it.platform }.toSet()
-        listOf(Choice("", "All platforms")) +
-            vm.platforms.filter { it.name in present }.map { Choice(it.name, it.label) }
+        listOf(Choice("", "All")) + vm.platforms.filter { it.name in present }.map { Choice(it.name, it.label) }
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Dropdown(platformChoices, vm.historyPlatform, { vm.historyPlatform = it }, Modifier.weight(1.2f), fill = true)
-        Dropdown(TYPE_CHOICES, vm.historyType, { vm.historyType = it }, Modifier.weight(1f), fill = true)
-        Dropdown(SORT_CHOICES, vm.historySort, { vm.historySort = it }, Modifier.weight(1f), fill = true)
+    val changed = vm.historyPlatform.isNotEmpty() || vm.historySort != "newest"
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier
+                .padding(horizontal = 24.dp)
+                .widthIn(max = 420.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(palette.card)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+        ) {
+            T("Filter and sort", size = 18.sp, weight = FontWeight.Bold)
+            T("Platform", size = 12.48.sp, color = palette.muted, weight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
+            ChipGrid(platformChoices, vm.historyPlatform) { vm.historyPlatform = it }
+            T("Sort by", size = 12.48.sp, color = palette.muted, weight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
+            ChipGrid(SORT_CHOICES, vm.historySort) { vm.historySort = it }
+            Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (changed) {
+                    PillButton(
+                        text = "Reset",
+                        icon = null,
+                        onClick = { vm.historyPlatform = ""; vm.historySort = "newest" },
+                        modifier = Modifier.weight(1f),
+                        style = PillStyle.Tonal,
+                        height = 42.dp,
+                    )
+                }
+                PillButton(text = "Done", icon = null, onClick = onDismiss, modifier = Modifier.weight(1f), height = 42.dp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChipGrid(choices: List<Choice>, selected: String, onSelect: (String) -> Unit) {
+    val palette = LocalPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        choices.chunked(3).forEach { rowChoices ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowChoices.forEach { choice ->
+                    OptionChip(choice.label, selected == choice.value, Modifier.weight(1f), palette.bg) { onSelect(choice.value) }
+                }
+                repeat(3 - rowChoices.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionChip(label: String, selected: Boolean, modifier: Modifier, idle: Color, onClick: () -> Unit) {
+    val palette = LocalPalette.current
+    val background by animateColorAsState(if (selected) Accent.copy(alpha = 0.14f) else idle, tween(160), label = "chip-bg")
+    val textColor by animateColorAsState(if (selected) Accent else palette.text, tween(160), label = "chip-text")
+    Box(
+        modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(background)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        T(label, size = 12.8.sp, color = textColor, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
     }
 }
 
@@ -457,10 +559,10 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                 }
             }
 
-            // One main action, then the rest in pairs. Open and Share only show when the files are still on the phone.
+            // One main action, then the rest in pairs. Open only shows when the one file is still on the phone.
+            val openable = files.size == 1
             val actions = buildList {
-                if (files.size == 1) add(DetailAction("Share", VIcons.Share) { FileActions.share(context, files) })
-                if (files.isNotEmpty()) add(DetailAction("Download again", VIcons.Download) { vm.openFromHistory(entry); onDismiss() })
+                if (openable) add(DetailAction("Download again", VIcons.Download) { vm.openFromHistory(entry); onDismiss() })
                 add(
                     DetailAction(if (copied) "Copied" else "Copy link", if (copied) VIcons.Check else VIcons.Link) {
                         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -471,14 +573,12 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                 add(DetailAction("Delete", VIcons.Trash, destructive = true) { vm.deleteHistory(entry); onDismiss() })
             }
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                when {
-                    files.size == 1 -> PillButton("Open", VIcons.Open, { FileActions.open(context, files[0]) }, Modifier.fillMaxWidth(), height = 46.dp)
-                    files.size > 1 -> PillButton("Share ${files.size} files", VIcons.Share, { FileActions.share(context, files) }, Modifier.fillMaxWidth(), height = 46.dp)
-                    else -> PillButton("Download again", VIcons.Download, { vm.openFromHistory(entry); onDismiss() }, Modifier.fillMaxWidth(), height = 46.dp)
+                if (openable) {
+                    PillButton("Open", VIcons.Open, { FileActions.open(context, files[0]) }, Modifier.fillMaxWidth(), height = 46.dp)
+                } else {
+                    PillButton("Download again", VIcons.Download, { vm.openFromHistory(entry); onDismiss() }, Modifier.fillMaxWidth(), height = 46.dp)
                 }
-                // With no files on the phone "Download again" is already the main button above.
-                val rest = if (files.isEmpty()) actions.filter { it.label != "Download again" } else actions
-                rest.chunked(2).forEach { pair ->
+                actions.chunked(2).forEach { pair ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         pair.forEach { action ->
                             PillButton(

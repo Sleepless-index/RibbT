@@ -41,6 +41,17 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
@@ -136,42 +147,62 @@ fun AppRoot(vm: AppViewModel) {
 
 @Composable
 private fun NavBar(vm: AppViewModel) {
-    Row(
+    val tabs = listOf(Tab.Home to VIcons.Home, Tab.History to VIcons.History, Tab.Settings to VIcons.Settings)
+    val index = tabs.indexOfFirst { it.first == vm.tab }.coerceAtLeast(0)
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .height(46.dp)
             .padding(start = 10.dp, end = 10.dp, top = 5.dp),
-        horizontalArrangement = Arrangement.SpaceAround,
-        verticalAlignment = Alignment.Top,
     ) {
-        NavItem(Tab.Home, VIcons.Home, vm)
-        NavItem(Tab.History, VIcons.History, vm)
-        NavItem(Tab.Settings, VIcons.Settings, vm)
+        // The highlight slides to the chosen tab with a little spring instead of jumping.
+        val cell = maxWidth / tabs.size
+        val pillWidth = 64.dp
+        val pillX by animateDpAsState(
+            targetValue = cell * index + (cell - pillWidth) / 2,
+            animationSpec = spring(dampingRatio = 0.68f, stiffness = 420f),
+            label = "nav-pill",
+        )
+        Box(
+            Modifier
+                .offset(x = pillX)
+                .width(pillWidth)
+                .height(37.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Accent.copy(alpha = 0.12f)),
+        )
+        Row(Modifier.fillMaxSize()) {
+            tabs.forEach { (tab, icon) -> NavItem(tab, icon, vm, Modifier.weight(1f)) }
+        }
     }
 }
 
 @Composable
-private fun NavItem(tab: Tab, icon: VIcon, vm: AppViewModel) {
+private fun NavItem(tab: Tab, icon: VIcon, vm: AppViewModel, modifier: Modifier) {
     val palette = LocalPalette.current
     val selected = vm.tab == tab
-    val tint = if (selected) Accent else palette.muted
+    val tint by animateColorAsState(if (selected) Accent else palette.muted, tween(220), label = "nav-tint")
+    // The icon pops up a touch and settles when its tab is chosen.
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.14f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "nav-scale",
+    )
     Column(
-        Modifier
-            .widthIn(min = 58.dp)
+        modifier
+            .height(37.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) Accent.copy(alpha = 0.12f) else Color.Transparent)
             .clickable {
                 if (tab == Tab.Home && vm.tab == Tab.Home) vm.reset()
                 if (tab == Tab.Settings && vm.tab == Tab.Settings) vm.settingsPage = null
                 if (tab == Tab.History) vm.loadHistory()
                 vm.tab = tab
-            }
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+        verticalArrangement = Arrangement.Center,
     ) {
-        VIconView(icon, 18.dp, tint)
-        T(tab.label, size = 9.6.sp, color = tint, lineHeight = 11.5.sp)
+        VIconView(icon, 18.dp, tint, Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
+        T(tab.label, size = 9.6.sp, color = tint, lineHeight = 11.5.sp, modifier = Modifier.padding(top = 1.dp))
     }
 }
