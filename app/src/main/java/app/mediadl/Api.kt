@@ -465,9 +465,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
     /** Where a finished file is written, plus how to finish or throw it away. */
     private class Sink(val out: OutputStream, val label: String, val commit: () -> Unit, val abort: () -> Unit)
 
-    private fun sdVolume(): String? = MediaStore.getExternalVolumeNames(context).firstOrNull {
-        it != MediaStore.VOLUME_EXTERNAL_PRIMARY && it != MediaStore.VOLUME_EXTERNAL && it != MediaStore.VOLUME_INTERNAL
-    }
+    private fun sdVolume(): String? = Storage.sdVolume(context)
 
     /** Sorting folder inside RibbT's own folder, by kind of file. */
     private fun kindFolder(mime: String): String = when {
@@ -477,27 +475,17 @@ class Api(private val context: Context, private val prefs: Prefs) {
         else -> "Other"
     }
 
+    /** "/Videos", "/Images"... when files are sorted by type, otherwise nothing. */
+    private fun sortSuffix(mime: String): String = if (prefs.sortByType) "/" + kindFolder(mime) else ""
+
     private fun destination(mime: String, saveTo: String): Destination {
-        val sub = kindFolder(mime)
+        val sub = sortSuffix(mime)
         if (saveTo == "sdcard") {
             val volume = sdVolume()
-                ?: throw ApiException("No SD card found. Insert one, or use “Choose folder…” in Settings.")
-            return Destination(MediaStore.Downloads.getContentUri(volume), "Download/RibbT/$sub", "SD card/Download/RibbT/$sub")
+                ?: throw ApiException("No SD card found. Insert one, or pick another location in Settings.")
+            return Destination(MediaStore.Downloads.getContentUri(volume), "Download/RibbT$sub", "SD card/Download/RibbT$sub")
         }
-        if (saveTo == "gallery") {
-            when {
-                mime.startsWith("image/") -> return Destination(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI, "Pictures/RibbT", "Pictures/RibbT",
-                )
-                mime.startsWith("video/") -> return Destination(
-                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "Movies/RibbT", "Movies/RibbT",
-                )
-                mime.startsWith("audio/") -> return Destination(
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, "Music/RibbT", "Music/RibbT",
-                )
-            }
-        }
-        return Destination(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "Download/RibbT/$sub", "Downloads/RibbT/$sub")
+        return Destination(MediaStore.Downloads.EXTERNAL_CONTENT_URI, "Download/RibbT$sub", "Downloads/RibbT$sub")
     }
 
     private fun openSink(fileName: String, mime: String, saveTo: String): Sink {
@@ -543,13 +531,13 @@ class Api(private val context: Context, private val prefs: Prefs) {
     /** Writes into the folder chosen with the system folder picker (an SD card or any other folder). */
     private fun openFolderSink(fileName: String, mime: String): Sink {
         val chosen = prefs.folderUri
-        if (chosen.isBlank()) throw ApiException("No folder chosen. Pick one in Settings under Save to.")
+        if (chosen.isBlank()) throw ApiException("No folder chosen. Pick one in Settings under Downloading.")
         val resolver = context.contentResolver
         val tree = Uri.parse(chosen)
         val failure = "Couldn’t write to the chosen folder. Pick it again in Settings."
         val document = try {
             val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-            val parent = childFolder(resolver, tree, root, kindFolder(mime)) ?: root
+            val parent = if (prefs.sortByType) childFolder(resolver, tree, root, kindFolder(mime)) ?: root else root
             DocumentsContract.createDocument(resolver, parent, mime, fileName)
         } catch (e: Exception) {
             null

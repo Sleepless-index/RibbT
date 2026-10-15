@@ -1,5 +1,9 @@
 package app.mediadl
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -45,6 +49,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +67,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
@@ -78,21 +84,27 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 
 private val THEME_CHOICES = listOf(Choice("system", "Auto"), Choice("light", "Light"), Choice("dark", "Dark"))
-private val MOTION_CHOICES = listOf(Choice("system", "Auto"), Choice("on", "Reduced"), Choice("off", "Full"))
+private val MOTION_CHOICES = listOf(Choice("system", "Auto (follows your phone)"), Choice("on", "Reduced"), Choice("off", "Full"))
 private val LAYOUT_CHOICES = MediaLayout.entries.map { Choice(it.key, it.label) }
 private val CHANNEL_CHOICES = listOf(Choice("stable", "Stable"), Choice("nightly", "Nightly"))
 private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custom", "Custom address"))
-private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Saving", "Server")
+private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Downloading", "Server")
 
 private const val PAGE_GENERAL = "General"
 internal const val PAGE_SERVER = "Server"
-private const val PAGE_SAVING = "Saving"
+private const val PAGE_DOWNLOADING = "Downloading"
+
+/** What the server calls this section; older servers still send it, so it is mapped to [PAGE_DOWNLOADING]. */
+private const val SERVER_SAVING_SECTION = "Saving"
 private const val PAGE_SERVICES = "Supported services"
 
 // ---------------------------------------------------------------------------------------------
@@ -107,10 +119,9 @@ fun SettingsScreen(vm: AppViewModel) {
         if (uri != null) vm.chooseFolder(uri)
     }
     val saveChoices = listOf(
-        Choice("downloads", "Downloads/RibbT"),
-        Choice("gallery", "Gallery folders"),
-        Choice("sdcard", "SD card"),
-        Choice("folder", if (vm.folderName.isNotBlank()) "Folder: ${vm.folderName}" else "Choose folder…"),
+        Choice("downloads", "Internal storage"),
+        if (vm.sdAvailable) Choice("sdcard", "SD card") else Choice("sdcard", "SD card", enabled = false, note = "Not detected"),
+        Choice("folder", "Custom folder"),
     )
     // The list keeps its scroll position while a subpage is open on top of it.
     val rootScroll = rememberScrollState()
@@ -147,7 +158,7 @@ fun SettingsScreen(vm: AppViewModel) {
 private class GroupedSettings(
     val choices: Map<String, List<Choice>>,
     val rows: Map<String, List<SettingRow>>,
-    /** Section titles in display order ("Saving" and "Server" always exist, the rest come from the server). */
+    /** Section titles in display order ("Downloading" and "Server" always exist, the rest come from the server). */
     val sections: List<String>,
 )
 
@@ -155,9 +166,9 @@ private fun groupSettings(server: ServerSettings?): GroupedSettings {
     val choices = server?.choices.orEmpty()
     val rows = server?.schema
         ?.filter { row -> if (row.type == "choice") !choices[row.path].isNullOrEmpty() else true }
-        ?.groupBy { it.section }
+        ?.groupBy { if (it.section == SERVER_SAVING_SECTION) PAGE_DOWNLOADING else it.section }
         ?: emptyMap()
-    val sections = SECTION_ORDER.filter { it == PAGE_SAVING || it == PAGE_SERVER || rows.containsKey(it) } +
+    val sections = SECTION_ORDER.filter { it == PAGE_DOWNLOADING || it == PAGE_SERVER || rows.containsKey(it) } +
         rows.keys.filter { it !in SECTION_ORDER }
     return GroupedSettings(choices, rows, sections)
 }
@@ -168,7 +179,7 @@ private fun iconFor(title: String): VIcon = when (title) {
     "Images" -> VIcons.Photo
     "Audio" -> VIcons.Audio
     "X / Twitter" -> VIcons.Link
-    PAGE_SAVING -> VIcons.Download
+    PAGE_DOWNLOADING -> VIcons.Download
     PAGE_SERVER -> VIcons.Server
     PAGE_SERVICES -> VIcons.Services
     else -> VIcons.Settings
@@ -177,7 +188,7 @@ private fun iconFor(title: String): VIcon = when (title) {
 private fun summaryFor(title: String, rows: List<SettingRow>): String {
     val labels = rows.map { it.label }
     return when (title) {
-        PAGE_SAVING -> (listOf("Save location") + labels).distinct().joinToString(", ")
+        PAGE_DOWNLOADING -> (listOf("Location", "Folders") + labels).distinct().joinToString(", ")
         PAGE_SERVER -> "Connection, yt-dlp, updates"
         else -> labels.distinct().joinToString(", ")
     }
@@ -229,6 +240,7 @@ private fun SettingsHome(vm: AppViewModel) {
 @Composable
 private fun SettingsPage(vm: AppViewModel, page: String, saveChoices: List<Choice>, pickFolder: () -> Unit) {
     val data = remember(vm.server) { groupSettings(vm.server) }
+    if (page == PAGE_DOWNLOADING) StorageWatcher(vm)
     PageHeader(page, onBack = { vm.settingsPage = null }) { SavedLabel(vm) }
     when (page) {
         PAGE_GENERAL -> GeneralCard(vm)
@@ -238,6 +250,39 @@ private fun SettingsPage(vm: AppViewModel, page: String, saveChoices: List<Choic
             if (vm.server == null) OfflineHint(vm)
         }
     }
+}
+
+/** Re-checks the SD card and custom folder when the page opens and whenever a card is inserted or pulled out. */
+@Composable
+private fun StorageWatcher(vm: AppViewModel) {
+    val context = LocalContext.current
+    DisposableEffect(Unit) {
+        vm.refreshStorage()
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) = vm.refreshStorage()
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_MEDIA_MOUNTED)
+            addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+            addAction(Intent.ACTION_MEDIA_EJECT)
+            addAction(Intent.ACTION_MEDIA_REMOVED)
+            addAction(Intent.ACTION_MEDIA_BAD_REMOVAL)
+            addDataScheme("file")
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+}
+
+/** The line under "Download location": where files really go, or why they won't go where it points. */
+private fun locationHint(vm: AppViewModel): String = when (vm.saveTo) {
+    "sdcard" -> if (vm.sdAvailable) "SD card/Download/RibbT" else "SD card not detected. Saving to your phone."
+    "folder" -> when {
+        vm.folderName.isBlank() -> "No folder picked. Saving to your phone."
+        !vm.folderOk -> "Folder unavailable. Saving to your phone."
+        else -> vm.folderName
+    }
+    else -> "Downloads/RibbT"
 }
 
 @Composable
@@ -254,7 +299,7 @@ private fun OfflineHint(vm: AppViewModel) {
 private fun GeneralCard(vm: AppViewModel) {
     CardBox(Modifier.fillMaxWidth()) {
         Column {
-            ChoiceRow("Theme", "Choose a light or dark appearance, or follow your device.", THEME_CHOICES, vm.theme) { vm.updateTheme(it) }
+            ChoiceRow("Theme", "Light, dark, or match your phone.", THEME_CHOICES, vm.theme) { vm.updateTheme(it) }
             Separator()
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                 T("Media layout", size = 14.4.sp, lineHeight = 18.7.sp)
@@ -270,14 +315,14 @@ private fun GeneralCard(vm: AppViewModel) {
             Separator()
             ChoiceRow(
                 "Reduce motion",
-                "Calms the mascot: no floating, hops or ear sway. Auto follows Android’s remove-animations setting.",
+                "Stops the mascot from moving.",
                 MOTION_CHOICES,
                 vm.reduceMotion,
             ) { vm.updateReduceMotion(it) }
             Separator()
             ToggleRow(
                 "Paste and go",
-                "Automatically fetch a supported link from your clipboard when RibbT opens.",
+                "Fetch a copied link when you open RibbT.",
                 vm.pasteAndGo,
             ) { vm.updatePasteAndGo(it) }
         }
@@ -293,15 +338,25 @@ private fun SectionCard(
     pickFolder: () -> Unit,
 ) {
     val rows = data.rows[title].orEmpty()
+    var showYtdlpSettings by rememberSaveable { mutableStateOf(false) }
     // A server-driven section that isn't there (yet) has nothing to show.
-    if (rows.isEmpty() && title != PAGE_SAVING && title != PAGE_SERVER) return
+    if (rows.isEmpty() && title != PAGE_DOWNLOADING && title != PAGE_SERVER) return
     CardBox(Modifier.fillMaxWidth()) {
         Column {
             var first = true
-            if (title == PAGE_SAVING) {
-                ChoiceRow("Save to", "Save to internal storage, an SD card, or a folder of your choice.", saveChoices, vm.saveTo) { value ->
-                    if (value == "folder") pickFolder() else vm.updateSaveTo(value)
+            if (title == PAGE_DOWNLOADING) {
+                ChoiceRow("Download location", locationHint(vm), saveChoices, vm.saveTo) { value ->
+                    // A custom folder has to be picked once; after that it is just switched to.
+                    if (value == "folder" && (vm.folderName.isBlank() || !vm.folderOk)) pickFolder() else vm.updateSaveTo(value)
                 }
+                if (vm.saveTo == "folder") {
+                    Separator()
+                    RowShell("Folder", if (vm.folderName.isBlank()) "None picked yet" else vm.folderName) {
+                        SmallButton(text = if (vm.folderName.isBlank()) "Pick" else "Change", enabled = true, tonal = true, onClick = pickFolder)
+                    }
+                }
+                Separator()
+                ToggleRow("Sort into folders by type", "Videos, Images and Audio subfolders.", vm.sortByType) { vm.updateSortByType(it) }
                 first = false
             }
             if (title == PAGE_SERVER) {
@@ -329,25 +384,29 @@ private fun SectionCard(
                     },
                     badgeTone = if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
                 ) {
-                    // "Check" looks for a newer yt-dlp; once one is found the button turns into "Update".
-                    SmallButton(
-                        text = when {
-                            vm.ytdlpBusy -> "Updating…"
-                            vm.ytdlpChecking -> "Checking…"
-                            vm.ytdlpAvailable == true -> "Update"
-                            else -> "Check"
-                        },
-                        enabled = !vm.ytdlpBusy && !vm.ytdlpChecking && vm.online == true,
-                        onClick = { if (vm.ytdlpAvailable == true) vm.updateYtdlp() else vm.checkYtdlp(manual = true) },
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val palette = LocalPalette.current
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .clickable(onClickLabel = "yt-dlp settings", role = Role.Button) { showYtdlpSettings = true },
+                            contentAlignment = Alignment.Center,
+                        ) { VIconView(VIcons.Settings, 18.dp, palette.muted) }
+                        // "Check" looks for a newer yt-dlp; once one is found the button turns into "Update".
+                        SmallButton(
+                            text = when {
+                                vm.ytdlpBusy -> "Updating…"
+                                vm.ytdlpChecking -> "Checking…"
+                                vm.ytdlpAvailable == true -> "Update"
+                                else -> "Check"
+                            },
+                            enabled = !vm.ytdlpBusy && !vm.ytdlpChecking && vm.online == true,
+                            onClick = { if (vm.ytdlpAvailable == true) vm.updateYtdlp() else vm.checkYtdlp(manual = true) },
+                        )
+                    }
                 }
-                Separator()
-                ChoiceRow(
-                    "Update channel", "Nightly builds receive site fixes sooner but may be less stable.",
-                    CHANNEL_CHOICES, vm.ytdlpChannel,
-                ) { vm.updateYtdlpChannel(it) }
-                Separator()
-                CookiesRow(vm)
+                if (showYtdlpSettings) YtdlpSettingsDialog(vm) { showYtdlpSettings = false }
                 first = false
             }
             rows.forEach { row ->
@@ -364,7 +423,7 @@ private fun SectionCard(
                     ) { vm.updateServerSetting(row.path, it) }
                 }
             }
-            if (title == PAGE_SAVING) {
+            if (title == PAGE_DOWNLOADING) {
                 Separator()
                 FilenamePreview(vm.settingValue("metadata.filename_style") as? String ?: "classic")
             }
@@ -603,7 +662,7 @@ internal fun Dropdown(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (isSelected) palette.bg else Color.Transparent)
-                                    .clickable {
+                                    .clickable(enabled = option.enabled) {
                                         expanded = false
                                         if (!isSelected) onSelect(option.value)
                                     }
@@ -613,12 +672,25 @@ internal fun Dropdown(
                                 T(
                                     option.label,
                                     size = 13.6.sp,
-                                    color = if (isSelected) Accent else palette.text,
+                                    color = when {
+                                        !option.enabled -> palette.muted.copy(alpha = 0.7f)
+                                        isSelected -> Accent
+                                        else -> palette.text
+                                    },
                                     weight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                     maxLines = 1,
                                     lineHeight = 19.sp,
                                     modifier = Modifier.weight(1f),
                                 )
+                                if (option.note != null) {
+                                    T(
+                                        option.note,
+                                        size = 11.5.sp,
+                                        color = palette.muted,
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(start = 12.dp),
+                                    )
+                                }
                                 if (isSelected) VIconView(VIcons.Check, 13.dp, Accent, Modifier.padding(start = 10.dp))
                             }
                         }
@@ -794,6 +866,71 @@ private fun FilenamePreview(style: String) {
     }
 }
 
+/** yt-dlp's own settings: which build the update button installs, and the YouTube sign-in. */
+@Composable
+private fun YtdlpSettingsDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val palette = LocalPalette.current
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier
+                .padding(horizontal = 24.dp)
+                .widthIn(max = 420.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(palette.card)
+                .verticalScroll(rememberScrollState())
+                .padding(top = 20.dp, bottom = 16.dp),
+        ) {
+            T("yt-dlp settings", size = 18.sp, weight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp))
+            T(
+                "Update channel",
+                size = 12.48.sp,
+                color = palette.muted,
+                weight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+            )
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CHANNEL_CHOICES.forEach { choice ->
+                    val selected = vm.ytdlpChannel == choice.value
+                    val shape = RoundedCornerShape(12.dp)
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(shape)
+                            .background(if (selected) Accent.copy(alpha = 0.10f) else palette.bg)
+                            .border(1.5.dp, if (selected) Accent else Color.Transparent, shape)
+                            .clickable(role = Role.RadioButton) { if (!selected) vm.updateYtdlpChannel(choice.value) }
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        T(
+                            choice.label,
+                            size = 14.4.sp,
+                            color = if (selected) Accent else palette.text,
+                            weight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            maxLines = 1,
+                        )
+                        if (selected) VIconView(VIcons.Check, 14.dp, Accent)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Separator()
+            CookiesRow(vm)
+            Spacer(Modifier.height(4.dp))
+            PillButton(
+                text = "Done",
+                icon = null,
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                height = 40.dp,
+            )
+        }
+    }
+}
+
 /** Import / replace / remove the YouTube sign-in cookies (a cookies.txt exported from a browser). */
 @Composable
 private fun CookiesRow(vm: AppViewModel) {
@@ -804,12 +941,12 @@ private fun CookiesRow(vm: AppViewModel) {
     val present = info?.present == true
     val status = when {
         vm.cookiesBusy -> "Working…"
-        info == null -> if (vm.online == true) "Checking…" else "Start the server to import cookies."
+        info == null -> if (vm.online == true) "Checking…" else "Start the server to set this up."
         info.present -> "${info.count} cookies for ${info.domains.take(3).joinToString(", ")}" +
             if (info.domains.size > 3) " and more" else ""
-        else -> "For age-restricted videos and “confirm you’re not a bot” checks. Import a cookies.txt exported from your browser."
+        else -> "Lets age-restricted YouTube videos download."
     }
-    RowShell("Sign-in cookies", status) {
+    RowShell("YouTube sign-in", status) {
         val enabled = !vm.cookiesBusy && vm.online == true && info != null
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (present) SmallButton(text = "Remove", enabled = enabled, tonal = true, minWidth = 68.dp, onClick = { vm.removeCookies() })

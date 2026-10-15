@@ -66,6 +66,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var theme by mutableStateOf(prefs.theme)
     var saveTo by mutableStateOf(prefs.saveTo)
+    var sortByType by mutableStateOf(prefs.sortByType)
+
+    /** An SD card is inserted right now (checked when the Downloading page opens and when one is plugged or pulled). */
+    var sdAvailable by mutableStateOf(Storage.sdAvailable(application))
     var pasteAndGo by mutableStateOf(prefs.pasteAndGo)
     var reduceMotion by mutableStateOf(prefs.reduceMotion)
 
@@ -194,6 +198,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateTheme(value: String) { prefs.theme = value; theme = value; savedPulse++ }
     fun updateSaveTo(value: String) { prefs.saveTo = value; saveTo = value; savedPulse++ }
+    fun updateSortByType(value: Boolean) { prefs.sortByType = value; sortByType = value; savedPulse++ }
+
+    /** The custom folder can still be written to (false when none is picked, or its card or permission is gone). */
+    var folderOk by mutableStateOf(prefs.folderUri.isNotBlank())
+
+    fun refreshStorage() {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val (sd, folder) = withContext(Dispatchers.IO) {
+                Storage.sdAvailable(app) to Storage.folderUsable(app, prefs.folderUri)
+            }
+            sdAvailable = sd
+            folderOk = folder
+        }
+    }
+
+    /**
+     * Where [chosen] really goes right now. An SD card that was pulled out, or a folder that is no longer
+     * reachable, falls back to the phone's Downloads, with a short note for the toast. Checked before the
+     * download starts so nobody waits for a file that then has nowhere to go.
+     */
+    private fun resolveSaveTarget(chosen: String): Pair<String, String?> {
+        val app = getApplication<Application>()
+        return when (chosen) {
+            "sdcard" -> if (Storage.sdAvailable(app)) chosen to null else "downloads" to "SD card not found"
+            "folder" -> if (Storage.folderUsable(app, prefs.folderUri)) chosen to null else "downloads" to "Folder unavailable"
+            else -> chosen to null
+        }
+    }
+
+    private fun savedText(prefix: String, folder: String, note: String?): String =
+        if (note == null) "$prefix $folder" else "$note · $prefix $folder"
     fun updateReduceMotion(value: String) { prefs.reduceMotion = value; reduceMotion = value; savedPulse++ }
     fun updatePasteAndGo(value: Boolean) { prefs.pasteAndGo = value; pasteAndGo = value; savedPulse++ }
     fun updateLayout(value: String) { prefs.layout = value; layout = value; savedPulse++ }
@@ -217,6 +253,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         prefs.folderUri = uri.toString()
         prefs.folderName = label
         folderName = label
+        folderOk = true
         updateSaveTo("folder")
     }
 
@@ -499,9 +536,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         downloads[spec.url] = DlState.Busy(null)
         val toast = addToast(spec.name, pending)
         viewModelScope.launch {
-            val folder = saveOne(post, spec, toast, 1, 1, true)
+            val (target, note) = resolveSaveTarget(saveTo)
+            val folder = saveOne(post, spec, toast, 1, 1, true, target)
             if (folder != null) {
-                finishToast(toast, ToastPhase.Ok, "Saved to $folder")
+                finishToast(toast, ToastPhase.Ok, savedText("Saved to", folder, note))
                 delay(1800)
                 if (downloads[spec.url] is DlState.Done) downloads.remove(spec.url)
             }
@@ -516,14 +554,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val toast = addToast("${specs.size} files", "Preparing…")
         viewModelScope.launch {
             var folder: String? = null
+            val (target, note) = resolveSaveTarget(saveTo)
             for ((index, spec) in specs.withIndex()) {
-                folder = saveOne(post, spec, toast, index + 1, specs.size, false)
+                folder = saveOne(post, spec, toast, index + 1, specs.size, false, target)
                 if (folder == null) break
                 delay(300)
             }
             if (folder != null) {
                 downloads[key] = DlState.Done(folder)
-                finishToast(toast, ToastPhase.Ok, "Saved ${specs.size} files to $folder")
+                finishToast(toast, ToastPhase.Ok, savedText("Saved ${specs.size} files to", folder, note))
                 delay(1800)
                 if (downloads[key] is DlState.Done) downloads.remove(key)
             } else {
@@ -539,19 +578,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         position: Int,
         total: Int,
         track: Boolean,
+        target: String,
     ): String? {
         var jobId: String? = null
         return try {
             val saved = api.download(
                 spec,
-                saveTo,
+                target,
                 onJob = { id ->
                     jobId = id
                     liveJobs.add(id)
                     // Remembered until the file is saved, so the app can finish it after a restart.
                     prefs.addPendingJob(
                         PendingJob(
-                            id, spec.name, saveTo, post.link, post.title, post.author, post.kind,
+                            id, spec.name, target, post.link, post.title, post.author, post.kind,
                             post.thumb.orEmpty(), System.currentTimeMillis(),
                         ),
                     )
@@ -594,10 +634,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         for (job in prefs.pendingJobs()) {
             if (!liveJobs.add(job.id)) continue
             val toast = addToast(job.name.ifBlank { job.title.ifBlank { "Download" } }, "Resuming…")
+            val (target, note) = resolveSaveTarget(job.saveTo)
             viewModelScope.launch {
                 try {
                     val saved = api.resumeJob(
-                        job.id, job.name, job.saveTo,
+                        job.id, job.name, target,
                         onFileName = { name -> updateToast(toast) { it.copy(name = name) } },
                         onProgress = { progress ->
                             updateToast(toast) {
@@ -611,7 +652,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         avatar = null, kind = job.kind, thumb = job.thumb.ifBlank { null }, items = emptyList(),
                     )
                     recordHistory(post, saved)
-                    finishToast(toast, ToastPhase.Ok, "Saved to ${saved.label}")
+                    finishToast(toast, ToastPhase.Ok, savedText("Saved to", saved.label, note))
                 } catch (e: ApiException) {
                     prefs.removePendingJob(job.id)
                     val info = if (e.offline) {
@@ -661,7 +702,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun importCookies(uri: Uri) {
         if (cookiesBusy) return
         cookiesBusy = true
-        val toast = addToast("Sign-in cookies", "Importing…")
+        val toast = addToast("YouTube sign-in", "Importing…")
         viewModelScope.launch {
             try {
                 val text = withContext(Dispatchers.IO) { readCookieFile(uri) }
@@ -680,7 +721,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun removeCookies() {
         if (cookiesBusy) return
         cookiesBusy = true
-        val toast = addToast("Sign-in cookies", "Removing…")
+        val toast = addToast("YouTube sign-in", "Removing…")
         viewModelScope.launch {
             try {
                 cookies = api.removeCookies()

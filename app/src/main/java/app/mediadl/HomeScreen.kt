@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -217,7 +218,7 @@ private fun LinkRow(vm: AppViewModel) {
                 keyboardActions = KeyboardActions(onGo = { vm.parse() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 42.dp, end = 14.dp)
+                    .padding(start = 42.dp, end = 46.dp)
                     .onFocusChanged { focused = it.isFocused },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
@@ -228,26 +229,31 @@ private fun LinkRow(vm: AppViewModel) {
                     }
                 },
             )
+            // One icon button inside the field: Paste while it is empty, Clear once there is text.
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 2.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(
+                        onClickLabel = if (filled) "Clear link" else "Paste link",
+                        role = Role.Button,
+                    ) { if (filled) vm.reset() else vm.pasteFromClipboard(readClipboard(context)) },
+                contentAlignment = Alignment.Center,
+            ) {
+                VIconView(if (filled) VIcons.Clear else VIcons.Paste, 18.dp, palette.muted)
+            }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PillButton(
-                text = if (filled) "Clear" else "Paste",
-                icon = if (filled) VIcons.Clear else VIcons.Paste,
-                onClick = { if (filled) vm.reset() else vm.pasteFromClipboard(readClipboard(context)) },
-                modifier = Modifier.weight(1f),
-                style = PillStyle.Tonal,
-                height = 40.dp,
-            )
-            PillButton(
-                text = "Parse",
-                icon = VIcons.Play,
-                onClick = { vm.parse() },
-                modifier = Modifier.weight(1f),
-                busy = vm.loading,
-                height = 40.dp,
-                spinner = vm.loading,
-            )
-        }
+        PillButton(
+            text = "Parse",
+            icon = VIcons.Play,
+            onClick = { vm.parse() },
+            modifier = Modifier.fillMaxWidth(),
+            busy = vm.loading,
+            height = 40.dp,
+            spinner = vm.loading,
+        )
     }
 }
 

@@ -70,7 +70,8 @@ data class SettingRow(
     val type: String,
 )
 
-data class Choice(val value: String, val label: String)
+/** One option in a dropdown. A disabled one stays visible, greyed out, with [note] saying why. */
+data class Choice(val value: String, val label: String, val enabled: Boolean = true, val note: String? = null)
 
 data class ServerSettings(
     val settings: JSONObject,

@@ -24,9 +24,15 @@ class Prefs(context: Context) {
         get() = sp.getString("theme", "system") ?: "system"
         set(value) = sp.edit().putString("theme", value).apply()
 
+    /** "downloads" (internal storage), "sdcard" or "folder". The old "gallery" choice is gone and maps to "downloads". */
     var saveTo: String
-        get() = sp.getString("saveTo", "downloads") ?: "downloads"
+        get() = (sp.getString("saveTo", "downloads") ?: "downloads").let { if (it == "gallery") "downloads" else it }
         set(value) = sp.edit().putString("saveTo", value).apply()
+
+    /** Put files in Videos / Images / Audio subfolders inside RibbT's folder. */
+    var sortByType: Boolean
+        get() = sp.getBoolean("sortByType", true)
+        set(value) = sp.edit().putBoolean("sortByType", value).apply()
 
     /** Tree URI picked with the system folder picker (SD card or any folder). */
     var folderUri: String
