@@ -16,6 +16,11 @@ object Storage {
 
     fun sdAvailable(context: Context): Boolean = sdVolume(context) != null
 
+    /** True while the file behind [uri] can still be opened (it hasn't been deleted, the card is still in). */
+    fun exists(context: Context, uri: Uri): Boolean = runCatching {
+        context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } ?: false
+    }.getOrDefault(false)
+
     /** True while a folder picked with the system picker can still be written to (permission kept, card still there). */
     fun folderUsable(context: Context, folderUri: String): Boolean {
         if (folderUri.isBlank()) return false

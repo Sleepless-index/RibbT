@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -108,6 +109,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Server jobs this app is collecting right now, so a restart-recovery never saves the same file twice. */
     private val liveJobs: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    // Per download toast: the running coroutine, the server job behind it, and what Retry should do.
+    private val toastJobs = HashMap<Long, Job>()
+    private val toastServerJobs = HashMap<Long, String>()
+    private val retryActions = HashMap<Long, () -> Unit>()
+
+    /** A link shared into the app while the built-in server was still starting; parsed as soon as it is up. */
+    private var pendingShare: String? = null
+
     init {
         if (prefs.builtIn) BuiltInServer.start(application)
         refresh()
@@ -131,9 +140,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 starting = false
             }
             online = reachable
+            if (!reachable && pendingShare != null) {
+                pendingShare = null
+                loading = false
+            }
             if (reachable) {
                 everOnline = true
                 runCatching { platforms = api.platforms() }
+                pendingShare?.let { shared ->
+                    pendingShare = null
+                    loading = false
+                    parse(shared)
+                }
                 runCatching {
                     val loaded = api.serverSettings()
                     prefs.settingsJson = loaded.settings.toString()
@@ -430,7 +448,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun receiveShared(text: String) {
         tab = Tab.Home
         input = text
-        parse(text)
+        if (online == true) {
+            parse(text)
+            return
+        }
+        // Opened by a share while the built-in server is still starting: wait for it, then parse.
+        pendingShare = text
+        error = null
+        loading = true
+        if (online == false && !starting) refresh()
     }
 
     fun pasteFromClipboard(text: String?) {
@@ -465,9 +491,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun addToast(name: String, status: String): Long {
+    private fun addToast(name: String, status: String, cancellable: Boolean = false): Long {
         val id = ++toastCounter
-        toasts.add(DlToast(id, name, status, null, ToastPhase.Active))
+        toasts.add(DlToast(id, name, status, null, ToastPhase.Active, canCancel = cancellable))
         return id
     }
 
@@ -497,16 +523,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissToast(id: Long) {
+        retryActions.remove(id)
         toasts.removeAll { it.id == id }
     }
 
     private fun finishToast(id: Long, phase: ToastPhase, status: String) {
         val name = toasts.firstOrNull { it.id == id }?.name.orEmpty()
         Notifier.download(getApplication(), id, name, status, ok = phase == ToastPhase.Ok)
-        updateToast(id) { it.copy(status = status, progress = null, phase = phase) }
+        updateToast(id) { it.copy(status = status, progress = null, phase = phase, canCancel = false) }
         if (phase == ToastPhase.Ok) hopSignal++
         viewModelScope.launch {
-            delay(if (phase == ToastPhase.Ok) 3500 else 6000)
+            delay(if (phase == ToastPhase.Ok) 3500 else 9000)
             dismissToast(id)
         }
     }
@@ -537,30 +564,71 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun download(post: Post, spec: DownloadSpec, pending: String = "Preparing…") {
         if (downloads[spec.url] is DlState.Busy) return
         downloads[spec.url] = DlState.Busy(null)
-        val toast = addToast(spec.name, pending)
-        viewModelScope.launch {
+        val toast = addToast(spec.name, pending, cancellable = true)
+        val job = viewModelScope.launch {
             val (target, note) = resolveSaveTarget(saveTo)
             val folder = saveOne(post, spec, toast, 1, 1, true, target)
             if (folder != null) {
                 finishToast(toast, ToastPhase.Ok, savedText("Saved to", folder, note))
                 delay(1800)
                 if (downloads[spec.url] is DlState.Done) downloads.remove(spec.url)
+            } else {
+                offerRetry(toast) { download(post, spec, pending) }
             }
+        }
+        trackDownload(toast, job) { downloads.remove(spec.url) }
+    }
+
+    /** Remembers the coroutine behind a download toast so Cancel can stop it. */
+    private fun trackDownload(toast: Long, job: Job, onCancelled: () -> Unit) {
+        toastJobs[toast] = job
+        job.invokeOnCompletion { cause ->
+            toastJobs.remove(toast)
+            toastServerJobs.remove(toast)
+            if (cause is CancellationException) onCancelled()
         }
     }
 
+    private fun offerRetry(toast: Long, action: () -> Unit) {
+        if (toasts.none { it.id == toast }) return
+        retryActions[toast] = action
+        updateToast(toast) { it.copy(canRetry = true) }
+    }
+
+    /** Stops a running download: the app stops waiting, the server drops the job, and a half-written file is removed. */
+    fun cancelDownload(id: Long) {
+        val serverJob = toastServerJobs.remove(id)
+        toastJobs[id]?.cancel()
+        if (serverJob != null) {
+            prefs.removePendingJob(serverJob)
+            viewModelScope.launch { runCatching { api.cancelJob(serverJob) } }
+        }
+        dismissToast(id)
+    }
+
+    fun retryDownload(id: Long) {
+        val action = retryActions.remove(id) ?: return
+        dismissToast(id)
+        action()
+    }
+
     fun downloadAll(post: Post, items: List<MediaItem>) {
-        val specs = items.mapNotNull { it.downloads.firstOrNull() }
+        downloadSpecs(post, items.mapNotNull { it.downloads.firstOrNull() })
+    }
+
+    private fun downloadSpecs(post: Post, specs: List<DownloadSpec>) {
         val key = "all:" + post.link
         if (specs.isEmpty() || downloads[key] is DlState.Busy) return
         downloads[key] = DlState.Busy(null)
-        val toast = addToast("${specs.size} files", "Preparing…")
-        viewModelScope.launch {
+        val toast = addToast(if (specs.size == 1) "1 file" else "${specs.size} files", "Preparing…", cancellable = true)
+        val job = viewModelScope.launch {
             var folder: String? = null
+            var saved = 0
             val (target, note) = resolveSaveTarget(saveTo)
             for ((index, spec) in specs.withIndex()) {
                 folder = saveOne(post, spec, toast, index + 1, specs.size, false, target)
                 if (folder == null) break
+                saved++
                 delay(300)
             }
             if (folder != null) {
@@ -570,8 +638,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (downloads[key] is DlState.Done) downloads.remove(key)
             } else {
                 downloads.remove(key)
+                // Files already saved stay saved; Retry only does the ones that are left.
+                offerRetry(toast) { downloadSpecs(post, specs.drop(saved)) }
             }
         }
+        trackDownload(toast, job) { downloads.remove(key) }
     }
 
     private suspend fun saveOne(
@@ -590,6 +661,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 target,
                 onJob = { id ->
                     jobId = id
+                    toastServerJobs[toast] = id
                     liveJobs.add(id)
                     // Remembered until the file is saved, so the app can finish it after a restart.
                     prefs.addPendingJob(
@@ -610,6 +682,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             jobId?.let { prefs.removePendingJob(it) }
             val folder = saved.label
             if (track) downloads[spec.url] = DlState.Done(folder)
+            rememberFile(post.link, saved)
             recordHistory(post, saved)
             folder
         } catch (e: ApiException) {
@@ -636,9 +709,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun recoverJobs() {
         for (job in prefs.pendingJobs()) {
             if (!liveJobs.add(job.id)) continue
-            val toast = addToast(job.name.ifBlank { job.title.ifBlank { "Download" } }, "Resuming…")
+            val toast = addToast(job.name.ifBlank { job.title.ifBlank { "Download" } }, "Resuming…", cancellable = true)
+            toastServerJobs[toast] = job.id
             val (target, note) = resolveSaveTarget(job.saveTo)
-            viewModelScope.launch {
+            val resumed = viewModelScope.launch {
                 try {
                     val saved = api.resumeJob(
                         job.id, job.name, target,
@@ -654,6 +728,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         id = "", platform = "", link = job.link, title = job.title, author = job.author,
                         avatar = null, kind = job.kind, thumb = job.thumb.ifBlank { null }, items = emptyList(),
                     )
+                    rememberFile(job.link, saved)
                     recordHistory(post, saved)
                     finishToast(toast, ToastPhase.Ok, savedText("Saved to", saved.label, note))
                 } catch (e: ApiException) {
@@ -669,6 +744,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     liveJobs.remove(job.id)
                 }
             }
+            trackDownload(toast, resumed) {}
         }
     }
 
@@ -751,6 +827,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun rememberFile(link: String, saved: SavedFile) {
+        val uri = saved.uri ?: return
+        prefs.addSavedFile(link, SavedRef(uri, saved.mime, saved.name))
+    }
+
+    /** The files saved from [link] that are still on the phone (deleted ones, or a pulled SD card, are left out). */
+    suspend fun existingFiles(link: String): List<SavedRef> = withContext(Dispatchers.IO) {
+        val app = getApplication<Application>()
+        prefs.savedFiles(link).filter { Storage.exists(app, Uri.parse(it.uri)) }
+    }
+
     fun openFromHistory(entry: HistoryEntry) {
         tab = Tab.Home
         input = entry.link
@@ -758,6 +845,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun deleteHistory(entry: HistoryEntry) {
+        prefs.removeSavedFiles(entry.link)
         viewModelScope.launch {
             runCatching { api.removeHistory(entry.id) }
             history.removeAll { it.id == entry.id }

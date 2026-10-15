@@ -124,6 +124,8 @@ fun AppRoot(vm: AppViewModel) {
                 ToastHost(
                     toasts = vm.toasts,
                     onDismiss = { vm.dismissToast(it) },
+                    onCancel = { vm.cancelDownload(it) },
+                    onRetry = { vm.retryDownload(it) },
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
                 )
             }

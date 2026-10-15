@@ -43,12 +43,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun ToastHost(toasts: List<DlToast>, onDismiss: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun ToastHost(
+    toasts: List<DlToast>,
+    onDismiss: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    onCancel: (Long) -> Unit = {},
+    onRetry: (Long) -> Unit = {},
+) {
     Column(
         modifier
             .fillMaxWidth()
@@ -57,13 +64,13 @@ fun ToastHost(toasts: List<DlToast>, onDismiss: (Long) -> Unit, modifier: Modifi
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         toasts.forEach { toast ->
-            key(toast.id) { ToastCard(toast) { onDismiss(toast.id) } }
+            key(toast.id) { ToastCard(toast, onCancel = { onCancel(toast.id) }, onRetry = { onRetry(toast.id) }) { onDismiss(toast.id) } }
         }
     }
 }
 
 @Composable
-private fun ToastCard(toast: DlToast, onDismiss: () -> Unit) {
+private fun ToastCard(toast: DlToast, onCancel: () -> Unit, onRetry: () -> Unit, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
@@ -136,6 +143,12 @@ private fun ToastCard(toast: DlToast, onDismiss: () -> Unit) {
                         modifier = Modifier.padding(top = 1.dp),
                     )
                 }
+                if (toast.canCancel && toast.phase == ToastPhase.Active) {
+                    ToastAction("Cancel", palette.muted, onCancel)
+                }
+                if (toast.canRetry && toast.phase == ToastPhase.Bad) {
+                    ToastAction("Retry", Accent, onRetry)
+                }
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -149,6 +162,18 @@ private fun ToastCard(toast: DlToast, onDismiss: () -> Unit) {
                 ProgressBar(toast.progress, Modifier.align(Alignment.BottomStart))
             }
         }
+    }
+}
+
+@Composable
+private fun ToastAction(label: String, color: Color, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        T(label, size = 12.8.sp, color = color, weight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 

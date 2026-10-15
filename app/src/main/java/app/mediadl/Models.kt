@@ -132,7 +132,14 @@ data class DlToast(
     val status: String,
     val progress: Float?,
     val phase: ToastPhase,
+    /** Shows a Cancel button while the download runs. */
+    val canCancel: Boolean = false,
+    /** Shows a Retry button once it has failed. */
+    val canRetry: Boolean = false,
 )
+
+/** A file RibbT saved on this phone, remembered so History can open or share it later. */
+class SavedRef(val uri: String, val mime: String, val name: String)
 
 enum class MediaLayout(val key: String, val label: String) {
     Carousel("carousel", "Carousel"),

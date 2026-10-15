@@ -344,7 +344,7 @@ private fun SearchField(vm: AppViewModel) {
     }
 }
 
-/** What opens when a history row is tapped: the picture, the link under it, and what you can do with it. */
+/** What opens when a history row is tapped: the whole picture, the details, and what you can do with it. */
 @Composable
 private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
@@ -356,88 +356,161 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
             copied = false
         }
     }
+    // The files from this post that are still on the phone; empty for entries saved before this was tracked.
+    var files by remember { mutableStateOf<List<SavedRef>>(emptyList()) }
+    LaunchedEffect(entry.link) { files = vm.existingFiles(entry.link) }
+
     val thumb = vm.absolute(entry.thumb.ifBlank { null })
     val platformLabel = vm.platforms.firstOrNull { it.name == entry.platform }?.label ?: entry.platform
+    val ago = DateUtils.getRelativeTimeSpanString(
+        entry.time * 1000, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
+    ).toString()
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier
-                .padding(horizontal = 24.dp)
-                .widthIn(max = 420.dp)
+                .padding(horizontal = 20.dp)
+                .widthIn(max = 440.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(palette.card)
                 .verticalScroll(rememberScrollState()),
         ) {
+            // The picture is shown whole (never cropped); what it doesn't fill stays the dark backdrop.
             Box(
-                Modifier.fillMaxWidth().aspectRatio(16f / 10f).background(palette.sep),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(palette.bg),
                 contentAlignment = Alignment.Center,
             ) {
                 if (thumb != null) {
-                    AsyncImage(model = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    AsyncImage(
+                        model = thumb,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp, max = 380.dp),
+                    )
                 } else {
-                    VIconView(if (entry.kind == "video") VIcons.Video else VIcons.Photo, 36.dp, palette.muted)
+                    Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                        VIconView(if (entry.kind == "video") VIcons.Video else VIcons.Photo, 36.dp, palette.muted)
+                    }
                 }
+                if (platformLabel.isNotBlank()) {
+                    T(
+                        platformLabel,
+                        size = 11.5.sp,
+                        color = Color.White,
+                        weight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clickable(onClickLabel = "Close", role = Role.Button, onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) { VIconView(VIcons.CloseSmall, 14.dp, Color.White) }
             }
-            Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp)) {
+
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
                 T(
                     entry.title.ifBlank { entry.author.ifBlank { "Untitled" } },
-                    weight = FontWeight.SemiBold, size = 16.sp, maxLines = 3, lineHeight = 21.sp,
+                    weight = FontWeight.SemiBold, size = 17.sp, maxLines = 3, lineHeight = 22.sp,
                 )
-                val sub = listOf(platformLabel, entry.author).filter { it.isNotBlank() }.joinToString(" · ")
-                if (sub.isNotBlank()) T(sub, size = 12.8.sp, color = palette.muted, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
-                T(
-                    entry.link,
-                    size = 12.5.sp,
-                    color = Accent,
-                    maxLines = 2,
-                    lineHeight = 17.sp,
-                    modifier = Modifier
-                        .padding(top = 10.dp)
+                if (entry.author.isNotBlank() && entry.title.isNotBlank()) {
+                    T(entry.author, size = 13.sp, color = palette.muted, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                }
+                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    InfoChip(ago)
+                    InfoChip(if (entry.files > 1) "${entry.files} files" else "1 file")
+                    if (entry.totalBytes > 0) InfoChip(formatBytes(entry.totalBytes))
+                }
+                Row(
+                    Modifier
+                        .padding(top = 12.dp)
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(palette.bg)
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                )
-                val ago = DateUtils.getRelativeTimeSpanString(
-                    entry.time * 1000, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
-                ).toString()
-                val files = if (entry.files > 1) "${entry.files} files" else "1 file"
-                val size = if (entry.totalBytes > 0) " · ${formatBytes(entry.totalBytes)}" else ""
-                T("$ago · $files$size", size = 12.16.sp, color = palette.muted, maxLines = 1, modifier = Modifier.padding(top = 10.dp))
-                if (entry.savedTo.isNotBlank()) T("Saved to ${entry.savedTo}", size = 12.16.sp, color = palette.muted, maxLines = 1)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    VIconView(VIcons.Link, 15.dp, palette.muted)
+                    T(entry.link, size = 12.5.sp, color = palette.muted, maxLines = 2, lineHeight = 17.sp, modifier = Modifier.padding(start = 8.dp))
+                }
+                if (entry.savedTo.isNotBlank()) {
+                    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        VIconView(VIcons.Folder, 15.dp, palette.muted)
+                        T("Saved to ${entry.savedTo}", size = 12.16.sp, color = palette.muted, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
             }
-            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PillButton(
-                    text = "Download again",
-                    icon = VIcons.Download,
-                    onClick = { vm.openFromHistory(entry); onDismiss() },
-                    modifier = Modifier.fillMaxWidth(),
-                    height = 40.dp,
+
+            // One main action, then the rest in pairs. Open and Share only show when the files are still on the phone.
+            val actions = buildList {
+                if (files.size == 1) add(DetailAction("Share", VIcons.Share) { FileActions.share(context, files) })
+                if (files.isNotEmpty()) add(DetailAction("Download again", VIcons.Download) { vm.openFromHistory(entry); onDismiss() })
+                add(
+                    DetailAction(if (copied) "Copied" else "Copy link", if (copied) VIcons.Check else VIcons.Link) {
+                        val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        manager?.setPrimaryClip(ClipData.newPlainText("RibbT link", entry.link))
+                        copied = true
+                    },
                 )
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PillButton(
-                        text = if (copied) "Copied" else "Copy link",
-                        icon = if (copied) VIcons.Check else VIcons.Link,
-                        onClick = {
-                            val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                            manager?.setPrimaryClip(ClipData.newPlainText("RibbT link", entry.link))
-                            copied = true
-                        },
-                        modifier = Modifier.weight(1f),
-                        style = PillStyle.Tonal,
-                        height = 40.dp,
-                    )
-                    PillButton(
-                        text = "Delete",
-                        icon = VIcons.Trash,
-                        onClick = { vm.deleteHistory(entry); onDismiss() },
-                        modifier = Modifier.weight(1f),
-                        style = PillStyle.Tonal,
-                        height = 40.dp,
-                    )
+                add(DetailAction("Delete", VIcons.Trash, destructive = true) { vm.deleteHistory(entry); onDismiss() })
+            }
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                when {
+                    files.size == 1 -> PillButton("Open", VIcons.Open, { FileActions.open(context, files[0]) }, Modifier.fillMaxWidth(), height = 46.dp)
+                    files.size > 1 -> PillButton("Share ${files.size} files", VIcons.Share, { FileActions.share(context, files) }, Modifier.fillMaxWidth(), height = 46.dp)
+                    else -> PillButton("Download again", VIcons.Download, { vm.openFromHistory(entry); onDismiss() }, Modifier.fillMaxWidth(), height = 46.dp)
+                }
+                // With no files on the phone "Download again" is already the main button above.
+                val rest = if (files.isEmpty()) actions.filter { it.label != "Download again" } else actions
+                rest.chunked(2).forEach { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pair.forEach { action ->
+                            PillButton(
+                                text = action.label,
+                                icon = action.icon,
+                                onClick = action.onClick,
+                                modifier = Modifier.weight(1f),
+                                style = PillStyle.Tonal,
+                                height = 42.dp,
+                                contentColor = if (action.destructive) palette.err else null,
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private class DetailAction(val label: String, val icon: VIcon, val destructive: Boolean = false, val onClick: () -> Unit)
+
+@Composable
+private fun InfoChip(text: String) {
+    val palette = LocalPalette.current
+    T(
+        text,
+        size = 12.sp,
+        color = palette.muted,
+        maxLines = 1,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(palette.bg)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
 }

@@ -27,7 +27,7 @@ import java.net.UnknownHostException
 class ApiException(message: String, val offline: Boolean = false, val status: Int = 0) : Exception(message)
 
 /** A finished download: where it went, how big it is, and which kind (video, image or audio). */
-class SavedFile(val label: String, val bytes: Long, val kind: Int)
+class SavedFile(val label: String, val bytes: Long, val kind: Int, val uri: String? = null, val mime: String = "", val name: String = "")
 
 const val KIND_VIDEO = 0
 const val KIND_IMAGE = 1
@@ -269,6 +269,9 @@ class Api(private val context: Context, private val prefs: Prefs) {
 
     private fun jobInfo(id: String): JobInfo = guard { requestJson("/api/jobs/$id").toJobInfo() }
 
+    /** Stops a download the server is still working on and throws away what it made. */
+    suspend fun cancelJob(id: String) = withContext(Dispatchers.IO) { deleteJobQuietly(id) }
+
     private fun deleteJobQuietly(id: String) {
         runCatching {
             val connection = connection("/api/jobs/$id", "DELETE", readTimeoutMs = 5_000)
@@ -439,6 +442,9 @@ class Api(private val context: Context, private val prefs: Prefs) {
                     mime.startsWith("audio/") -> KIND_AUDIO
                     else -> KIND_IMAGE
                 },
+                sink.uri.toString(),
+                mime,
+                fileName,
             )
         } finally {
             connection?.disconnect()
@@ -463,7 +469,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
     private class Destination(val collection: Uri, val folder: String, val label: String)
 
     /** Where a finished file is written, plus how to finish or throw it away. */
-    private class Sink(val out: OutputStream, val label: String, val commit: () -> Unit, val abort: () -> Unit)
+    private class Sink(val out: OutputStream, val label: String, val uri: Uri, val commit: () -> Unit, val abort: () -> Unit)
 
     private fun sdVolume(): String? = Storage.sdVolume(context)
 
@@ -515,6 +521,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
         return Sink(
             output,
             target.label,
+            uri,
             commit = {
                 val finished = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
                 resolver.update(uri, finished, null, null)
@@ -554,6 +561,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
         return Sink(
             output,
             prefs.folderName.ifBlank { "Chosen folder" },
+            document,
             commit = {},
             abort = { runCatching { DocumentsContract.deleteDocument(resolver, document) } },
         )

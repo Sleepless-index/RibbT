@@ -2,6 +2,7 @@ package app.mediadl
 
 import android.content.Context
 import org.json.JSONArray
+import org.json.JSONObject
 
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("mediadl", Context.MODE_PRIVATE)
@@ -76,6 +77,49 @@ class Prefs(context: Context) {
     }
 
     @Synchronized
+    // Files saved on this phone, by the link they came from, so History can open or share them later.
+    private fun readSaved(): MutableList<Pair<String, List<SavedRef>>> {
+        val raw = sp.getString("savedFiles", null) ?: return mutableListOf()
+        return runCatching {
+            val array = JSONArray(raw)
+            (0 until array.length()).map { index ->
+                val item = array.getJSONObject(index)
+                val files = item.getJSONArray("files")
+                item.getString("link") to (0 until files.length()).map { i ->
+                    val file = files.getJSONObject(i)
+                    SavedRef(file.optString("uri"), file.optString("mime"), file.optString("name"))
+                }
+            }.toMutableList()
+        }.getOrDefault(mutableListOf())
+    }
+
+    private fun writeSaved(list: List<Pair<String, List<SavedRef>>>) {
+        val array = JSONArray()
+        for ((link, files) in list) {
+            array.put(
+                JSONObject().put("link", link).put(
+                    "files",
+                    JSONArray().apply {
+                        files.forEach { put(JSONObject().put("uri", it.uri).put("mime", it.mime).put("name", it.name)) }
+                    },
+                ),
+            )
+        }
+        sp.edit().putString("savedFiles", array.toString()).apply()
+    }
+
+    fun savedFiles(link: String): List<SavedRef> = readSaved().firstOrNull { it.first == link }?.second.orEmpty()
+
+    fun addSavedFile(link: String, ref: SavedRef) {
+        val list = readSaved()
+        val index = list.indexOfFirst { it.first == link }
+        val files = if (index >= 0) list.removeAt(index).second.filter { it.uri != ref.uri } else emptyList()
+        list.add(link to (files + ref))
+        writeSaved(list.takeLast(300))
+    }
+
+    fun removeSavedFiles(link: String) = writeSaved(readSaved().filter { it.first != link })
+
     fun addPendingJob(job: PendingJob) = savePending(pendingJobs().filter { it.id != job.id } + job)
 
     @Synchronized

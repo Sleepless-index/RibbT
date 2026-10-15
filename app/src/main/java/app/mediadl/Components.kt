@@ -149,6 +149,8 @@ fun PillButton(
     spinner: Boolean = false,
     /** 0..1 progress of an attention ring around the button; null for none. */
     pulse: Float? = null,
+    /** Overrides the text and icon color (for a red "Delete", say). */
+    contentColor: Color? = null,
 ) {
     val palette = LocalPalette.current
     val source = remember { MutableInteractionSource() }
@@ -159,7 +161,7 @@ fun PillButton(
         PillStyle.Tonal -> if (pressed) palette.line else palette.sep
         PillStyle.Done -> palette.card
     }
-    val foreground = when (style) {
+    val foreground = contentColor ?: when (style) {
         PillStyle.Primary -> Color.White
         PillStyle.Tonal -> if (pulse != null) Accent else palette.text
         PillStyle.Done -> Accent
