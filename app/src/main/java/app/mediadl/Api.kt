@@ -531,7 +531,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
     /** Writes into the folder chosen with the system folder picker (an SD card or any other folder). */
     private fun openFolderSink(fileName: String, mime: String): Sink {
         val chosen = prefs.folderUri
-        if (chosen.isBlank()) throw ApiException("No folder chosen. Pick one in Settings under Downloading.")
+        if (chosen.isBlank()) throw ApiException("No folder chosen. Pick one in Settings under Downloads.")
         val resolver = context.contentResolver
         val tree = Uri.parse(chosen)
         val failure = "Couldn’t write to the chosen folder. Pick it again in Settings."

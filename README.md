@@ -18,14 +18,14 @@ How the pieces fit:
   unpacked once on first launch.
 - yt-dlp ships in the APK; Settings -> Server -> Update downloads the newest wheel from PyPI
   into the app's storage and uses it from then on (no pip needed).
-- Settings -> Downloading picks where files go (internal storage, SD card or a custom folder, always inside what
+- Settings -> Downloads picks where files go (internal storage, SD card or a custom folder, always inside what
   MediaStore allows: `Download/RibbT`). If the SD card or folder is gone, the download falls back to internal
   storage and the toast says so. "Sort into folders by type" toggles the Videos / Images / Audio subfolders.
 - Downloads run as background jobs on the server (`services/jobs.py`): the app polls for progress,
   then copies the finished file with Range-resume. Unfinished jobs are remembered so the app can
   pick them up after a restart. Temp files live in one folder that is cleaned at every start, and
   downloads check free space first.
-- Settings -> Server -> yt-dlp (gear icon) -> YouTube sign-in imports a `cookies.txt` for YouTube's age and bot checks
+- Settings -> Server -> yt-dlp (gear icon) -> Cookies imports a `cookies.txt` for YouTube's age and bot checks
   (only cookies for supported sites are kept; stored privately, never sent back to the app).
 - The yt-dlp update checks PyPI's published SHA-256 before installing.
 - Server tests: `cd server && python -m unittest discover -s tests -v`.

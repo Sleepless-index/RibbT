@@ -15,7 +15,7 @@ object ErrorText {
         rule("ffmpeg is not installed|could not start ffmpeg", "ffmpeg is missing", "In Termux run: pkg install ffmpeg"),
         rule(
             "sign in|log in|login|\\bbot\\b|cookies|confirm you", "The site wants a sign-in",
-            "Import your cookies.txt in Settings → Server → yt-dlp settings → YouTube sign-in, then try again. On your own server, set YTDLP_COOKIES instead.",
+            "Import your cookies.txt in Settings → Server → yt-dlp settings → Cookies, then try again. On your own server, set YTDLP_COOKIES instead.",
         ),
         rule(
             "private|removed|deleted|not available|unavailable|blocked the request|age.restricted", "Can’t access that post",

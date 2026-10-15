@@ -518,8 +518,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val verb = when (progress.phase) {
             "waiting" -> "Waiting"
             "converting" -> "Converting"
-            "saving" -> "Saving"
-            else -> "Downloading"
+            else -> "Downloading" // fetching on the server and copying to the phone read as one download
         }
         val measurable = progress.phase == "downloading" || progress.phase == "saving"
         val percent = if (measurable) progress.fraction?.let { (it * 100).toInt().coerceIn(0, 99) } else null
@@ -702,7 +701,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun importCookies(uri: Uri) {
         if (cookiesBusy) return
         cookiesBusy = true
-        val toast = addToast("YouTube sign-in", "Importing…")
+        val toast = addToast("Cookies", "Importing…")
         viewModelScope.launch {
             try {
                 val text = withContext(Dispatchers.IO) { readCookieFile(uri) }
@@ -721,7 +720,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun removeCookies() {
         if (cookiesBusy) return
         cookiesBusy = true
-        val toast = addToast("YouTube sign-in", "Removing…")
+        val toast = addToast("Cookies", "Removing…")
         viewModelScope.launch {
             try {
                 cookies = api.removeCookies()

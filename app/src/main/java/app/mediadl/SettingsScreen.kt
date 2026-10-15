@@ -97,11 +97,11 @@ private val MOTION_CHOICES = listOf(Choice("system", "Auto (follows your phone)"
 private val LAYOUT_CHOICES = MediaLayout.entries.map { Choice(it.key, it.label) }
 private val CHANNEL_CHOICES = listOf(Choice("stable", "Stable"), Choice("nightly", "Nightly"))
 private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custom", "Custom address"))
-private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Downloading", "Server")
+private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Downloads", "Server")
 
 private const val PAGE_GENERAL = "General"
 internal const val PAGE_SERVER = "Server"
-private const val PAGE_DOWNLOADING = "Downloading"
+private const val PAGE_DOWNLOADING = "Downloads"
 
 /** What the server calls this section; older servers still send it, so it is mapped to [PAGE_DOWNLOADING]. */
 private const val SERVER_SAVING_SECTION = "Saving"
@@ -158,7 +158,7 @@ fun SettingsScreen(vm: AppViewModel) {
 private class GroupedSettings(
     val choices: Map<String, List<Choice>>,
     val rows: Map<String, List<SettingRow>>,
-    /** Section titles in display order ("Downloading" and "Server" always exist, the rest come from the server). */
+    /** Section titles in display order ("Downloads" and "Server" always exist, the rest come from the server). */
     val sections: List<String>,
 )
 
@@ -866,7 +866,7 @@ private fun FilenamePreview(style: String) {
     }
 }
 
-/** yt-dlp's own settings: which build the update button installs, and the YouTube sign-in. */
+/** yt-dlp's own settings: which build the update button installs, and the cookies for age-restricted YouTube videos. */
 @Composable
 private fun YtdlpSettingsDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
@@ -931,7 +931,7 @@ private fun YtdlpSettingsDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     }
 }
 
-/** Import / replace / remove the YouTube sign-in cookies (a cookies.txt exported from a browser). */
+/** Import / replace / remove the YouTube cookies (a cookies.txt exported from a browser). */
 @Composable
 private fun CookiesRow(vm: AppViewModel) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -944,9 +944,9 @@ private fun CookiesRow(vm: AppViewModel) {
         info == null -> if (vm.online == true) "Checking…" else "Start the server to set this up."
         info.present -> "${info.count} cookies for ${info.domains.take(3).joinToString(", ")}" +
             if (info.domains.size > 3) " and more" else ""
-        else -> "Lets age-restricted YouTube videos download."
+        else -> "In case a YouTube video is age restricted and fails to download."
     }
-    RowShell("YouTube sign-in", status) {
+    RowShell("Cookies", status) {
         val enabled = !vm.cookiesBusy && vm.online == true && info != null
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (present) SmallButton(text = "Remove", enabled = enabled, tonal = true, minWidth = 68.dp, onClick = { vm.removeCookies() })
