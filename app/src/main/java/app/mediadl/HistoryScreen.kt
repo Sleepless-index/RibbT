@@ -458,10 +458,6 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
             copied = false
         }
     }
-    // The files from this post that are still on the phone; empty for entries saved before this was tracked.
-    var files by remember { mutableStateOf<List<SavedRef>>(emptyList()) }
-    LaunchedEffect(entry.link) { files = vm.existingFiles(entry.link) }
-
     val thumb = vm.absolute(entry.thumb.ifBlank { null })
     val platformLabel = vm.platforms.firstOrNull { it.name == entry.platform }?.label ?: entry.platform
     val ago = DateUtils.getRelativeTimeSpanString(
@@ -559,10 +555,7 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                 }
             }
 
-            // One main action, then the rest in pairs. Open only shows when the one file is still on the phone.
-            val openable = files.size == 1
             val actions = buildList {
-                if (openable) add(DetailAction("Download again", VIcons.Download) { vm.openFromHistory(entry); onDismiss() })
                 add(
                     DetailAction(if (copied) "Copied" else "Copy link", if (copied) VIcons.Check else VIcons.Link) {
                         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -573,11 +566,7 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                 add(DetailAction("Delete", VIcons.Trash, destructive = true) { vm.deleteHistory(entry); onDismiss() })
             }
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (openable) {
-                    PillButton("Open", VIcons.Open, { FileActions.open(context, files[0]) }, Modifier.fillMaxWidth(), height = 46.dp)
-                } else {
-                    PillButton("Download again", VIcons.Download, { vm.openFromHistory(entry); onDismiss() }, Modifier.fillMaxWidth(), height = 46.dp)
-                }
+                PillButton("Download again", VIcons.Download, { vm.openFromHistory(entry); onDismiss() }, Modifier.fillMaxWidth(), height = 46.dp)
                 actions.chunked(2).forEach { pair ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         pair.forEach { action ->

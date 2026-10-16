@@ -3,6 +3,7 @@ package app.mediadl
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -10,13 +11,15 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -34,9 +37,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,37 +60,71 @@ fun ToastHost(
     onCancel: (Long) -> Unit = {},
     onRetry: (Long) -> Unit = {},
 ) {
+    val kept = remember { mutableStateListOf<DlToast>() }
+    val leaving = remember { mutableStateListOf<Long>() }
+    val current = toasts.toList()
+    LaunchedEffect(current) {
+        val liveIds = current.map { it.id }.toSet()
+        current.forEach { toast ->
+            val at = kept.indexOfFirst { it.id == toast.id }
+            if (at >= 0) kept[at] = toast else kept.add(toast)
+        }
+        kept.forEach { if (it.id !in liveIds && it.id !in leaving) leaving.add(it.id) }
+    }
     Column(
         modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        toasts.forEach { toast ->
-            key(toast.id) { ToastCard(toast, onCancel = { onCancel(toast.id) }, onRetry = { onRetry(toast.id) }) { onDismiss(toast.id) } }
+        kept.toList().forEach { toast ->
+            key(toast.id) {
+                ToastCard(
+                    toast,
+                    leaving = toast.id in leaving,
+                    onCancel = { onCancel(toast.id) },
+                    onRetry = { onRetry(toast.id) },
+                    onGone = {
+                        kept.removeAll { it.id == toast.id }
+                        leaving.remove(toast.id)
+                    },
+                ) { onDismiss(toast.id) }
+            }
         }
     }
 }
 
 @Composable
-private fun ToastCard(toast: DlToast, onCancel: () -> Unit, onRetry: () -> Unit, onDismiss: () -> Unit) {
+private fun ToastCard(
+    toast: DlToast,
+    leaving: Boolean,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
+    onGone: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val palette = LocalPalette.current
-    var shown by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { shown = true }
+    val visibility = remember { MutableTransitionState(false) }
+    LaunchedEffect(leaving) { visibility.targetState = !leaving }
+    LaunchedEffect(leaving, visibility.currentState, visibility.isIdle) {
+        if (leaving && visibility.isIdle && !visibility.currentState) onGone()
+    }
     AnimatedVisibility(
-        visible = shown,
+        visibleState = visibility,
         enter = fadeIn(tween(280, easing = WebEase)) + slideInVertically(tween(280, easing = WebEase)) { -it / 2 },
+        exit = fadeOut(tween(240, easing = WebEase)) +
+            slideOutVertically(tween(240, easing = WebEase)) { -it / 2 } +
+            shrinkVertically(tween(240, easing = WebEase), shrinkTowards = Alignment.Top),
     ) {
         val shape = RoundedCornerShape(14.dp)
         Box(
             Modifier
+                .padding(bottom = 8.dp)
                 .widthIn(max = 380.dp)
                 .fillMaxWidth()
                 .shadow(14.dp, shape)
                 .clip(shape)
                 .pointerInput(Unit) {
-                    // Swipe up to dismiss.
                     var travelled = 0f
                     detectVerticalDragGestures(
                         onDragStart = { travelled = 0f },
