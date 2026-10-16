@@ -1,0 +1,120 @@
+diff --git a/app/src/main/java/app/mediadl/MainActivity.kt b/app/src/main/java/app/mediadl/MainActivity.kt
+index e3e73c6..37e9f05 100644
+--- a/app/src/main/java/app/mediadl/MainActivity.kt
++++ b/app/src/main/java/app/mediadl/MainActivity.kt
+@@ -52,6 +52,12 @@ import androidx.compose.foundation.layout.offset
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.animation.core.Animatable
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
+ 
+ class MainActivity : ComponentActivity() {
+     private val vm: AppViewModel by viewModels()
+@@ -148,33 +154,14 @@ fun AppRoot(vm: AppViewModel) {
+ @Composable
+ private fun NavBar(vm: AppViewModel) {
+     val tabs = listOf(Tab.Home to VIcons.Home, Tab.History to VIcons.History, Tab.Settings to VIcons.Settings)
+-    val index = tabs.indexOfFirst { it.first == vm.tab }.coerceAtLeast(0)
+-    BoxWithConstraints(
++    Row(
+         Modifier
+             .fillMaxWidth()
+             .navigationBarsPadding()
+             .height(46.dp)
+             .padding(start = 10.dp, end = 10.dp, top = 5.dp),
+     ) {
+-        // The highlight slides to the chosen tab with a little spring instead of jumping.
+-        val cell = maxWidth / tabs.size
+-        val pillWidth = 64.dp
+-        val pillX by animateDpAsState(
+-            targetValue = cell * index + (cell - pillWidth) / 2,
+-            animationSpec = spring(dampingRatio = 0.68f, stiffness = 420f),
+-            label = "nav-pill",
+-        )
+-        Box(
+-            Modifier
+-                .offset(x = pillX)
+-                .width(pillWidth)
+-                .height(37.dp)
+-                .clip(RoundedCornerShape(10.dp))
+-                .background(Accent.copy(alpha = 0.12f)),
+-        )
+-        Row(Modifier.fillMaxSize()) {
+-            tabs.forEach { (tab, icon) -> NavItem(tab, icon, vm, Modifier.weight(1f)) }
+-        }
++        tabs.forEach { (tab, icon) -> NavItem(tab, icon, vm, Modifier.weight(1f)) }
+     }
+ }
+ 
+@@ -182,14 +169,19 @@ private fun NavBar(vm: AppViewModel) {
+ private fun NavItem(tab: Tab, icon: VIcon, vm: AppViewModel, modifier: Modifier) {
+     val palette = LocalPalette.current
+     val selected = vm.tab == tab
+-    val tint by animateColorAsState(if (selected) Accent else palette.muted, tween(220), label = "nav-tint")
+-    // The icon pops up a touch and settles when its tab is chosen.
+-    val scale by animateFloatAsState(
+-        targetValue = if (selected) 1.14f else 1f,
+-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+-        label = "nav-scale",
+-    )
+-    Column(
++    val tint by animateColorAsState(if (selected) Accent else palette.muted, tween(200), label = "nav-tint")
++    val highlight by animateFloatAsState(if (selected) 1f else 0f, tween(200), label = "nav-highlight")
++    // A small pop when the tab is chosen: the icon starts a touch smaller and springs back with a slight overshoot.
++    val pop = remember { Animatable(1f) }
++    var settled by remember { mutableStateOf(false) }
++    LaunchedEffect(selected) {
++        if (selected && settled) {
++            pop.snapTo(0.84f)
++            pop.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = 520f))
++        }
++        settled = true
++    }
++    Box(
+         modifier
+             .height(37.dp)
+             .clip(RoundedCornerShape(10.dp))
+@@ -199,10 +191,18 @@ private fun NavItem(tab: Tab, icon: VIcon, vm: AppViewModel, modifier: Modifier)
+                 if (tab == Tab.History) vm.loadHistory()
+                 vm.tab = tab
+             },
+-        horizontalAlignment = Alignment.CenterHorizontally,
+-        verticalArrangement = Arrangement.Center,
++        contentAlignment = Alignment.Center,
+     ) {
+-        VIconView(icon, 18.dp, tint, Modifier.graphicsLayer { scaleX = scale; scaleY = scale })
+-        T(tab.label, size = 9.6.sp, color = tint, lineHeight = 11.5.sp, modifier = Modifier.padding(top = 1.dp))
++        Box(
++            Modifier
++                .width(64.dp)
++                .fillMaxHeight()
++                .clip(RoundedCornerShape(10.dp))
++                .background(Accent.copy(alpha = 0.12f * highlight)),
++        )
++        Column(horizontalAlignment = Alignment.CenterHorizontally) {
++            VIconView(icon, 18.dp, tint, Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value })
++            T(tab.label, size = 9.6.sp, color = tint, lineHeight = 11.5.sp, modifier = Modifier.padding(top = 1.dp))
++        }
+     }
+ }
+diff --git a/app/src/main/java/app/mediadl/ServerStatus.kt b/app/src/main/java/app/mediadl/ServerStatus.kt
+index 5645e60..b675c9d 100644
+--- a/app/src/main/java/app/mediadl/ServerStatus.kt
++++ b/app/src/main/java/app/mediadl/ServerStatus.kt
+@@ -79,9 +79,9 @@ private fun StartingCard(modifier: Modifier) {
+                     VIconView(VIcons.Server, 20.dp, Accent)
+                 }
+                 Column(Modifier.padding(start = 14.dp).weight(1f)) {
+-                    T("Starting the downloader", size = 15.2.sp, weight = FontWeight.SemiBold)
++                    T("Starting RibbT", size = 15.2.sp, weight = FontWeight.SemiBold)
+                     T(
+-                        "Getting things ready inside RibbT. This takes a few seconds, a little longer right after installing.",
++                        "Getting things ready. This takes a few seconds, a little longer right after installing.",
+                         modifier = Modifier.padding(top = 4.dp),
+                         size = 13.sp,
+                         color = palette.muted,

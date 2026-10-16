@@ -79,9 +79,9 @@ private fun StartingCard(modifier: Modifier) {
                     VIconView(VIcons.Server, 20.dp, Accent)
                 }
                 Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                    T("Starting the downloader", size = 15.2.sp, weight = FontWeight.SemiBold)
+                    T("Starting RibbT", size = 15.2.sp, weight = FontWeight.SemiBold)
                     T(
-                        "Getting things ready inside RibbT. This takes a few seconds, a little longer right after installing.",
+                        "Getting things ready. This takes a few seconds, a little longer right after installing.",
                         modifier = Modifier.padding(top = 4.dp),
                         size = 13.sp,
                         color = palette.muted,
