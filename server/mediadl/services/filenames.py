@@ -11,6 +11,10 @@ def _suffix(kind, index, quality, codec):
         return "thumbnail"
     if kind == "image":
         return f"image {index or 1}"
+    if kind == "live":
+        return f"live photo {index or 1}"
+    if kind == "liveaudio":
+        return f"live photo {index or 1} audio"
     if kind == "audio":
         return f"{quality} {codec} audio" if quality else f"{codec} audio"
     return f"{quality} {codec}" if quality else codec
@@ -22,6 +26,10 @@ def _classic(platform, post_id, kind, index, quality, codec):
         parts.append("thumbnail")
     elif kind == "image":
         parts.append(f"p{index or 1}")
+    elif kind == "live":
+        parts.append(f"live{index or 1}")
+    elif kind == "liveaudio":
+        parts.append(f"live{index or 1}_audio")
     else:
         if quality:
             parts.append(quality)

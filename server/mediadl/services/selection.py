@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from .candidates import dedupe
 from .net import probe
 
-PASSTHROUGH_KEYS = ("sound_url", "sound_name", "loop")
+PASSTHROUGH_KEYS = ("sound_url", "sound_name", "loop", "live", "live_index")
 IMAGE_PROBE_WORKERS = 6
 VIDEO_PROBE_WORKERS = 4
 

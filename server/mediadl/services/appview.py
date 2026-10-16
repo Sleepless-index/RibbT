@@ -55,8 +55,13 @@ def build_app_post(post, platform, prefs, link):
 
     items = []
     for index, video in enumerate(videos, start=1):
-        extra = {"index": index, "height": video.get("height"), "codec": video.get("codec")}
-        video_name = name_for("video", **extra)
+        is_live = bool(video.get("live"))
+        extra = {
+            "index": video.get("live_index") or index,
+            "height": video.get("height"),
+            "codec": video.get("codec"),
+        }
+        video_name = name_for("live" if is_live else "video", **extra)
         loop = bool(loop_as_gif and (video.get("loop") or _is_twitter_loop(video.get("url"))))
         downloads = [{
             "label": "Download",
@@ -67,7 +72,7 @@ def build_app_post(post, platform, prefs, link):
             sound_name = sanitize_name(video.get("sound_name")) or video_name
             downloads.append({"label": "Original sound", "url": media_path(video["sound_url"], sound_name), "name": sound_name})
         else:
-            audio_name = name_for("audio", **extra)
+            audio_name = name_for("liveaudio" if is_live else "audio", **extra)
             downloads.append({
                 "label": "Audio",
                 "url": audio_path(video.get("audio_url") or video["url"], audio_name),
@@ -76,7 +81,7 @@ def build_app_post(post, platform, prefs, link):
         suffix = f"_{index}" if len(videos) > 1 else ""
         items.append({
             "type": "video",
-            "label": f"Video {index}" if len(videos) > 1 else "Video",
+            "label": video["label"] if is_live else (f"Video {index}" if len(videos) > 1 else "Video"),
             "height": video.get("height"),
             "preview": media_path(cover, f"{post_id}_poster", True) if cover else None,
             # The app plays the picture and the sound as two streams and joins them itself, so the

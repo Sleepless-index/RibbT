@@ -54,6 +54,11 @@ class RedNoteAdapter(PlatformAdapter):
         )
         if needs_original:
             self._add_original_from_desktop(data, final_url)
+        if data and data.get("_live_missing"):
+            self._add_live_clips_from_desktop(data, final_url)
+        if data:
+            data.pop("_live_missing", None)
+            data["_videos"].sort(key=lambda group: group.get("live_index", 0))
 
         if not data or not (data["_videos"] or data["_images"]):
             raise ValueError(
@@ -93,6 +98,21 @@ class RedNoteAdapter(PlatformAdapter):
             first["cands"] = originals[:1] + [
                 c for c in first["cands"] if c["url"] != originals[0]["url"]
             ]
+
+    def _add_live_clips_from_desktop(self, data, page_url):
+        try:
+            _, html = self.fetch_page(page_url, DESKTOP_PAGE_HEADERS)
+        except (ValueError, requests.RequestException):
+            return
+        state = parse_state(html)
+        note = pick_note(state) if state else None
+        if not note:
+            return
+        clips = live_clips_by_index(note)
+        for index in data["_live_missing"]:
+            if index in clips:
+                data["_videos"].append(live_group(index, clips[index]))
+        data["_live_missing"] = [i for i in data["_live_missing"] if i not in clips]
 
 
 def find_notes(obj):
@@ -206,11 +226,40 @@ def _post_from_note(note):
 
     post["_images"] = images
     post["_cover"] = images[0] if images else None
-    for index, image in enumerate(note.get("imageList") or []):
-        clips = stream_urls(image.get("stream"))
-        if clips:
-            post["_videos"].append(video_group(clips[:1], label=f"Live photo {index + 1}"))
+    clips = live_clips_by_index(note)
+    for index, cands in clips.items():
+        post["_videos"].append(live_group(index, cands))
+    post["_live_missing"] = [
+        index
+        for index, image in enumerate(note.get("imageList") or [])
+        if is_live_flagged(image) and index not in clips
+    ]
     return post
+
+
+def is_live_flagged(image):
+    value = image.get("livePhoto")
+    return value is True or str(value).lower() in ("1", "true")
+
+
+def live_clips_by_index(note):
+    clips = {}
+    for index, image in enumerate(note.get("imageList") or []):
+        if not isinstance(image, dict):
+            continue
+        found = stream_urls(image.get("stream"))
+        if found:
+            clips[index] = found
+    return clips
+
+
+def live_group(index, cands):
+    return video_group(
+        cands[:1],
+        label=f"Live photo {index + 1}",
+        live=True,
+        live_index=index + 1,
+    )
 
 
 def _post_from_meta_tags(html, post):
