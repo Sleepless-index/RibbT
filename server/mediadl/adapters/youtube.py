@@ -18,6 +18,9 @@ VIDEO_ID_RE = re.compile(r"^[\w-]{11}$")
 WATCH_BASE = "https://www.youtube.com/watch?v="
 THUMB_BASE = "https://i.ytimg.com/vi/{id}/mqdefault.jpg"
 MIX_PREFIX = "RD"
+# A Mix is "RD" + the id of the video it was started from. YouTube refuses to open one on its own
+# ("This playlist type is unviewable"), so the video has to travel with it.
+MIX_SEED_RE = re.compile(r"^RD([\w-]{11})$")
 
 
 def _query(url):
@@ -51,6 +54,9 @@ class YouTubeAdapter(PlatformAdapter):
     def extract_playlist(self, url):
         list_id = _list_id(url)
         video_id = (_query(url).get("v") or [""])[0]
+        if not video_id and list_id.startswith(MIX_PREFIX):
+            seed = MIX_SEED_RE.match(list_id)
+            video_id = seed.group(1) if seed else ""
         if list_id.startswith(MIX_PREFIX) and video_id:
             target = f"{WATCH_BASE}{video_id}&list={list_id}"
         else:

@@ -109,12 +109,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PREVIOUS=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/latest" --jq .object.sha 2>/dev/null || true)
-          if [ -n "$PREVIOUS" ] && [ "$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$PREVIOUS" --jq .object.sha 2>/dev/null)" ]; then
-            PREVIOUS=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$PREVIOUS" --jq .object.sha)
-          fi
+          # The commit the last "latest" release was built from. The tag may not exist yet (first run,
+          # or the release was removed by hand), so a miss is fine and just means a shorter changelog.
+          PREVIOUS=$(git rev-parse -q --verify "refs/tags/latest^{commit}" 2>/dev/null || true)
           VERSION="0.1.${{ github.run_number }}"
           python3 .github/scripts/changelog.py "$VERSION" "$PREVIOUS" HEAD "$GITHUB_REPOSITORY" > notes.md
           cat notes.md
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create latest out/RibbT.apk --title "RibbT $VERSION" --notes-file notes.md
+          gh release create latest out/RibbT.apk --target "$GITHUB_SHA" --title "RibbT $VERSION" --notes-file notes.md

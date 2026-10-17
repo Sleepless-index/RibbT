@@ -135,6 +135,20 @@ class PlaylistExtraction(unittest.TestCase):
             youtube.extract_playlist("https://www.youtube.com/watch?v=aaaaaaaaaaa&list=RDaaaaaaaaaaa")
         self.assertEqual(seen["args"][-1], "https://www.youtube.com/watch?v=aaaaaaaaaaa&list=RDaaaaaaaaaaa")
 
+    def test_a_mix_link_without_a_video_uses_the_id_inside_the_list(self):
+        youtube = pick_adapter("https://www.youtube.com/watch?v=x")
+        seen = {}
+
+        def fake(args, timeout):
+            seen["args"] = args
+            return FakeRun(json.dumps(FLAT))
+
+        link = "https://youtube.com/playlist?list=RDT67ZMQcLy-c&playnext=1&si=-4j20NCcaHuq0mwy"
+        self.assertTrue(youtube.is_playlist(link))
+        with mock.patch.object(ytdlp_runner, "run_playlist", fake):
+            youtube.extract_playlist(link)
+        self.assertEqual(seen["args"][-1], "https://www.youtube.com/watch?v=T67ZMQcLy-c&list=RDT67ZMQcLy-c")
+
     def test_failure_is_reported_as_a_readable_error(self):
         youtube = pick_adapter("https://www.youtube.com/watch?v=x")
         failing = FakeRun(stderr="ERROR: The playlist does not exist.", code=1)
