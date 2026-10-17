@@ -128,6 +128,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val toastJobs = HashMap<Long, Job>()
     private val toastServerJobs = HashMap<Long, String>()
     private val retryActions = HashMap<Long, () -> Unit>()
+    private val playlistRows = HashMap<Long, List<Long>>()
+    var queueUnread by mutableStateOf(false)
+        private set
+
+    fun markQueueSeen() {
+        queueUnread = false
+    }
 
     /** A link shared into the app while the built-in server was still starting; parsed as soon as it is up. */
     private var pendingShare: String? = null
@@ -639,7 +646,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun addToast(name: String, status: String, cancellable: Boolean = false): Long {
         val id = ++toastCounter
         val toast = DlToast(id, name, status, null, ToastPhase.Active, canCancel = cancellable)
-        toasts.add(toast)
+        if (!cancellable) toasts.add(toast)
         if (cancellable) {
             queue.add(toast)
             while (queue.size > QUEUE_LIMIT) {
@@ -649,6 +656,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return id
+    }
+
+    private fun addQueueRow(parent: Long, name: String, status: String): Long {
+        val id = ++toastCounter
+        queue.add(DlToast(id, name, status, null, ToastPhase.Active, parent = parent))
+        return id
+    }
+
+    private fun finishRow(id: Long, phase: ToastPhase, status: String) {
+        updateToast(id) { it.copy(status = status, progress = null, phase = phase, canCancel = false) }
     }
 
     private fun updateToast(id: Long, transform: (DlToast) -> DlToast) {
@@ -667,7 +684,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Runs a failed download again from the queue list, replacing its old entry. */
     fun retryFromQueue(id: Long) {
         val action = retryActions.remove(id) ?: return
-        queue.removeAll { it.id == id }
+        queue.removeAll { it.id == id || it.parent == id }
         dismissToast(id)
         action()
     }
@@ -721,6 +738,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (notify) Notifier.download(getApplication(), id, name, status, ok = phase == ToastPhase.Ok)
         updateToast(id) { it.copy(status = status, progress = null, phase = phase, canCancel = false) }
         if (phase == ToastPhase.Ok) hopSignal++
+        if (phase != ToastPhase.Cancelled && queue.any { it.id == id && it.parent == null }) queueUnread = true
         val lingers = phase == ToastPhase.Bad && toasts.firstOrNull { it.id == id }?.debug != null
         viewModelScope.launch {
             delay(if (phase == ToastPhase.Ok) 3500 else if (lingers) 20000 else 9000)
@@ -784,10 +802,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             var folder = ""
             var lastReason: String? = null
             var lastStatus = 0
+            val rows = chosen.map { addQueueRow(toast, it.title.ifBlank { "Video" }, "Waiting…") }
+            playlistRows[toast] = rows
             for ((index, entry) in chosen.withIndex()) {
+                val row = rows[index]
                 updateToast(toast) {
-                    it.copy(name = entry.title.ifBlank { it.name }, status = "Reading ${index + 1} of ${chosen.size}…", progress = null)
+                    it.copy(status = "${index + 1} of ${chosen.size} · ${entry.title}", progress = index.toFloat() / chosen.size)
                 }
+                updateToast(row) { it.copy(status = "Reading…") }
                 try {
                     val entryPost = api.parse(entry.url)
                     val downloads = entryPost.items.firstOrNull { it.type == "video" }?.downloads.orEmpty()
@@ -797,11 +819,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         downloads.firstOrNull() ?: throw ApiException("No video found for ${entry.title}.")
                     }
-                    folder = saveOne(entryPost, spec, toast, index + 1, chosen.size, false, target, reportFailure = false).orEmpty()
+                    folder = saveOne(entryPost, spec, row, 1, 1, false, target, reportFailure = false).orEmpty()
+                    finishRow(row, ToastPhase.Ok, savedText("Saved to", folder, null))
                     saved++
                 } catch (e: ApiException) {
                     lastReason = e.message
                     lastStatus = e.status
+                    val info = ErrorText.explain(e.message, "Download failed", "")
+                    updateToast(row) { it.copy(debug = debugText("Playlist item", entry.url, e.message, e.status)) }
+                    finishRow(row, ToastPhase.Bad, "Failed · " + ErrorText.toastLine(info))
                     if (e.offline) {
                         online = false
                         break
@@ -809,6 +835,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 delay(300)
             }
+            rows.forEach { row ->
+                updateToast(row) { if (it.phase == ToastPhase.Active) it.copy(status = "Skipped", progress = null, phase = ToastPhase.Cancelled) else it }
+            }
+            playlistRows.remove(toast)
             val skipped = chosen.size - saved
             if (saved > 0) {
                 downloads[key] = DlState.Done(folder)
@@ -858,6 +888,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         // Say it was cancelled for a moment, so it is clear the press worked, then clear the toast.
         retryActions.remove(id)
+        playlistRows.remove(id)?.forEach { child ->
+            toastServerJobs.remove(child)?.let { childJob ->
+                prefs.removePendingJob(childJob)
+                viewModelScope.launch { runCatching { api.cancelJob(childJob) } }
+            }
+            updateToast(child) {
+                if (it.phase == ToastPhase.Active) it.copy(status = "Cancelled", progress = null, phase = ToastPhase.Cancelled) else it
+            }
+        }
         updateToast(id) { it.copy(status = "Cancelled", progress = null, phase = ToastPhase.Cancelled, canCancel = false, canRetry = false) }
         viewModelScope.launch {
             delay(1800)
@@ -867,7 +906,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun retryDownload(id: Long) {
         val action = retryActions.remove(id) ?: return
-        queue.removeAll { it.id == id }
+        queue.removeAll { it.id == id || it.parent == id }
         dismissToast(id)
         action()
     }

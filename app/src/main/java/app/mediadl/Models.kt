@@ -166,6 +166,7 @@ data class DlToast(
     /** Shows a Retry button once it has failed. */
     val canRetry: Boolean = false,
     val debug: String? = null,
+    val parent: Long? = null,
 )
 
 /** A file RibbT saved on this phone, remembered so History can open or share it later. */

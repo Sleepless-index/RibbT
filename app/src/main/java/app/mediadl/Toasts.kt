@@ -21,7 +21,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
@@ -49,6 +50,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -123,23 +128,25 @@ private fun ToastCard(
             shrinkVertically(tween(240, easing = WebEase), shrinkTowards = Alignment.Top),
     ) {
         val shape = RoundedCornerShape(14.dp)
+        var dragX by remember { mutableFloatStateOf(0f) }
         Box(
             Modifier
                 .padding(bottom = 8.dp)
+                .offset { IntOffset(dragX.roundToInt(), 0) }
+                .graphicsLayer { alpha = 1f - (abs(dragX) / 500f).coerceIn(0f, 0.7f) }
                 .widthIn(max = 380.dp)
                 .fillMaxWidth()
                 .shadow(14.dp, shape)
                 .clip(shape)
                 .pointerInput(Unit) {
-                    var travelled = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { travelled = 0f },
-                        onVerticalDrag = { change, amount ->
-                            travelled += amount
-                            if (travelled < -48f) {
-                                change.consume()
-                                onDismiss()
-                            }
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (abs(dragX) > 120f) onDismiss() else dragX = 0f
+                        },
+                        onDragCancel = { dragX = 0f },
+                        onHorizontalDrag = { change, amount ->
+                            change.consume()
+                            dragX += amount
                         },
                     )
                 }

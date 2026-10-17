@@ -19,7 +19,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,17 +46,27 @@ import androidx.compose.ui.window.DialogProperties
 fun QueueButton(vm: AppViewModel, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
     var open by rememberSaveable { mutableStateOf(false) }
-    val active = vm.queue.count { it.phase == ToastPhase.Active }
+    val active = vm.queue.count { it.phase == ToastPhase.Active && it.parent == null }
+    LaunchedEffect(open, vm.queueUnread) { if (open && vm.queueUnread) vm.markQueueSeen() }
     Box(modifier.size(36.dp), contentAlignment = Alignment.Center) {
         Box(
             Modifier
                 .size(36.dp)
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(10.dp))
                 .background(if (active > 0) Accent.copy(alpha = 0.14f) else palette.card)
                 .clickable(onClickLabel = "Download queue", role = Role.Button) { open = true },
             contentAlignment = Alignment.Center,
         ) {
             VIconView(VIcons.Queue, 18.dp, if (active > 0) Accent else palette.text)
+        }
+        if (vm.queueUnread && active == 0) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFE5484D)),
+            )
         }
         if (active > 0) {
             Box(
@@ -70,8 +87,9 @@ fun QueueButton(vm: AppViewModel, modifier: Modifier = Modifier) {
 @Composable
 private fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
-    val items = vm.queue.toList().asReversed()
-    val finished = items.count { it.phase != ToastPhase.Active }
+    val all = vm.queue.toList()
+    val items = all.filter { it.parent == null }.asReversed().flatMap { head -> listOf(head) + all.filter { it.parent == head.id } }
+    val finished = items.count { it.phase != ToastPhase.Active && it.parent == null }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier
@@ -87,7 +105,7 @@ private fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
             ) {
                 Column(Modifier.weight(1f)) {
                     T("Download queue", size = 18.sp, weight = FontWeight.Bold)
-                    val running = items.count { it.phase == ToastPhase.Active }
+                    val running = items.count { it.phase == ToastPhase.Active && it.parent == null }
                     T(
                         when {
                             items.isEmpty() -> "Nothing downloading"
@@ -155,9 +173,10 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
         ToastPhase.Bad -> palette.err
         ToastPhase.Cancelled -> palette.muted
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+    val child = item.parent != null
+    Column(Modifier.fillMaxWidth().padding(start = if (child) 44.dp else 20.dp, end = 20.dp, top = if (child) 8.dp else 12.dp, bottom = if (child) 8.dp else 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(30.dp).clip(CircleShape).background(iconBg), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(if (child) 24.dp else 30.dp).clip(CircleShape).background(iconBg), contentAlignment = Alignment.Center) {
                 VIconView(phaseIcon, 16.dp, iconColor)
             }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
@@ -172,6 +191,18 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                     QueueAction("Cancel", palette.text, palette.sep) { vm.cancelDownload(item.id) }
                 item.phase == ToastPhase.Bad && item.canRetry ->
                     QueueAction("Retry", Accent, Accent.copy(alpha = 0.14f)) { vm.retryFromQueue(item.id) }
+            }
+            val debug = item.debug
+            if (item.phase == ToastPhase.Bad && debug != null) {
+                val context = LocalContext.current
+                var copied by remember(item.id) { mutableStateOf(false) }
+                Box(Modifier.padding(start = 6.dp)) {
+                    QueueAction(if (copied) "Copied" else "Copy", palette.text, palette.sep) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
+                        copied = true
+                    }
+                }
             }
         }
         if (item.phase == ToastPhase.Active) {

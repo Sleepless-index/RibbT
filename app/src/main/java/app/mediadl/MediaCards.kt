@@ -76,6 +76,8 @@ import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.size.Size
 import kotlinx.coroutines.delay
 
 fun isPhoto(item: MediaItem): Boolean = item.type == "image" && item.label.startsWith("Photo")
@@ -115,8 +117,12 @@ private fun ImageStage(url: String?, description: String, onRatio: (Float) -> Un
     val fade by animateFloatAsState(if (loading) 0f else 1f, tween(300), label = "image-fade")
     Box(Modifier.fillMaxSize()) {
         if (loading) Box(Modifier.fillMaxSize().shimmer())
+        val context = LocalContext.current
+        val request = remember(url) {
+            ImageRequest.Builder(context).data(url).size(Size.ORIGINAL).build()
+        }
         AsyncImage(
-            model = url,
+            model = request,
             contentDescription = description,
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize().alpha(fade),

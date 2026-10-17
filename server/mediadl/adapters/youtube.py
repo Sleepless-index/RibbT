@@ -16,7 +16,7 @@ from .ytdlp import (
 TITLE_LIMIT = 80
 VIDEO_ID_RE = re.compile(r"^[\w-]{11}$")
 WATCH_BASE = "https://www.youtube.com/watch?v="
-THUMB_BASE = "https://i.ytimg.com/vi/{id}/mqdefault.jpg"
+THUMB_BASE = "https://i.ytimg.com/vi/{id}/hqdefault.jpg"
 MIX_PREFIX = "RD"
 # A Mix is "RD" + the id of the video it was started from. YouTube refuses to open one on its own
 # ("This playlist type is unviewable"), so the video has to travel with it.
