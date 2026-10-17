@@ -1,51 +1,86 @@
-# RibbT (Android)
+<div align="center">
 
-Native Kotlin + Jetpack Compose client for the RibbT Flask server.
-The app carries its own server: the same Python package as the PC/Termux version (Chaquopy),
-yt-dlp as a library, and an ffmpeg build. Nothing needs installing besides the APK.
+<img src="assets/icon.png" alt="RibbT" width="128" height="128">
 
-Settings -> Server picks where the app connects:
-- **Built-in** (default): starts inside the app on 127.0.0.1 (a free port picked at every start), kept alive by a notification.
-- **Custom address**: Termux or a PC, as before (the web server from the RibbT web repo).
+# RibbT
 
-How the pieces fit:
-- `app/src/main/python/ribbt_server.py` starts Flask; Gradle copies `server/mediadl` and
-  `server/config/settings.json` next to it before every build (`syncServer` task).
-  `server/` is a vendored copy of the web repo's `mediadl/` and `config/settings.json`;
-  re-copy them here whenever the web server changes.
-- `BuiltInServer.kt` is the foreground service. ffmpeg/ffprobe ship as `libffmpeg.so` /
-  `libffprobe.so` (executables in the native lib dir) plus a zip of their libraries that is
-  unpacked once on first launch.
-- yt-dlp ships in the APK; Settings -> Server -> Update downloads the newest wheel from PyPI
-  into the app's storage and uses it from then on (no pip needed).
-- Settings -> Downloads picks where files go (internal storage, SD card or a custom folder, always inside what
-  MediaStore allows: `Download/RibbT`). If the SD card or folder is gone, the download falls back to internal
-  storage and the toast says so. "Sort into folders by type" toggles the Videos / Images / Audio subfolders.
-- Downloads run as background jobs on the server (`services/jobs.py`): the app polls for progress,
-  then copies the finished file with Range-resume. Unfinished jobs are remembered so the app can
-  pick them up after a restart. Temp files live in one folder that is cleaned at every start, and
-  downloads check free space first.
-- Settings -> Server -> yt-dlp (gear icon) -> Cookies imports a `cookies.txt` for YouTube's age and bot checks
-  (only cookies for supported sites are kept; stored privately, never sent back to the app).
-- Settings -> General -> Accent color: presets, a saturation/brightness box with a hue bar, and a hex field. The choice is
-  applied live and kept in preferences; text on the accent switches to dark automatically for light colors.
-- The download button in the top right opens the queue: every download of the session with progress, Cancel and Retry.
-- Settings starts with RibbT's own updater. It downloads the APK inside the app (progress in the row, toast and queue) and
-  hands it to Android's package installer, so only the system's install confirmation appears. The first time, Android asks
-  to allow RibbT to install apps.
-- Playlists and mixes can be saved as Video or Audio (toggle on the playlist card).
-- The yt-dlp update checks PyPI's published SHA-256 before installing.
-- Server tests: `cd server && python -m unittest discover -s tests -v`.
-- Limits: arm64 phones only; the APK is large (about 80 MB); the built-in server
-  solves YouTube's challenges with QuickJS (built in CI as `libqjs.so`, plus the `yt-dlp-ejs`
-  package), which is slower than Deno or Node; use a Custom address if a format is still missing.
-- ffmpeg comes from Termux's build (GPL). Keep that in mind if you ever distribute the APK.
+**Download videos, photos and audio from your favourite sites. Everything runs on your phone.**
 
-## Build
-Push to GitHub. Actions builds the APK (Actions tab -> latest run -> Artifacts,
-or the "latest" release). Install it over the old one; the committed keystore
-keeps updates in place.
+[![Build](https://github.com/Sleepless-index/RibbT/actions/workflows/android.yml/badge.svg)](https://github.com/Sleepless-index/RibbT/actions/workflows/android.yml)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/Sleepless-index/RibbT?label=release&color=ff2442)](https://github.com/Sleepless-index/RibbT/releases/tag/latest)
+![Android 10+](https://img.shields.io/badge/Android-10%2B-3ddc84)
 
-## Updating
-Server-side features (settings, platforms, parsing): edit and restart the server.
-UI changes: edit `app/src/main/java/app/mediadl/*.kt`, push, install new APK.
+[**Download the APK**](https://github.com/Sleepless-index/RibbT/releases/download/latest/RibbT.apk)
+
+</div>
+
+## Features
+
+- **Paste a link, get the media.** Videos, photo posts, thumbnails and audio, with a preview before you save.
+- **Supported sites:** YouTube, TikTok, X (Twitter), Reddit, Pinterest, Bilibili and RedNote.
+- **Playlists and mixes:** pick the videos you want from a YouTube playlist or mix and save them as video or audio.
+- **Subtitles:** save captions from YouTube and Bilibili as `.srt` files.
+- **RedNote Live Photos** are saved as video.
+- **Download queue:** every download of the session in one place, with progress, Cancel, Retry and a red dot when something finishes or fails.
+- **Self-contained:** the downloader (Python, yt-dlp and ffmpeg) is bundled inside the app. Nothing else to install.
+- **Updates itself:** check for a new RibbT or a new yt-dlp from Settings. No background checks, no notifications.
+- **Your folders:** save to internal storage, an SD card or a folder you pick, optionally sorted into Videos, Images and Audio.
+- **Cookies support** for age and bot checks on YouTube (import a `cookies.txt`; stored privately on the phone).
+- **Customisable:** accent colour, layout, filename style and a debug-info option that adds a Copy button to failed downloads.
+- No ads, no accounts, no tracking.
+
+## Install
+
+1. Download [`RibbT.apk`](https://github.com/Sleepless-index/RibbT/releases/download/latest/RibbT.apk) from the latest release.
+2. Open it and allow installs from your browser or file manager when Android asks.
+3. Later updates can be installed from inside the app: **Settings → Server → RibbT → Check**.
+
+Requirements: Android 10 or newer on an arm64 phone. The APK is about 80 MB because it carries Python, yt-dlp and ffmpeg.
+
+Every release lists what changed since the previous build.
+
+## Server modes
+
+**Settings → Server** picks where the app connects:
+
+- **Built-in** (default): the downloader starts inside the app on `127.0.0.1` and is kept alive by a notification.
+- **Custom address:** use the same server running elsewhere, such as Termux or a PC.
+
+## Building
+
+The APK is built by GitHub Actions on every push (`.github/workflows/android.yml`), and the `latest` release is replaced with each build. Releases are signed with the committed keystore, so new builds install over old ones.
+
+Locally you need JDK 17, Gradle 8.9 and the Android SDK:
+
+```
+gradle assembleRelease
+```
+
+CI also builds QuickJS and fetches the ffmpeg support libraries, so a local build without those steps will not include them.
+
+Run the server tests with:
+
+```
+cd server && python -m unittest discover -s tests -v
+```
+
+### How it fits together
+
+- `app/`: the Kotlin and Jetpack Compose app.
+- `server/mediadl/`: the Flask downloader (site adapters, yt-dlp runner, download jobs). Gradle copies it next to `app/src/main/python/ribbt_server.py` before each build and Chaquopy runs it in-process.
+- Downloads run as background jobs on the server. The app polls for progress, then copies the finished file with resume support. Unfinished jobs are remembered across restarts.
+- yt-dlp ships in the APK. The in-app updater downloads the newest wheel from PyPI, verifies its SHA-256 and uses it from then on.
+- YouTube challenges are solved with QuickJS, which is slower than Deno or Node. Use a custom address if a format is still missing.
+
+## Credits
+
+[yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org) (Termux build), [Chaquopy](https://chaquo.com/chaquopy/), [QuickJS-ng](https://github.com/quickjs-ng/quickjs), [Flask](https://flask.palletsprojects.com), [Coil](https://coil-kt.github.io/coil/) and [Media3](https://developer.android.com/media/media3).
+
+## Disclaimer
+
+RibbT is a tool for saving media you are allowed to keep. Respect the terms of the sites you use and the rights of creators. It is not affiliated with any of the supported platforms.
+
+## License
+
+RibbT is free software, released under the [GNU General Public License v3.0](LICENSE). The bundled FFmpeg build is GPL as well.
