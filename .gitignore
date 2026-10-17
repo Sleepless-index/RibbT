@@ -6,3 +6,6 @@ local.properties
 .DS_Store
 build.log
 app/src/main/python/mediadl/
+__pycache__/
+*.pyc
+notes.md
