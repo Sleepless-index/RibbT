@@ -1,14 +1,10 @@
 import logging
 
-from flask import Blueprint, jsonify, request
-
 from ..adapters import find_link, pick_adapter, platform_catalog
 from ..services.selection import finalize
 from .common import current_preferences
 
 log = logging.getLogger(__name__)
-
-bp = Blueprint("parse", __name__)
 
 
 def _unsupported_message():
@@ -17,7 +13,6 @@ def _unsupported_message():
 
 
 def run_parse(payload):
-    """Returns (post, adapter, link) or raises ParseFailure(message, status)."""
     link = find_link(payload.get("url", ""))
     adapter = pick_adapter(link)
     if not adapter:
@@ -39,13 +34,3 @@ class ParseFailure(Exception):
         super().__init__(message)
         self.message = message
         self.status = status
-
-
-@bp.post("/api/parse")
-def parse():
-    try:
-        result, adapter, _ = run_parse(request.get_json(silent=True) or {})
-    except ParseFailure as failure:
-        return jsonify(error=failure.message), failure.status
-    result["platform"] = adapter.name
-    return jsonify(result)
