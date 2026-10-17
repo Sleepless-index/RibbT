@@ -25,6 +25,16 @@ class Prefs(context: Context) {
         get() = sp.getString("theme", "system") ?: "system"
         set(value) = sp.edit().putString("theme", value).apply()
 
+    /** The accent colour as ARGB. */
+    var accent: Int
+        get() = sp.getInt("accent", DEFAULT_ACCENT)
+        set(value) = sp.edit().putInt("accent", value).apply()
+
+    /** Save playlists and mixes as audio instead of video. */
+    var playlistAudio: Boolean
+        get() = sp.getBoolean("playlistAudio", false)
+        set(value) = sp.edit().putBoolean("playlistAudio", value).apply()
+
     /** "downloads" (internal storage), "sdcard" or "folder". The old "gallery" choice is gone and maps to "downloads". */
     var saveTo: String
         get() = (sp.getString("saveTo", "downloads") ?: "downloads").let { if (it == "gallery") "downloads" else it }
@@ -141,6 +151,7 @@ class Prefs(context: Context) {
 
     companion object {
         const val DEFAULT_URL = "http://127.0.0.1:5000"
+        const val DEFAULT_ACCENT = 0xFFFF2442.toInt()
         private const val PENDING_MAX_AGE_MS = 6L * 60 * 60 * 1000
     }
 }

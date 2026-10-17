@@ -90,6 +90,8 @@ fun ScreenTitle(title: String, trailing: @Composable () -> Unit = {}) {
         T(title, size = 20.8.sp, weight = FontWeight.Bold, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
         trailing()
+        // Room for the download queue button that floats in the top right corner.
+        Spacer(Modifier.width(44.dp))
     }
 }
 
@@ -162,7 +164,7 @@ fun PillButton(
         PillStyle.Done -> palette.card
     }
     val foreground = contentColor ?: when (style) {
-        PillStyle.Primary -> Color.White
+        PillStyle.Primary -> AccentOn
         PillStyle.Tonal -> if (pulse != null) Accent else palette.text
         PillStyle.Done -> Accent
     }
@@ -222,7 +224,7 @@ fun CircleLetter(name: String, size: Dp = 34.dp) {
             .background(Accent),
         contentAlignment = Alignment.Center,
     ) {
-        T(initialOf(name), size = 13.12.sp, color = Color.White, weight = FontWeight.Bold, lineHeight = 13.12.sp)
+        T(initialOf(name), size = 13.12.sp, color = AccentOn, weight = FontWeight.Bold, lineHeight = 13.12.sp)
     }
 }
 

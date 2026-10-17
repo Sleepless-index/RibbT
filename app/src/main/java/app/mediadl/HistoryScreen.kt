@@ -90,8 +90,6 @@ fun HistoryScreen(vm: AppViewModel) {
             }
 
             if (vm.history.isNotEmpty()) {
-                StorageCard(vm.history, vm.historyType) { vm.historyType = it }
-                Spacer(Modifier.height(12.dp))
                 SearchField(vm)
                 Spacer(Modifier.height(8.dp))
                 FilterRow(vm)
@@ -163,76 +161,6 @@ fun HistoryScreen(vm: AppViewModel) {
                 TextButton(onClick = { confirmClear = false }) { T("Cancel", color = palette.muted) }
             },
         )
-    }
-}
-
-private val VideoColor = Accent
-private val PhotoColor = Color(0xFFFFB020)
-private val AudioColor = Color(0xFF5B8DEF)
-
-/** What the saved downloads take up, split by type like a phone's storage screen. */
-@Composable
-private fun StorageCard(history: List<HistoryEntry>, selectedType: String, onPickType: (String) -> Unit) {
-    val palette = LocalPalette.current
-    val video = history.sumOf { it.videoBytes }
-    val photos = history.sumOf { it.imageBytes }
-    val audio = history.sumOf { it.audioBytes }
-    val total = video + photos + audio
-    CardBox(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                T(if (total > 0) formatBytes(total) else "—", size = 22.sp, weight = FontWeight.Bold)
-                T(
-                    "  ·  ${history.size} ${if (history.size == 1) "item" else "items"}",
-                    size = 13.sp,
-                    color = palette.muted,
-                    modifier = Modifier.padding(bottom = 3.dp),
-                )
-            }
-            T(
-                "Saved with RibbT",
-                size = 12.sp,
-                color = palette.muted,
-                modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
-            )
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(palette.sep),
-            ) {
-                listOf(video to VideoColor, photos to PhotoColor, audio to AudioColor).forEach { (bytes, color) ->
-                    if (bytes > 0 && total > 0) {
-                        Box(Modifier.weight(bytes.toFloat() / total).fillMaxHeight().background(color))
-                    }
-                }
-            }
-            Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                LegendItem("Video", video, VideoColor, selectedType == "video") { onPickType(if (selectedType == "video") "" else "video") }
-                LegendItem("Photos", photos, PhotoColor, selectedType == "image") { onPickType(if (selectedType == "image") "" else "image") }
-                LegendItem("Audio", audio, AudioColor, selectedType == "audio") { onPickType(if (selectedType == "audio") "" else "audio") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LegendItem(label: String, bytes: Long, color: Color, selected: Boolean, onClick: () -> Unit) {
-    val palette = LocalPalette.current
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) color.copy(alpha = 0.16f) else Color.Transparent)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
-        Column(Modifier.padding(start = 6.dp)) {
-            T(label, size = 12.sp, weight = FontWeight.SemiBold)
-            T(if (bytes > 0) formatBytes(bytes) else "0 B", size = 11.sp, color = palette.muted)
-        }
     }
 }
 

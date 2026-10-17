@@ -138,6 +138,9 @@ fun AppRoot(vm: AppViewModel) {
                     Tab.Settings -> SettingsScreen(vm)
                 }
 
+                // Top right, level with the screen titles (which leave room for it).
+                QueueButton(vm, Modifier.align(Alignment.TopEnd).padding(top = 22.dp, end = 12.dp))
+
                 ToastHost(
                     toasts = vm.toasts,
                     onDismiss = { vm.dismissToast(it) },

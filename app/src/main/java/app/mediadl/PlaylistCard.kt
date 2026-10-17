@@ -54,6 +54,33 @@ fun PlaylistCard(vm: AppViewModel, list: Playlist, modifier: Modifier = Modifier
             )
             T(parts.joinToString(" · "), size = 12.sp, color = palette.muted, modifier = Modifier.padding(top = 2.dp))
         }
+        // Save the whole list as video files or as audio only.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(palette.sep)
+                .padding(3.dp),
+        ) {
+            listOf(false to "Video" to VIcons.Video, true to "Audio" to VIcons.Audio).forEach { (choice, icon) ->
+                val (audio, label) = choice
+                val on = vm.playlistAudio == audio
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (on) palette.card else androidx.compose.ui.graphics.Color.Transparent)
+                        .clickable(role = Role.RadioButton) { vm.updatePlaylistAudio(audio) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    VIconView(icon, 16.dp, if (on) Accent else palette.muted)
+                    Spacer(Modifier.width(6.dp))
+                    T(label, size = 13.sp, weight = FontWeight.SemiBold, color = if (on) palette.text else palette.muted)
+                }
+            }
+        }
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -76,12 +103,12 @@ fun PlaylistCard(vm: AppViewModel, list: Playlist, modifier: Modifier = Modifier
             PillButton(
                 when {
                     busy -> "Saving…"
-                    chosen.isEmpty() -> "Pick videos"
-                    chosen.size == 1 -> "Save 1 video"
-                    else -> "Save ${chosen.size} videos"
+                    chosen.isEmpty() -> if (vm.playlistAudio) "Pick tracks" else "Pick videos"
+                    chosen.size == 1 -> if (vm.playlistAudio) "Save 1 track" else "Save 1 video"
+                    else -> if (vm.playlistAudio) "Save ${chosen.size} tracks" else "Save ${chosen.size} videos"
                 },
                 VIcons.Download,
-                { vm.downloadPlaylist(list, chosen) },
+                { vm.downloadPlaylist(list, chosen, vm.playlistAudio) },
                 Modifier.weight(1.4f),
                 busy = busy || chosen.isEmpty(),
             )
@@ -111,7 +138,7 @@ fun PlaylistCard(vm: AppViewModel, list: Playlist, modifier: Modifier = Modifier
                             .background(if (on) Accent else palette.sep),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (on) VIconView(VIcons.Check, 13.dp, androidx.compose.ui.graphics.Color.White)
+                        if (on) VIconView(VIcons.Check, 13.dp, AccentOn)
                     }
                     Spacer(Modifier.width(10.dp))
                     Box(

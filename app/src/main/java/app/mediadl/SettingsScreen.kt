@@ -189,7 +189,7 @@ private fun summaryFor(title: String, rows: List<SettingRow>): String {
     val labels = rows.map { it.label }
     return when (title) {
         PAGE_DOWNLOADING -> (listOf("Location", "Folders") + labels).distinct().joinToString(", ")
-        PAGE_SERVER -> "Connection, yt-dlp, updates"
+        PAGE_SERVER -> "Connection and yt-dlp"
         else -> labels.distinct().joinToString(", ")
     }
 }
@@ -199,8 +199,12 @@ private fun SettingsHome(vm: AppViewModel) {
     val data = remember(vm.server) { groupSettings(vm.server) }
     ScreenTitle("Settings") { SavedLabel(vm) }
 
+    // Looks for a new RibbT once per session when Settings opens, quietly.
+    LaunchedEffect(Unit) { if (vm.appRelease == null && !vm.appChecking) vm.checkAppUpdate(silent = true) }
+    CardBox(Modifier.fillMaxWidth()) { AppUpdateRow(vm) }
+
     CardBox(Modifier.fillMaxWidth()) {
-        NavRow(iconFor(PAGE_GENERAL), PAGE_GENERAL, "Theme, layout, paste and go") { vm.settingsPage = PAGE_GENERAL }
+        NavRow(iconFor(PAGE_GENERAL), PAGE_GENERAL, "Theme, accent color, layout, paste and go") { vm.settingsPage = PAGE_GENERAL }
     }
 
     Column {
@@ -300,6 +304,8 @@ private fun GeneralCard(vm: AppViewModel) {
     CardBox(Modifier.fillMaxWidth()) {
         Column {
             ChoiceRow("Theme", "Light, dark, or match your phone.", THEME_CHOICES, vm.theme) { vm.updateTheme(it) }
+            Separator()
+            AccentPicker(vm)
             Separator()
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                 T("Media layout", size = 14.4.sp, lineHeight = 18.7.sp)
@@ -406,32 +412,6 @@ private fun SectionCard(
                     }
                 }
                 if (showYtdlpSettings) YtdlpSettingsDialog(vm) { showYtdlpSettings = false }
-                Separator()
-                val context = LocalContext.current
-                val release = vm.appRelease
-                RowShell(
-                    "RibbT",
-                    "Version ${vm.appVersion}",
-                    badge = if (release != null) (if (release.available) "Update available" else "Up to date") else null,
-                    badgeTone = if (release?.available == true) PillTone.Accent else PillTone.Good,
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        SmallButton(
-                            text = when {
-                                vm.appChecking -> "Checking…"
-                                release?.available == true -> "Update"
-                                else -> "Check"
-                            },
-                            enabled = !vm.appChecking,
-                            onClick = {
-                                if (release?.available == true) AppUpdate.open(context, release.apkUrl) else vm.checkAppUpdate()
-                            },
-                        )
-                        if (release != null) {
-                            IconSquareButton(VIcons.Open, "Release notes") { AppUpdate.open(context, release.pageUrl) }
-                        }
-                    }
-                }
                 first = false
             }
             rows.forEach { row ->
@@ -451,6 +431,39 @@ private fun SectionCard(
             if (title == PAGE_DOWNLOADING) {
                 Separator()
                 FilenamePreview(vm.settingValue("metadata.filename_style") as? String ?: "classic")
+            }
+        }
+    }
+}
+
+/** RibbT's own update: check, then download and install without leaving the app. */
+@Composable
+private fun AppUpdateRow(vm: AppViewModel) {
+    val context = LocalContext.current
+    val release = vm.appRelease
+    val busy = vm.appUpdateBusy
+    RowShell(
+        "RibbT",
+        vm.appUpdateStatus ?: buildString {
+            append("Version ${vm.appVersion}")
+            if (release?.available == true && !release.version.isNullOrBlank()) append(" · ${release.version} is ready")
+        },
+        badge = if (release != null && !busy) (if (release.available) "Update available" else "Up to date") else null,
+        badgeTone = if (release?.available == true) PillTone.Accent else PillTone.Good,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SmallButton(
+                text = when {
+                    busy -> "Updating…"
+                    vm.appChecking -> "Checking…"
+                    release?.available == true -> "Update"
+                    else -> "Check"
+                },
+                enabled = !busy && !vm.appChecking,
+                onClick = { if (release?.available == true) vm.installAppUpdate() else vm.checkAppUpdate() },
+            )
+            if (release != null) {
+                IconSquareButton(VIcons.Open, "Release notes") { AppUpdate.open(context, release.pageUrl) }
             }
         }
     }
@@ -493,6 +506,7 @@ private fun PageHeader(title: String, onBack: () -> Unit, trailing: @Composable 
         T(title, size = 20.8.sp, weight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
         trailing()
+        Spacer(Modifier.width(44.dp))
     }
 }
 
@@ -999,7 +1013,7 @@ private fun IconSquareButton(icon: VIcon, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SmallButton(
+internal fun SmallButton(
     text: String,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -1025,6 +1039,6 @@ private fun SmallButton(
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        T(text, size = 12.8.sp, color = if (tonal) palette.text else Color.White, weight = FontWeight.SemiBold, maxLines = 1)
+        T(text, size = 12.8.sp, color = if (tonal) palette.text else AccentOn, weight = FontWeight.SemiBold, maxLines = 1)
     }
 }

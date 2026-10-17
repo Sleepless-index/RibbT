@@ -158,7 +158,7 @@ private fun ToastCard(
                 }
                 val iconColor = when (toast.phase) {
                     ToastPhase.Active -> Accent
-                    ToastPhase.Ok -> Color.White
+                    ToastPhase.Ok -> AccentOn
                     ToastPhase.Bad -> palette.err
                     ToastPhase.Cancelled -> palette.muted
                 }

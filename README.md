@@ -27,6 +27,13 @@ How the pieces fit:
   downloads check free space first.
 - Settings -> Server -> yt-dlp (gear icon) -> Cookies imports a `cookies.txt` for YouTube's age and bot checks
   (only cookies for supported sites are kept; stored privately, never sent back to the app).
+- Settings -> General -> Accent color: presets, a saturation/brightness box with a hue bar, and a hex field. The choice is
+  applied live and kept in preferences; text on the accent switches to dark automatically for light colors.
+- The download button in the top right opens the queue: every download of the session with progress, Cancel and Retry.
+- Settings starts with RibbT's own updater. It downloads the APK inside the app (progress in the row, toast and queue) and
+  hands it to Android's package installer, so only the system's install confirmation appears. The first time, Android asks
+  to allow RibbT to install apps.
+- Playlists and mixes can be saved as Video or Audio (toggle on the playlist card).
 - The yt-dlp update checks PyPI's published SHA-256 before installing.
 - Server tests: `cd server && python -m unittest discover -s tests -v`.
 - Limits: arm64 phones only; the APK is large (about 80 MB); the built-in server

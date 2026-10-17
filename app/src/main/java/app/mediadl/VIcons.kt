@@ -77,6 +77,7 @@ object VIcons {
     val Search = VIcon(listOf(circle(11f, 11f, 7f), "m21 21-4.3-4.3"), 2f)
     val CloseSmall = VIcon(listOf("M6 6l12 12M18 6 6 18"), 2.4f)
     val Download = VIcon(listOf("M12 4v11", "m7 11 5 5 5-5", "M5 20h14"), 2.2f)
+    val Queue = VIcon(listOf("M3 6h18", "M3 12h9", "M3 18h6", "M18 12v8", "m15 17 3 3 3-3"), 2f)
     val Check = VIcon(listOf("m5 12 5 5 9-11"), 2.6f)
     val Audio = VIcon(listOf("M9 18V5l12-2v13", circle(6f, 18f, 3f), circle(18f, 16f, 3f)), 2.2f)
     val Error = VIcon(listOf(circle(12f, 12f, 9f), "M12 8v5", "M12 16.5h.01"), 2f)

@@ -11,6 +11,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -28,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap
 private val LINK_HINT = Regex("https?://|\\w\\.\\w{2,}/", RegexOption.IGNORE_CASE)
 
 private const val COOKIE_MAX_BYTES = 2 * 1024 * 1024
+private const val QUEUE_LIMIT = 40
 
 fun formatBytes(bytes: Long): String = when {
     bytes <= 0L -> ""
@@ -59,6 +62,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var pasteReady by mutableStateOf(false)
     val downloads = mutableStateMapOf<String, DlState>()
     val toasts = mutableStateListOf<DlToast>()
+
+    /** Every download of this session, newest last: what the queue button lists after the toasts are gone. */
+    val queue = mutableStateListOf<DlToast>()
     var idea by mutableStateOf(false)
     var hopSignal by mutableIntStateOf(0)
     var savedPulse by mutableIntStateOf(0)
@@ -68,6 +74,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var server by mutableStateOf<ServerSettings?>(null)
 
     var theme by mutableStateOf(prefs.theme)
+    var accent by mutableStateOf(Color(prefs.accent))
+    var playlistAudio by mutableStateOf(prefs.playlistAudio)
     var saveTo by mutableStateOf(prefs.saveTo)
     var sortByType by mutableStateOf(prefs.sortByType)
 
@@ -125,6 +133,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingShare: String? = null
 
     init {
+        setAccentColor(accent)
+        AppInstaller.cleanup(application)
+        AppInstaller.onResult = { ok, message ->
+            appUpdateBusy = false
+            if (!ok) {
+                val toast = addToast("RibbT update", "")
+                finishToast(toast, ToastPhase.Bad, "Failed · $message", notify = false)
+            }
+        }
         if (prefs.builtIn) BuiltInServer.start(application)
         refresh()
     }
@@ -226,6 +243,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateTheme(value: String) { prefs.theme = value; theme = value; savedPulse++ }
+
+    /** Applies the accent colour at once; [save] is false while a finger is still dragging in the picker. */
+    fun updateAccent(color: Color, save: Boolean = true) {
+        accent = color
+        setAccentColor(color)
+        if (save) {
+            prefs.accent = color.toArgb()
+            savedPulse++
+        }
+    }
+
+    fun updatePlaylistAudio(value: Boolean) { prefs.playlistAudio = value; playlistAudio = value }
     fun updateSaveTo(value: String) { prefs.saveTo = value; saveTo = value; savedPulse++ }
     fun updateSortByType(value: Boolean) { prefs.sortByType = value; sortByType = value; savedPulse++ }
 
@@ -323,21 +352,72 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun checkAppUpdate() {
+    /** [silent] checks in the background (when Settings opens) without a toast, and stays quiet on errors. */
+    fun checkAppUpdate(silent: Boolean = false) {
         if (appChecking) return
         appChecking = true
-        val toast = addToast("RibbT", "Checking for updates…")
+        val toast = if (silent) null else addToast("RibbT", "Checking for updates…")
         viewModelScope.launch {
             try {
                 val release = withContext(Dispatchers.IO) { AppUpdate.latest(appVersion) }
                 appRelease = release
                 val text = if (release.available) "Update available · ${release.version}" else "RibbT is up to date"
-                finishToast(toast, ToastPhase.Ok, text, notify = false)
+                if (toast != null) finishToast(toast, ToastPhase.Ok, text, notify = false)
             } catch (e: ApiException) {
-                finishToast(toast, ToastPhase.Bad, "Couldn’t check · ${e.message.orEmpty().take(70)}", notify = false)
+                if (toast != null) finishToast(toast, ToastPhase.Bad, "Couldn’t check · ${e.message.orEmpty().take(70)}", notify = false)
             } finally {
                 appChecking = false
             }
+        }
+    }
+
+    /** True while the new RibbT is being downloaded or handed to Android's installer. */
+    var appUpdateBusy by mutableStateOf(false)
+
+    /** "Downloading · 42%" style line shown under the RibbT row while an update is in progress. */
+    var appUpdateStatus by mutableStateOf<String?>(null)
+
+    /**
+     * Downloads the new APK inside the app (progress shows in the toast, the queue and the Settings row)
+     * and then asks Android to install it. Android shows its own confirmation on top of RibbT.
+     */
+    fun installAppUpdate() {
+        val release = appRelease ?: return
+        if (appUpdateBusy) return
+        val app = getApplication<Application>()
+        if (!AppInstaller.canInstall(app)) {
+            AppInstaller.openInstallSettings(app)
+            val toast = addToast("RibbT update", "")
+            finishToast(toast, ToastPhase.Bad, "Allow RibbT to install updates, then tap Update again", notify = false)
+            return
+        }
+        appUpdateBusy = true
+        appUpdateStatus = "Starting…"
+        val toast = addToast("RibbT ${release.version.orEmpty()}".trim(), "Downloading update…", cancellable = true)
+        val job = viewModelScope.launch {
+            try {
+                val apk = AppInstaller.download(app, release.apkUrl) { done, total ->
+                    val fraction = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else null
+                    val line = if (fraction != null) "Downloading · ${(fraction * 100).toInt()}%" else "Downloading · ${formatBytes(done)}"
+                    appUpdateStatus = line
+                    updateToast(toast) { it.copy(progress = fraction, status = line) }
+                }
+                appUpdateStatus = "Installing…"
+                updateToast(toast) { it.copy(progress = null, status = "Confirm the update on the next screen") }
+                AppInstaller.install(app, apk)
+                // Android now shows its own confirmation. The app is replaced and restarted when it finishes.
+                finishToast(toast, ToastPhase.Ok, "Ready to install", notify = false)
+                appUpdateStatus = null
+                appUpdateBusy = false
+            } catch (e: ApiException) {
+                appUpdateBusy = false
+                appUpdateStatus = null
+                finishToast(toast, ToastPhase.Bad, "Failed · ${e.message.orEmpty().take(90)}", notify = false)
+            }
+        }
+        trackDownload(toast, job) {
+            appUpdateBusy = false
+            appUpdateStatus = null
         }
     }
 
@@ -558,13 +638,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun addToast(name: String, status: String, cancellable: Boolean = false): Long {
         val id = ++toastCounter
-        toasts.add(DlToast(id, name, status, null, ToastPhase.Active, canCancel = cancellable))
+        val toast = DlToast(id, name, status, null, ToastPhase.Active, canCancel = cancellable)
+        toasts.add(toast)
+        if (cancellable) {
+            queue.add(toast)
+            while (queue.size > QUEUE_LIMIT) {
+                val oldest = queue.indexOfFirst { it.phase != ToastPhase.Active }.takeIf { it >= 0 } ?: 0
+                retryActions.remove(queue[oldest].id)
+                queue.removeAt(oldest)
+            }
+        }
         return id
     }
 
     private fun updateToast(id: Long, transform: (DlToast) -> DlToast) {
         val index = toasts.indexOfFirst { it.id == id }
         if (index >= 0) toasts[index] = transform(toasts[index])
+        val inQueue = queue.indexOfFirst { it.id == id }
+        if (inQueue >= 0) queue[inQueue] = if (index >= 0) toasts[index] else transform(queue[inQueue])
+    }
+
+    /** Drops finished, failed and cancelled entries from the queue list. */
+    fun clearFinishedQueue() {
+        queue.filter { it.phase != ToastPhase.Active }.forEach { retryActions.remove(it.id) }
+        queue.removeAll { it.phase != ToastPhase.Active }
+    }
+
+    /** Runs a failed download again from the queue list, replacing its old entry. */
+    fun retryFromQueue(id: Long) {
+        val action = retryActions.remove(id) ?: return
+        queue.removeAll { it.id == id }
+        dismissToast(id)
+        action()
     }
 
     /** Shows a failure as a toast (and flags the mascot) instead of a box in the page. */
@@ -607,12 +712,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissToast(id: Long) {
-        retryActions.remove(id)
+        // The retry action stays so the queue list can still offer Retry after the toast is gone.
         toasts.removeAll { it.id == id }
     }
 
     private fun finishToast(id: Long, phase: ToastPhase, status: String, notify: Boolean = true) {
-        val name = toasts.firstOrNull { it.id == id }?.name.orEmpty()
+        val name = (toasts.firstOrNull { it.id == id } ?: queue.firstOrNull { it.id == id })?.name.orEmpty()
         if (notify) Notifier.download(getApplication(), id, name, status, ok = phase == ToastPhase.Ok)
         updateToast(id) { it.copy(status = status, progress = null, phase = phase, canCancel = false) }
         if (phase == ToastPhase.Ok) hopSignal++
@@ -668,7 +773,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         download(post, track.spec, "Fetching subtitles…", record = false)
     }
 
-    fun downloadPlaylist(list: Playlist, chosen: List<PlaylistEntry>) {
+    fun downloadPlaylist(list: Playlist, chosen: List<PlaylistEntry>, audioOnly: Boolean = false) {
         val key = "playlist:" + list.link
         if (chosen.isEmpty() || downloads[key] is DlState.Busy) return
         downloads[key] = DlState.Busy(null)
@@ -685,8 +790,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 try {
                     val entryPost = api.parse(entry.url)
-                    val spec = entryPost.items.firstOrNull { it.type == "video" }?.downloads?.firstOrNull()
-                        ?: throw ApiException("No video found for ${entry.title}.")
+                    val downloads = entryPost.items.firstOrNull { it.type == "video" }?.downloads.orEmpty()
+                    val spec = if (audioOnly) {
+                        downloads.firstOrNull { it.label.contains("audio", ignoreCase = true) || it.label.contains("sound", ignoreCase = true) }
+                            ?: throw ApiException("No audio found for ${entry.title}.")
+                    } else {
+                        downloads.firstOrNull() ?: throw ApiException("No video found for ${entry.title}.")
+                    }
                     folder = saveOne(entryPost, spec, toast, index + 1, chosen.size, false, target, reportFailure = false).orEmpty()
                     saved++
                 } catch (e: ApiException) {
@@ -703,7 +813,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (saved > 0) {
                 downloads[key] = DlState.Done(folder)
                 val text = if (skipped == 0) {
-                    savedText("Saved ${chosen.size} videos to", folder, note)
+                    savedText("Saved ${chosen.size} ${if (audioOnly) "tracks" else "videos"} to", folder, note)
                 } else {
                     "Saved $saved of ${chosen.size} · $skipped failed"
                 }
@@ -716,7 +826,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 error = info.copy(inline = false)
                 updateToast(toast) { it.copy(debug = debugText("Playlist download", list.link, lastReason, lastStatus)) }
                 finishToast(toast, ToastPhase.Bad, "Failed · " + ErrorText.toastLine(info))
-                offerRetry(toast) { downloadPlaylist(list, chosen) }
+                offerRetry(toast) { downloadPlaylist(list, chosen, audioOnly) }
             }
         }
         trackDownload(toast, job) { downloads.remove(key) }
@@ -733,7 +843,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun offerRetry(toast: Long, action: () -> Unit) {
-        if (toasts.none { it.id == toast }) return
+        if (toasts.none { it.id == toast } && queue.none { it.id == toast }) return
         retryActions[toast] = action
         updateToast(toast) { it.copy(canRetry = true) }
     }
@@ -757,6 +867,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun retryDownload(id: Long) {
         val action = retryActions.remove(id) ?: return
+        queue.removeAll { it.id == id }
         dismissToast(id)
         action()
     }
