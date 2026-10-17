@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -107,5 +109,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          PREVIOUS=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/latest" --jq .object.sha 2>/dev/null || true)
+          if [ -n "$PREVIOUS" ] && [ "$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$PREVIOUS" --jq .object.sha 2>/dev/null)" ]; then
+            PREVIOUS=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$PREVIOUS" --jq .object.sha)
+          fi
+          VERSION="0.1.${{ github.run_number }}"
+          python3 .github/scripts/changelog.py "$VERSION" "$PREVIOUS" HEAD "$GITHUB_REPOSITORY" > notes.md
+          cat notes.md
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create latest out/RibbT.apk --title "Latest build" --notes "Build #${{ github.run_number }}"
+          gh release create latest out/RibbT.apk --title "RibbT $VERSION" --notes-file notes.md
