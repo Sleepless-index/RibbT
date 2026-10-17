@@ -4,9 +4,8 @@
 
 # RibbT
 
-Download videos, photos and audio from social media. Everything runs on your phone.
+Download videos, photos and audio from social media.
 
-[![Build](https://github.com/Sleepless-index/RibbT/actions/workflows/android.yml/badge.svg)](https://github.com/Sleepless-index/RibbT/actions/workflows/android.yml)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 ![Android 10+](https://img.shields.io/badge/Android-10%2B-3ddc84)
 
@@ -18,7 +17,7 @@ Download videos, photos and audio from social media. Everything runs on your pho
 
 - Save videos, photos, thumbnails and audio
 - YouTube playlists and mixes
-- Subtitles
+- Save subtitles from videos on the supported sites
 - Download queue with progress, cancel and retry
 - Choose where files are saved
 - No ads, no accounts, no tracking
