@@ -17,7 +17,7 @@ Download videos, photos and audio from social media.
 
 - Save videos, photos, thumbnails and audio
 - YouTube playlists and mixes
-- Save subtitles from videos on the supported sites
+- Save subtitles from YouTube and Bilibili videos
 - Download queue with progress, cancel and retry
 - Choose where files are saved
 - No ads, no accounts, no tracking
