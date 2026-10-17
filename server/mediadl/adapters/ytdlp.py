@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 
 from ..services import cookies as cookie_store
@@ -9,6 +10,11 @@ YTDLP_TIMEOUT_SECONDS = 90
 COOKIES_ENV = "YTDLP_COOKIES"
 DIRECT_PROTOCOLS = (None, "", "https", "http")
 MAX_CANDIDATES = 16
+PLAYLIST_TIMEOUT_SECONDS = 120
+MAX_PLAYLIST_ENTRIES = 100
+MAX_SUBTITLE_TRACKS = 30
+TITLE_LIMIT = 80
+UNAVAILABLE_TITLES = ("[Private video]", "[Deleted video]")
 
 
 def has_stream(codec):
@@ -36,16 +42,12 @@ def _error_line(stderr):
     return text[:200]
 
 
-def dump_info(url, label, extra_args=()):
-    """Run yt-dlp --dump-json and return the first JSON object, raising ValueError for the UI."""
-    command = ["--dump-json", "--no-download", "--no-warnings", *extra_args]
+def _launch(runner, command, label, timeout_seconds):
     cookies = cookie_store.active_path()
     if cookies:
-        command += ["--cookies", cookies]
-    command.append(url)
-
+        command = [*command[:-1], "--cookies", cookies, command[-1]]
     try:
-        result = ytdlp_runner.run(command, YTDLP_TIMEOUT_SECONDS)
+        result = runner(command, timeout_seconds)
     except FileNotFoundError:
         raise ValueError(f"{label} support requires yt-dlp. Install it with: pip install yt-dlp")
     except subprocess.TimeoutExpired:
@@ -61,10 +63,123 @@ def dump_info(url, label, extra_args=()):
                 fix = f"Import a cookies.txt (POST /api/cookies) or set {COOKIES_ENV} to one on the server."
             raise ValueError(f"{label} wants a sign-in or bot check for this video. {fix}")
         raise ValueError(f"Could not parse that {label} link." + (f" ({detail})" if detail else ""))
+    return result
+
+
+def dump_info(url, label, extra_args=()):
+    command = ["--dump-json", "--no-download", "--no-warnings", *extra_args, url]
+    result = _launch(ytdlp_runner.run, command, label, YTDLP_TIMEOUT_SECONDS)
     try:
         return json.loads(result.stdout.strip().splitlines()[0])
     except (json.JSONDecodeError, IndexError):
         raise ValueError(f"Could not parse the {label} response.")
+
+
+def dump_playlist(url, label, limit=MAX_PLAYLIST_ENTRIES):
+    command = [
+        "--flat-playlist", "--dump-single-json", "--yes-playlist", "--no-warnings",
+        "--playlist-end", str(limit), url,
+    ]
+    result = _launch(ytdlp_runner.run_playlist, command, label, PLAYLIST_TIMEOUT_SECONDS)
+    try:
+        info = json.loads(result.stdout.strip().splitlines()[0])
+    except (json.JSONDecodeError, IndexError):
+        raise ValueError(f"Could not parse the {label} response.")
+    if not isinstance(info, dict):
+        raise ValueError(f"Could not parse the {label} response.")
+    return info
+
+
+def _clock(seconds):
+    try:
+        total = int(seconds)
+    except (TypeError, ValueError):
+        return ""
+    if total <= 0:
+        return ""
+    hours, rest = divmod(total, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def _entry_url(entry, watch_base):
+    link = entry.get("webpage_url") or entry.get("url") or ""
+    if isinstance(link, str) and link.startswith("http"):
+        return link
+    entry_id = entry.get("id")
+    if watch_base and entry_id:
+        return watch_base + str(entry_id)
+    return ""
+
+
+def _entry_thumb(entry, thumb_base):
+    entry_id = entry.get("id")
+    if thumb_base and entry_id:
+        return thumb_base.format(id=entry_id)
+    thumbnails = [t for t in (entry.get("thumbnails") or []) if isinstance(t, dict) and t.get("url")]
+    return thumbnails[-1]["url"] if thumbnails else (entry.get("thumbnail") or "")
+
+
+def playlist_payload(info, watch_base=None, thumb_base=None):
+    entries = []
+    for entry in info.get("entries") or []:
+        if not isinstance(entry, dict):
+            continue
+        title = (entry.get("title") or "").strip()
+        if title in UNAVAILABLE_TITLES:
+            continue
+        link = _entry_url(entry, watch_base)
+        if not link:
+            continue
+        entries.append({
+            "id": str(entry.get("id") or ""),
+            "title": title[:TITLE_LIMIT] or "Untitled",
+            "author": entry.get("uploader") or entry.get("channel") or "",
+            "duration": _clock(entry.get("duration")),
+            "url": link,
+            "thumb": _entry_thumb(entry, thumb_base),
+        })
+    total = info.get("playlist_count")
+    return {
+        "id": str(info.get("id") or ""),
+        "title": (info.get("title") or "Playlist")[:TITLE_LIMIT],
+        "author": info.get("uploader") or info.get("channel") or "",
+        "total": total if isinstance(total, int) and total > 0 else len(entries),
+        "entries": entries,
+    }
+
+
+def _track_label(lang, formats, auto):
+    name = ""
+    for item in formats or []:
+        if isinstance(item, dict) and item.get("name"):
+            name = str(item["name"])
+            break
+    name = re.sub(r"\s*\((?:Original|original)\)$", "", name).strip() or lang
+    return f"{name} (auto)" if auto else name
+
+
+def subtitle_tracks(info):
+    tracks = []
+    manual = info.get("subtitles") or {}
+    for lang, formats in manual.items():
+        if lang == "live_chat" or not isinstance(lang, str):
+            continue
+        tracks.append({"lang": lang, "label": _track_label(lang, formats, False), "auto": False})
+    automatic = info.get("automatic_captions") or {}
+    originals = [lang for lang in automatic if isinstance(lang, str) and lang.endswith("-orig")]
+    spoken = info.get("language")
+    if not originals and spoken in automatic:
+        originals = [spoken]
+    taken = {track["lang"] for track in tracks}
+    for lang in originals:
+        base = lang[:-5] if lang.endswith("-orig") else lang
+        if lang in taken or base in taken:
+            continue
+        tracks.append({"lang": lang, "label": _track_label(lang, automatic[lang], True), "auto": True})
+    return tracks[:MAX_SUBTITLE_TRACKS]
 
 
 def video_candidates(formats, audio_url):

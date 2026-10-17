@@ -60,7 +60,7 @@ def _use_js_runtime(opts):
         opts["remote_components"] = ["ejs:github"]
 
 
-def _extract(args, outcome):
+def _extract(args, outcome, whole=False):
     try:
         import yt_dlp
     except ImportError:
@@ -75,12 +75,13 @@ def _extract(args, outcome):
         _use_js_runtime(opts)
         opts.update(
             quiet=True, no_warnings=True, logger=capture, skip_download=True,
-            noplaylist=opts.get("noplaylist", False), socket_timeout=20,
+            noplaylist=False if whole else opts.get("noplaylist", False), socket_timeout=20,
         )
         urls = parsed.urls
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(urls[0], download=False)
-            info = _first_entry(info)
+            if not whole:
+                info = _first_entry(info)
             if not info:
                 if capture.errors:
                     outcome.update(code=1, stderr="\n".join(capture.errors))
@@ -95,9 +96,37 @@ def _extract(args, outcome):
         outcome["code"] = 1
 
 
-def _run_module(args, timeout):
+def _extract_playlist(args, outcome):
+    _extract(args, outcome, whole=True)
+
+
+def _download(args, outcome):
+    try:
+        import yt_dlp
+    except ImportError:
+        outcome["missing"] = True
+        return
+    capture = _Capture()
+    try:
+        parsed = yt_dlp.parse_options(list(args))
+        opts = dict(parsed.ydl_opts)
+        _use_js_runtime(opts)
+        opts.update(quiet=True, no_warnings=True, logger=capture, socket_timeout=20)
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            code = ydl.download(parsed.urls)
+        if code:
+            outcome.update(code=1, stderr="\n".join(capture.errors) or "ERROR: Download failed")
+    except BaseException as exc:
+        message = str(exc) or exc.__class__.__name__
+        if "ERROR" not in message:
+            message = f"ERROR: {message}"
+        outcome["stderr"] = "\n".join([*capture.errors, message])
+        outcome["code"] = 1
+
+
+def _run_module(args, timeout, target=None):
     outcome = {"stdout": "", "stderr": "", "code": 0}
-    worker = threading.Thread(target=_extract, args=(args, outcome), daemon=True)
+    worker = threading.Thread(target=target or _extract, args=(args, outcome), daemon=True)
     worker.start()
     worker.join(timeout)
     if worker.is_alive():
@@ -113,4 +142,16 @@ def run(args, timeout):
     """Run ``yt-dlp <args>`` and return a CompletedProcess with text stdout/stderr."""
     if embedded():
         return _run_module(args, timeout)
+    return subprocess.run(["yt-dlp", *args], capture_output=True, text=True, timeout=timeout)
+
+
+def run_playlist(args, timeout):
+    if embedded():
+        return _run_module(args, timeout, _extract_playlist)
+    return subprocess.run(["yt-dlp", *args], capture_output=True, text=True, timeout=timeout)
+
+
+def run_download(args, timeout):
+    if embedded():
+        return _run_module(args, timeout, _download)
     return subprocess.run(["yt-dlp", *args], capture_output=True, text=True, timeout=timeout)

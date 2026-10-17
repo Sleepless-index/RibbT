@@ -1,12 +1,15 @@
 import logging
 from urllib.parse import urlparse
 
-from flask import Blueprint, request
+from flask import Blueprint, Response, request
 
+from ..adapters import pick_adapter
 from ..config import TWITTER_MEDIA_HOSTS
-from ..errors import blocked_media_url
+from ..errors import MediaError, blocked_media_url
 from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_to_file
+from ..services import subtitles as subtitle_service
 from ..services.ffmpeg import probe_bitrate
+from ..services.mediatypes import content_disposition
 from ..services.net import content_type_of, host_ok, resolve_media
 from ..services.transforms import (
     IMAGE_TRANSFORMS,
@@ -98,3 +101,24 @@ def audio():
     name = filename_arg("audio")
     settings = current_preferences()["audio"]
     return transcode_to_file(url, name, audio_transform(settings["format"], settings["bitrate"]))
+
+
+@bp.get("/api/subtitle")
+def subtitle():
+    page = request.args.get("u", "")
+    lang = request.args.get("lang", "")
+    auto = request.args.get("auto") == "1"
+    name = filename_arg("subtitles")
+    adapter = pick_adapter(page)
+    if not page.startswith("https://") or adapter is None or not adapter.subtitles:
+        raise MediaError("Subtitles can’t be downloaded from that link.", 400)
+
+    content, ext = subtitle_service.fetch(page, lang, auto)
+    return Response(
+        content,
+        mimetype=subtitle_service.MIME.get(ext, "application/octet-stream"),
+        headers={
+            "Content-Disposition": content_disposition(name, ext, False),
+            "Cache-Control": "no-store",
+        },
+    )

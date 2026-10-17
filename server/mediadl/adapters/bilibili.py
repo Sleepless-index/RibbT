@@ -1,5 +1,6 @@
 import json
 import subprocess
+from urllib.parse import urlparse
 
 import requests
 
@@ -7,11 +8,18 @@ from ..services import ytdlp_runner
 from ..services.candidates import candidate, codec_from_ytdlp, image_candidates
 from ..services.net import host_ok
 from .base import PlatformAdapter, new_post, video_group
-from .ytdlp import best_audio_url, has_stream as _has_stream
+from .ytdlp import (
+    best_audio_url,
+    dump_playlist,
+    has_stream as _has_stream,
+    playlist_payload,
+    subtitle_tracks,
+)
 
 TITLE_LIMIT = 80
 YTDLP_TIMEOUT_SECONDS = 90
 SHORT_LINK_HOSTS = ("b23.tv",)
+PLAYLIST_PATH_MARKERS = ("/favlist", "/medialist", "/lists", "/channel")
 
 
 class BilibiliAdapter(PlatformAdapter):
@@ -19,6 +27,20 @@ class BilibiliAdapter(PlatformAdapter):
     label = "Bilibili"
     hosts = ("bilibili.com", "m.bilibili.com", "b23.tv")
     display_hosts = ("bilibili.com", "m.bilibili.com", "b23.tv")
+    subtitles = True
+
+    def is_playlist(self, url):
+        parsed = urlparse(url)
+        if (parsed.hostname or "").lower() != "space.bilibili.com":
+            return False
+        return any(marker in parsed.path for marker in PLAYLIST_PATH_MARKERS)
+
+    def extract_playlist(self, url):
+        info = dump_playlist(url, "Bilibili")
+        payload = playlist_payload(info)
+        if not payload["entries"]:
+            raise ValueError("That Bilibili list has no videos you can download.")
+        return payload
 
     def extract(self, url):
         if host_ok(url, SHORT_LINK_HOSTS):
@@ -58,6 +80,7 @@ class BilibiliAdapter(PlatformAdapter):
         if not candidates:
             raise ValueError("No downloadable stream found for that Bilibili video.")
         post["_videos"].append(video_group(candidates))
+        post["subtitles"] = subtitle_tracks(info)
 
         if info.get("thumbnail"):
             post["_cover"] = image_candidates({"urlDefault": info["thumbnail"]})

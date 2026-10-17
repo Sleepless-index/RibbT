@@ -24,6 +24,10 @@ def media_path(url, name, inline=False, audio=None):
     return _endpoint("/api/media", {"u": url, "name": name, "inline": inline, "audio": audio, "_v": MEDIA_VERSION})
 
 
+def subtitle_path(page, lang, auto, name):
+    return _endpoint("/api/subtitle", {"u": page, "lang": lang, "auto": auto, "name": name})
+
+
 def audio_path(url, name):
     return _endpoint("/api/audio", {"u": url, "name": name})
 
@@ -112,6 +116,17 @@ def build_app_post(post, platform, prefs, link):
             "downloads": [{"label": "Download", "url": media_path(url, image_name), "name": image_name}],
         })
 
+    subtitles = []
+    for track in post.get("subtitles") or []:
+        track_name = name_for("subtitle", lang=track["lang"])
+        subtitles.append({
+            "lang": track["lang"],
+            "label": track["label"],
+            "auto": bool(track.get("auto")),
+            "name": track_name,
+            "url": subtitle_path(link, track["lang"], bool(track.get("auto")), track_name),
+        })
+
     avatar = post.get("avatar")
     return {
         "id": post_id,
@@ -124,6 +139,30 @@ def build_app_post(post, platform, prefs, link):
         "thumb": media_path(cover or (images[0] if images else None), f"{post_id}_hist", True)
         if (cover or images) else None,
         "items": items,
+        "subtitles": subtitles,
+    }
+
+
+def build_app_playlist(playlist, platform, link):
+    entries = []
+    for entry in playlist.get("entries") or []:
+        thumb = entry.get("thumb") or ""
+        entries.append({
+            "id": entry.get("id") or "",
+            "title": entry.get("title") or "",
+            "author": entry.get("author") or "",
+            "duration": entry.get("duration") or "",
+            "url": entry["url"],
+            "thumb": media_path(thumb, f"{entry.get('id') or 'entry'}_thumb", True) if thumb else None,
+        })
+    return {
+        "type": "playlist",
+        "platform": platform,
+        "link": link,
+        "title": playlist.get("title") or "Playlist",
+        "author": playlist.get("author") or "",
+        "total": playlist.get("total") or len(entries),
+        "entries": entries,
     }
 
 

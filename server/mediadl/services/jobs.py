@@ -23,7 +23,7 @@ from . import ffmpeg, progress, storage
 
 log = logging.getLogger(__name__)
 
-ALLOWED_PATHS = ("/api/video", "/api/audio", "/api/media")
+ALLOWED_PATHS = ("/api/video", "/api/audio", "/api/media", "/api/subtitle")
 MAX_ACTIVE = 3
 MAX_JOBS = 40
 READY_TTL_SECONDS = 6 * 60 * 60
