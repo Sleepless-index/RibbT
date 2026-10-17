@@ -62,6 +62,10 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("pasteAndGo", true)
         set(value) = sp.edit().putBoolean("pasteAndGo", value).apply()
 
+    var debugInfo: Boolean
+        get() = sp.getBoolean("debugInfo", false)
+        set(value) = sp.edit().putBoolean("debugInfo", value).apply()
+
     var lastLink: String
         get() = sp.getString("lastLink", "") ?: ""
         set(value) = sp.edit().putString("lastLink", value).apply()

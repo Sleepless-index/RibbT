@@ -16,6 +16,8 @@ data class MediaItem(
     val playAudio: String? = null,
 )
 
+data class SubtitleTrack(val lang: String, val label: String, val auto: Boolean, val spec: DownloadSpec)
+
 data class Post(
     val id: String,
     val platform: String,
@@ -26,7 +28,34 @@ data class Post(
     val kind: String,
     val thumb: String?,
     val items: List<MediaItem>,
+    val subtitles: List<SubtitleTrack> = emptyList(),
+    val playlist: String? = null,
 )
+
+data class PlaylistEntry(
+    val id: String,
+    val title: String,
+    val author: String,
+    val duration: String,
+    val url: String,
+    val thumb: String?,
+)
+
+data class Playlist(
+    val link: String,
+    val platform: String,
+    val title: String,
+    val author: String,
+    val total: Int,
+    val entries: List<PlaylistEntry>,
+)
+
+sealed interface ParseResult {
+    data class Single(val post: Post) : ParseResult
+    data class Listing(val playlist: Playlist) : ParseResult
+}
+
+data class AppRelease(val version: String?, val available: Boolean, val apkUrl: String, val pageUrl: String)
 
 data class Platform(
     val name: String,
@@ -136,6 +165,7 @@ data class DlToast(
     val canCancel: Boolean = false,
     /** Shows a Retry button once it has failed. */
     val canRetry: Boolean = false,
+    val debug: String? = null,
 )
 
 /** A file RibbT saved on this phone, remembered so History can open or share it later. */
@@ -172,6 +202,34 @@ fun JSONArray?.strings(): List<String> {
 fun JSONObject.optStringOrNull(key: String): String? =
     if (isNull(key) || !has(key)) null else optString(key).ifBlank { null }
 
+fun JSONObject.toSubtitleTrack(): SubtitleTrack = SubtitleTrack(
+    lang = optString("lang"),
+    label = optString("label"),
+    auto = optBoolean("auto", false),
+    spec = DownloadSpec(optString("label"), optString("url"), optString("name")),
+)
+
+fun JSONObject.toPlaylist(): Playlist {
+    val entries = (optJSONArray("entries") ?: JSONArray()).mapObjects {
+        PlaylistEntry(
+            id = it.optString("id"),
+            title = it.optString("title"),
+            author = it.optString("author"),
+            duration = it.optString("duration"),
+            url = it.optString("url"),
+            thumb = it.optStringOrNull("thumb"),
+        )
+    }
+    return Playlist(
+        link = optString("link"),
+        platform = optString("platform"),
+        title = optString("title"),
+        author = optString("author"),
+        total = optInt("total", entries.size),
+        entries = entries.filter { it.url.isNotBlank() },
+    )
+}
+
 fun JSONObject.toPost(): Post = Post(
     id = optString("id"),
     platform = optString("platform"),
@@ -194,6 +252,9 @@ fun JSONObject.toPost(): Post = Post(
             },
         )
     },
+    subtitles = (optJSONArray("subtitles") ?: JSONArray()).mapObjects { it.toSubtitleTrack() }
+        .filter { it.lang.isNotBlank() && it.spec.url.isNotBlank() },
+    playlist = optStringOrNull("playlist"),
 )
 
 fun JSONObject.toJobInfo(): JobInfo = JobInfo(

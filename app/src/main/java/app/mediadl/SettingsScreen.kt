@@ -325,6 +325,12 @@ private fun GeneralCard(vm: AppViewModel) {
                 "Fetch a copied link when you open RibbT.",
                 vm.pasteAndGo,
             ) { vm.updatePasteAndGo(it) }
+            Separator()
+            ToggleRow(
+                "Debug info",
+                "Adds a Copy button to failed downloads with details for bug reports.",
+                vm.debugInfo,
+            ) { vm.updateDebugInfo(it) }
         }
     }
 }
@@ -400,6 +406,32 @@ private fun SectionCard(
                     }
                 }
                 if (showYtdlpSettings) YtdlpSettingsDialog(vm) { showYtdlpSettings = false }
+                Separator()
+                val context = LocalContext.current
+                val release = vm.appRelease
+                RowShell(
+                    "RibbT",
+                    "Version ${vm.appVersion}",
+                    badge = if (release != null) (if (release.available) "Update available" else "Up to date") else null,
+                    badgeTone = if (release?.available == true) PillTone.Accent else PillTone.Good,
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        SmallButton(
+                            text = when {
+                                vm.appChecking -> "Checking…"
+                                release?.available == true -> "Update"
+                                else -> "Check"
+                            },
+                            enabled = !vm.appChecking,
+                            onClick = {
+                                if (release?.available == true) AppUpdate.open(context, release.apkUrl) else vm.checkAppUpdate()
+                            },
+                        )
+                        if (release != null) {
+                            IconSquareButton(VIcons.Open, "Release notes") { AppUpdate.open(context, release.pageUrl) }
+                        }
+                    }
+                }
                 first = false
             }
             rows.forEach { row ->

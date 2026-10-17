@@ -3,6 +3,7 @@ package app.mediadl
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.DocumentsContract
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -54,6 +55,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var loading by mutableStateOf(false)
     var error by mutableStateOf<ErrorInfo?>(null)
     var post by mutableStateOf<Post?>(null)
+    var playlist by mutableStateOf<Playlist?>(null)
     var pasteReady by mutableStateOf(false)
     val downloads = mutableStateMapOf<String, DlState>()
     val toasts = mutableStateListOf<DlToast>()
@@ -84,6 +86,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var ytdlpStatus by mutableStateOf<String?>(null)
     var ytdlpBusy by mutableStateOf(false)
     var ytdlpChecking by mutableStateOf(false)
+
+    var debugInfo by mutableStateOf(prefs.debugInfo)
+    val appVersion: String = AppUpdate.installedVersion(application)
+    var appChecking by mutableStateOf(false)
+    var appRelease by mutableStateOf<AppRelease?>(null)
 
     /** The newest yt-dlp on PyPI for the chosen channel; [ytdlpAvailable] is null until we've looked. */
     var ytdlpLatest by mutableStateOf<String?>(null)
@@ -254,6 +261,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (note == null) "$prefix $folder" else "$note · $prefix $folder"
     fun updateReduceMotion(value: String) { prefs.reduceMotion = value; reduceMotion = value; savedPulse++ }
     fun updatePasteAndGo(value: Boolean) { prefs.pasteAndGo = value; pasteAndGo = value; savedPulse++ }
+    fun updateDebugInfo(value: Boolean) { prefs.debugInfo = value; debugInfo = value; savedPulse++ }
     fun updateLayout(value: String) { prefs.layout = value; layout = value; savedPulse++ }
     fun updateYtdlpChannel(value: String) {
         prefs.ytdlpChannel = value
@@ -311,6 +319,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 toast?.let { finishToast(it, ToastPhase.Bad, "Couldn’t check · ${e.message.orEmpty().lineSequence().firstOrNull().orEmpty().take(60)}") }
             } finally {
                 ytdlpChecking = false
+            }
+        }
+    }
+
+    fun checkAppUpdate() {
+        if (appChecking) return
+        appChecking = true
+        val toast = addToast("RibbT", "Checking for updates…")
+        viewModelScope.launch {
+            try {
+                val release = withContext(Dispatchers.IO) { AppUpdate.latest(appVersion) }
+                appRelease = release
+                val text = if (release.available) "Update available · ${release.version}" else "RibbT is up to date"
+                finishToast(toast, ToastPhase.Ok, text, notify = false)
+            } catch (e: ApiException) {
+                finishToast(toast, ToastPhase.Bad, "Couldn’t check · ${e.message.orEmpty().take(70)}", notify = false)
+            } finally {
+                appChecking = false
             }
         }
     }
@@ -406,12 +432,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         input = link
         loading = true
         post = null
+        playlist = null
         downloads.clear()
         savedCounts.remove(link)
         savedSizes.remove(link)
         parseJob = viewModelScope.launch {
             try {
-                post = api.parse(link)
+                when (val result = api.parseAny(link)) {
+                    is ParseResult.Single -> post = result.post
+                    is ParseResult.Listing -> playlist = result.playlist
+                }
                 online = true
                 pulseIdea()
             } catch (e: ApiException) {
@@ -424,6 +454,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             "Couldn’t read that link",
                             "Check that the post is public and the link opens in your browser, then try again.",
                         ),
+                        debugText("Reading the link", link, e.message, e.status),
+                    )
+                }
+            } finally {
+                if (token == parseToken) loading = false
+            }
+        }
+    }
+
+    fun openPlaylist(link: String) {
+        if (loading) return
+        error = null
+        parseJob?.cancel()
+        ideaJob?.cancel()
+        idea = false
+        val token = ++parseToken
+        loading = true
+        parseJob = viewModelScope.launch {
+            try {
+                playlist = api.playlist(link)
+                post = null
+                online = true
+                pulseIdea()
+            } catch (e: ApiException) {
+                if (e.offline) {
+                    markOffline()
+                } else {
+                    report(
+                        ErrorText.explain(
+                            e.message,
+                            "Couldn’t read that playlist",
+                            "Check that the playlist is public, then try again.",
+                        ),
+                        debugText("Reading the playlist", link, e.message, e.status),
                     )
                 }
             } finally {
@@ -440,6 +504,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loading = false
         input = ""
         post = null
+        playlist = null
         error = null
         downloads.clear()
         pasteReady = false
@@ -503,14 +568,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Shows a failure as a toast (and flags the mascot) instead of a box in the page. */
-    fun report(info: ErrorInfo) {
+    fun report(info: ErrorInfo, debug: String? = null) {
         error = info.copy(inline = false)
         if (toasts.any { it.phase == ToastPhase.Bad && it.name == info.title }) return
         val id = ++toastCounter
-        toasts.add(DlToast(id, info.title, info.hint.orEmpty(), null, ToastPhase.Bad))
+        toasts.add(DlToast(id, info.title, info.hint.orEmpty(), null, ToastPhase.Bad, debug = debug))
         viewModelScope.launch {
-            delay(7000)
+            delay(if (debug != null) 20000 else 7000)
             dismissToast(id)
+        }
+    }
+
+    private fun debugText(stage: String, link: String?, message: String?, status: Int): String? {
+        if (!debugInfo) return null
+        val ytdlp = when (val version = ytdlpVersion) {
+            null -> "unknown"
+            "" -> "not installed"
+            else -> version
+        }
+        return buildString {
+            appendLine("RibbT debug info")
+            appendLine("App: $appVersion · Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}")
+            appendLine("Server: ${if (prefs.builtIn) "built-in" else "custom"} · yt-dlp $ytdlp")
+            appendLine("Stage: $stage")
+            if (!link.isNullOrBlank()) appendLine("Link: $link")
+            if (status != 0) appendLine("Status: $status")
+            appendLine("Time: ${java.util.Date()}")
+            append("Error: ${message.orEmpty().trim().take(1500)}")
         }
     }
 
@@ -527,13 +611,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         toasts.removeAll { it.id == id }
     }
 
-    private fun finishToast(id: Long, phase: ToastPhase, status: String) {
+    private fun finishToast(id: Long, phase: ToastPhase, status: String, notify: Boolean = true) {
         val name = toasts.firstOrNull { it.id == id }?.name.orEmpty()
-        Notifier.download(getApplication(), id, name, status, ok = phase == ToastPhase.Ok)
+        if (notify) Notifier.download(getApplication(), id, name, status, ok = phase == ToastPhase.Ok)
         updateToast(id) { it.copy(status = status, progress = null, phase = phase, canCancel = false) }
         if (phase == ToastPhase.Ok) hopSignal++
+        val lingers = phase == ToastPhase.Bad && toasts.firstOrNull { it.id == id }?.debug != null
         viewModelScope.launch {
-            delay(if (phase == ToastPhase.Ok) 3500 else 9000)
+            delay(if (phase == ToastPhase.Ok) 3500 else if (lingers) 20000 else 9000)
             dismissToast(id)
         }
     }
@@ -561,22 +646,80 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun download(post: Post, spec: DownloadSpec, pending: String = "Preparing…") {
+    fun download(post: Post, spec: DownloadSpec, pending: String = "Preparing…", record: Boolean = true) {
         if (downloads[spec.url] is DlState.Busy) return
         downloads[spec.url] = DlState.Busy(null)
         val toast = addToast(spec.name, pending, cancellable = true)
         val job = viewModelScope.launch {
             val (target, note) = resolveSaveTarget(saveTo)
-            val folder = saveOne(post, spec, toast, 1, 1, true, target)
+            val folder = saveOne(post, spec, toast, 1, 1, true, target, record = record)
             if (folder != null) {
                 finishToast(toast, ToastPhase.Ok, savedText("Saved to", folder, note))
                 delay(1800)
                 if (downloads[spec.url] is DlState.Done) downloads.remove(spec.url)
             } else {
-                offerRetry(toast) { download(post, spec, pending) }
+                offerRetry(toast) { download(post, spec, pending, record) }
             }
         }
         trackDownload(toast, job) { downloads.remove(spec.url) }
+    }
+
+    fun downloadSubtitle(post: Post, track: SubtitleTrack) {
+        download(post, track.spec, "Fetching subtitles…", record = false)
+    }
+
+    fun downloadPlaylist(list: Playlist, chosen: List<PlaylistEntry>) {
+        val key = "playlist:" + list.link
+        if (chosen.isEmpty() || downloads[key] is DlState.Busy) return
+        downloads[key] = DlState.Busy(null)
+        val toast = addToast(list.title.ifBlank { "Playlist" }, "Preparing…", cancellable = true)
+        val job = viewModelScope.launch {
+            val (target, note) = resolveSaveTarget(saveTo)
+            var saved = 0
+            var folder = ""
+            var lastReason: String? = null
+            var lastStatus = 0
+            for ((index, entry) in chosen.withIndex()) {
+                updateToast(toast) {
+                    it.copy(name = entry.title.ifBlank { it.name }, status = "Reading ${index + 1} of ${chosen.size}…", progress = null)
+                }
+                try {
+                    val entryPost = api.parse(entry.url)
+                    val spec = entryPost.items.firstOrNull { it.type == "video" }?.downloads?.firstOrNull()
+                        ?: throw ApiException("No video found for ${entry.title}.")
+                    folder = saveOne(entryPost, spec, toast, index + 1, chosen.size, false, target, reportFailure = false).orEmpty()
+                    saved++
+                } catch (e: ApiException) {
+                    lastReason = e.message
+                    lastStatus = e.status
+                    if (e.offline) {
+                        online = false
+                        break
+                    }
+                }
+                delay(300)
+            }
+            val skipped = chosen.size - saved
+            if (saved > 0) {
+                downloads[key] = DlState.Done(folder)
+                val text = if (skipped == 0) {
+                    savedText("Saved ${chosen.size} videos to", folder, note)
+                } else {
+                    "Saved $saved of ${chosen.size} · $skipped failed"
+                }
+                finishToast(toast, ToastPhase.Ok, text)
+                delay(1800)
+                if (downloads[key] is DlState.Done) downloads.remove(key)
+            } else {
+                downloads.remove(key)
+                val info = ErrorText.explain(lastReason, "Download failed", "Try again. If it keeps failing, open the playlist again.")
+                error = info.copy(inline = false)
+                updateToast(toast) { it.copy(debug = debugText("Playlist download", list.link, lastReason, lastStatus)) }
+                finishToast(toast, ToastPhase.Bad, "Failed · " + ErrorText.toastLine(info))
+                offerRetry(toast) { downloadPlaylist(list, chosen) }
+            }
+        }
+        trackDownload(toast, job) { downloads.remove(key) }
     }
 
     /** Remembers the coroutine behind a download toast so Cancel can stop it. */
@@ -659,6 +802,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         total: Int,
         track: Boolean,
         target: String,
+        record: Boolean = true,
+        reportFailure: Boolean = true,
     ): String? {
         var jobId: String? = null
         return try {
@@ -689,11 +834,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val folder = saved.label
             if (track) downloads[spec.url] = DlState.Done(folder)
             rememberFile(post.link, saved)
-            recordHistory(post, saved)
+            if (record) recordHistory(post, saved)
             folder
         } catch (e: ApiException) {
             jobId?.let { prefs.removePendingJob(it) }
             if (track) downloads.remove(spec.url)
+            if (!reportFailure) throw e
             val info = if (e.offline) {
                 online = false
                 ErrorText.offline(prefs.builtIn)
@@ -701,6 +847,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 ErrorText.explain(e.message, "Download failed", "Try again. If it keeps failing, paste the link again.")
             }
             error = info.copy(inline = false)
+            updateToast(toast) { it.copy(debug = debugText("Download", post.link, e.message, e.status)) }
             finishToast(toast, ToastPhase.Bad, "Failed · " + ErrorText.toastLine(info))
             null
         } finally {

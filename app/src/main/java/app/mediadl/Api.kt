@@ -146,8 +146,22 @@ class Api(private val context: Context, private val prefs: Prefs) {
         }
     }
 
-    suspend fun parse(link: String): Post = withContext(Dispatchers.IO) {
-        guard { requestJson("/api/app/parse", "POST", JSONObject().put("url", link), readTimeoutMs = 75_000).toPost() }
+    suspend fun parseAny(link: String): ParseResult = withContext(Dispatchers.IO) {
+        guard {
+            val json = requestJson("/api/app/parse", "POST", JSONObject().put("url", link), readTimeoutMs = 130_000)
+            if (json.optString("type") == "playlist") ParseResult.Listing(json.toPlaylist()) else ParseResult.Single(json.toPost())
+        }
+    }
+
+    suspend fun parse(link: String): Post = when (val result = parseAny(link)) {
+        is ParseResult.Single -> result.post
+        is ParseResult.Listing -> throw ApiException("That link is a playlist, not a single video.")
+    }
+
+    suspend fun playlist(link: String): Playlist = withContext(Dispatchers.IO) {
+        guard {
+            requestJson("/api/app/playlist", "POST", JSONObject().put("url", link), readTimeoutMs = 130_000).toPlaylist()
+        }
     }
 
     suspend fun history(): List<HistoryEntry> = withContext(Dispatchers.IO) {
@@ -478,6 +492,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
         mime.startsWith("video/") -> "Videos"
         mime.startsWith("image/") -> "Images"
         mime.startsWith("audio/") -> "Audio"
+        mime == "application/x-subrip" || mime == "text/vtt" -> "Subtitles"
         else -> "Other"
     }
 
@@ -607,6 +622,8 @@ class Api(private val context: Context, private val prefs: Prefs) {
         "audio/mpeg" -> "mp3"
         "audio/mp4" -> "m4a"
         "audio/ogg", "audio/opus" -> "opus"
+        "application/x-subrip" -> "srt"
+        "text/vtt" -> "vtt"
         "image/png" -> "png"
         "image/webp" -> "webp"
         "image/gif" -> "gif"

@@ -1,5 +1,8 @@
 package app.mediadl
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
@@ -36,6 +39,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -46,6 +51,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -192,6 +198,19 @@ private fun ToastCard(
                 }
                 if (toast.canRetry && toast.phase == ToastPhase.Bad) {
                     ToastAction("Retry", Accent, Accent.copy(alpha = 0.14f), Color.Transparent, onRetry)
+                }
+                val debug = toast.debug
+                if (debug != null && toast.phase == ToastPhase.Bad) {
+                    val context = LocalContext.current
+                    var copied by remember(toast.id) { mutableStateOf(false) }
+                    ToastAction(
+                        if (copied) "Copied" else "Copy",
+                        palette.text, palette.sep, palette.line,
+                    ) {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
+                        copied = true
+                    }
                 }
                 if (!cancelling) {
                     Box(

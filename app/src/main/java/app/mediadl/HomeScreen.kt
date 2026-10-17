@@ -80,9 +80,10 @@ fun HomeScreen(vm: AppViewModel) {
     }
 
     val post = vm.post
-    val ready = post != null
+    val playlist = vm.playlist
+    val ready = post != null || playlist != null
     val scroll = rememberScrollState()
-    LaunchedEffect(post) { if (post == null) scroll.scrollTo(0) }
+    LaunchedEffect(post, playlist) { if (post == null && playlist == null) scroll.scrollTo(0) }
 
     val mood = when {
         vm.loading -> Mood.Thinking
@@ -133,13 +134,16 @@ fun HomeScreen(vm: AppViewModel) {
                     Spacer(Modifier.height(14.dp))
                     ServerStatusCard(vm)
                 }
-                if (post == null && vm.loading) {
+                if (post == null && playlist == null && vm.loading) {
                     Spacer(Modifier.height(16.dp))
                     ParseSkeleton()
                 }
                 if (post != null) {
                     Spacer(Modifier.height(16.dp))
                     Results(vm, post)
+                } else if (playlist != null) {
+                    Spacer(Modifier.height(16.dp))
+                    PlaylistCard(vm, playlist, Modifier.appear(0))
                 }
             }
         }
@@ -160,6 +164,10 @@ private fun Results(vm: AppViewModel, post: Post) {
             InfoCard(vm, post, Modifier.appear(0))
             step++
         }
+        post.playlist?.let { link ->
+            PlaylistLink(vm, link, Modifier.appear(0))
+            step++
+        }
         if (layout == MediaLayout.Masonry) {
             MasonryWall(vm, post, singles)
         } else {
@@ -170,6 +178,9 @@ private fun Results(vm: AppViewModel, post: Post) {
             if (useCarousel) {
                 CarouselCard(vm, post, photos, Modifier.appear(minOf(step, 8) * 35))
             }
+        }
+        if (post.subtitles.isNotEmpty()) {
+            SubtitlesCard(vm, post, Modifier.appear(minOf(step + 1, 8) * 35))
         }
     }
 }
