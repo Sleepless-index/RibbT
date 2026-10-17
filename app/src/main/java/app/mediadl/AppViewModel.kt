@@ -133,7 +133,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingShare: String? = null
 
     init {
-        setAccentColor(accent)
+        applyAccent(accent)
         AppInstaller.cleanup(application)
         AppInstaller.onResult = { ok, message ->
             appUpdateBusy = false
@@ -247,7 +247,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Applies the accent colour at once; [save] is false while a finger is still dragging in the picker. */
     fun updateAccent(color: Color, save: Boolean = true) {
         accent = color
-        setAccentColor(color)
+        applyAccent(color)
         if (save) {
             prefs.accent = color.toArgb()
             savedPulse++

@@ -30,7 +30,7 @@ val AccentRing: Color get() = accentColor.copy(alpha = 0.18f)
 /** Text and icons drawn on top of the accent: white, or near-black when the accent is a light colour. */
 val AccentOn: Color get() = if (accentColor.luminance() > 0.55f) Color(0xFF1C1C1E) else Color.White
 
-fun setAccentColor(color: Color) {
+fun applyAccent(color: Color) {
     accentColor = color.copy(alpha = 1f)
 }
 
