@@ -42,20 +42,22 @@ data class Palette(
     val muted: Color,
     val sep: Color,
     val line: Color,
+    /** A tinted fill for inputs and segmented controls that sit inside a card. */
+    val soft: Color,
     val errBg: Color,
     val err: Color,
 )
 
 val LightPalette = Palette(
     dark = false,
-    bg = Color(0xFFF4F4F4), card = Color(0xFFFFFFFF), text = Color(0xFF1C1C1E), muted = Color(0xFF8A8A90),
-    sep = Color(0x0F000000), line = Color(0xFFE6E6E8), errBg = Color(0xFFFFF0F2), err = Color(0xFFB4122B),
+    bg = Color(0xFFF6F3EE), card = Color(0xFFFFFFFF), text = Color(0xFF19161B), muted = Color(0xFF6B656F),
+    sep = Color(0x0F000000), line = Color(0xFFE8E2DA), soft = Color(0xFFEFEAE3), errBg = Color(0xFFFFECEF), err = Color(0xFFB3122A),
 )
 
 val DarkPalette = Palette(
     dark = true,
-    bg = Color(0xFF0E0F11), card = Color(0xFF1C1C1F), text = Color(0xFFF2F2F4), muted = Color(0xFF8F8F98),
-    sep = Color(0x0FFFFFFF), line = Color(0xFF2C2C31), errBg = Color(0xFF2A1217), err = Color(0xFFFF8A9B),
+    bg = Color(0xFF0E0D10), card = Color(0xFF19181C), text = Color(0xFFF5F2F6), muted = Color(0xFFA39EA9),
+    sep = Color(0x0FFFFFFF), line = Color(0xFF2A282E), soft = Color(0xFF242227), errBg = Color(0xFF2B1319), err = Color(0xFFFF8A9B),
 )
 
 val LocalPalette = staticCompositionLocalOf { LightPalette }

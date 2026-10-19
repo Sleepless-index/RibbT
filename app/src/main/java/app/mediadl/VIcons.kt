@@ -105,6 +105,14 @@ object VIcons {
         listOf("M7 18a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17 8.5a4.75 4.75 0 0 1 0 9.5z", "M3 3l18 18"),
         1.8f,
     )
+    val Plus = VIcon(listOf("M12 5v14", "M5 12h14"), 2.2f)
+    val Copy = VIcon(
+        listOf(
+            "M11 8h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z",
+            "M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2",
+        ),
+        2f,
+    )
     val Refresh = VIcon(listOf("M20 12a8 8 0 1 1-2.34-5.66", "M20 4v5h-5"), 2.2f)
     val Video = VIcon(
         listOf("M3 7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "m15 10 6-3v10l-6-3"),

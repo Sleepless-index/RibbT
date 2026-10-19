@@ -1,5 +1,7 @@
 package app.mediadl
 
+import androidx.compose.ui.graphics.luminance
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -49,11 +51,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val ACCENT_PRESETS = listOf(
-    Color(0xFFFF2442), Color(0xFFFF7A1A), Color(0xFFFFB020), Color(0xFF2FBF71),
-    Color(0xFF14B8A6), Color(0xFF3B82F6), Color(0xFF7C5CFF), Color(0xFFEC4899),
-)
-
 private fun hsvOf(color: Color): FloatArray {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(color.toArgb(), hsv)
@@ -82,30 +79,32 @@ fun AccentPicker(vm: AppViewModel) {
     val palette = LocalPalette.current
     var open by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().animateContentSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(role = Role.Button) { open = !open }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                T("Accent color", size = 14.4.sp, lineHeight = 18.7.sp)
-                T(
-                    "#${hexOf(Accent)}",
-                    size = 12.16.sp,
-                    color = palette.muted,
-                    modifier = Modifier.padding(top = 2.dp),
-                    lineHeight = 15.8.sp,
-                )
-            }
-            Box(
-                Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(Accent)
-                    .border(1.dp, palette.line, CircleShape),
+        val isDefault = hexOf(vm.accent) == hexOf(DefaultAccent)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            T("Accent color", size = 14.4.sp, lineHeight = 18.7.sp)
+            T(
+                if (isDefault) "Default" else "Custom · #${hexOf(vm.accent)}",
+                size = 12.16.sp,
+                color = palette.muted,
+                modifier = Modifier.padding(top = 2.dp),
+                lineHeight = 15.8.sp,
             )
+            Row(
+                Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AccentSwatch(DefaultAccent, isDefault, "Use the default accent") { vm.updateAccent(DefaultAccent, save = true) }
+                if (!isDefault) AccentSwatch(vm.accent, true, "Your custom accent, #${hexOf(vm.accent)}") { open = true }
+                Box(
+                    Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, palette.muted, CircleShape)
+                        .clickable(onClickLabel = "Pick a custom accent color", role = Role.Button) { open = !open },
+                    contentAlignment = Alignment.Center,
+                ) { VIconView(VIcons.Plus, 15.dp, palette.muted) }
+            }
         }
         if (open) PickerBody(vm)
     }
@@ -139,20 +138,6 @@ private fun PickerBody(vm: AppViewModel) {
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ACCENT_PRESETS.forEach { preset ->
-                val chosen = hexOf(preset) == hexOf(vm.accent)
-                Box(
-                    Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(preset)
-                        .border(if (chosen) 2.5.dp else 1.dp, if (chosen) palette.text else palette.line, CircleShape)
-                        .clickable(role = Role.Button, onClickLabel = "Use #${hexOf(preset)}") { adopt(preset) },
-                )
-            }
-        }
-
         // Saturation (left to right) and brightness (bottom to top) for the chosen hue.
         var boxSize by remember { mutableStateOf(IntSize.Zero) }
         fun pickAt(point: Offset) {
@@ -258,5 +243,21 @@ private fun PickerBody(vm: AppViewModel) {
                 minWidth = 64.dp,
             )
         }
+    }
+}
+
+@Composable
+private fun AccentSwatch(color: Color, chosen: Boolean, label: String, onClick: () -> Unit) {
+    val palette = LocalPalette.current
+    Box(
+        Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(color)
+            .border(if (chosen) 2.5.dp else 1.dp, if (chosen) palette.text else palette.line, CircleShape)
+            .clickable(onClickLabel = label, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (chosen) VIconView(VIcons.Check, 14.dp, if (color.luminance() > 0.55f) Color(0xFF1C1C1E) else Color.White)
     }
 }
