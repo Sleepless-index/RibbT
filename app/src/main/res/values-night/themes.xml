@@ -1,6 +1,6 @@
 <resources>
     <style name="Theme.MediaDownloader" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#1C1C1F</item>
+        <item name="android:windowBackground">#0E0D10</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

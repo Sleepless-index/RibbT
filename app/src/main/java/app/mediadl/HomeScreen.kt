@@ -191,18 +191,21 @@ private fun LinkRow(vm: AppViewModel) {
     val context = LocalContext.current
     val filled = vm.input.isNotBlank()
     var focused by remember { mutableStateOf(false) }
-    val fieldShape = RoundedCornerShape(10.dp)
+    val fieldShape = RoundedCornerShape(14.dp)
 
+    // One white card holds the field and the button.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .clip(RoundedCornerShape(28.dp))
+            .background(palette.card)
+            .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp)
+                .height(48.dp)
                 .drawBehind {
                     if (focused) {
                         val grow = 3.dp.toPx()
@@ -210,11 +213,11 @@ private fun LinkRow(vm: AppViewModel) {
                             AccentRing,
                             topLeft = Offset(-grow, -grow),
                             size = Size(size.width + grow * 2, size.height + grow * 2),
-                            cornerRadius = CornerRadius(10.dp.toPx() + grow),
+                            cornerRadius = CornerRadius(14.dp.toPx() + grow),
                         )
                     }
                 }
-                .background(palette.card, fieldShape)
+                .background(palette.soft, fieldShape)
                 .border(1.dp, if (focused) Accent else Color.Transparent, fieldShape),
             contentAlignment = Alignment.CenterStart,
         ) {
@@ -223,13 +226,13 @@ private fun LinkRow(vm: AppViewModel) {
                 value = vm.input,
                 onValueChange = { vm.input = it; vm.error = null; vm.typingSignal++ },
                 singleLine = true,
-                textStyle = TextStyle(color = palette.text, fontSize = 16.sp),
+                textStyle = TextStyle(color = palette.text, fontSize = 16.sp, fontFamily = AppFont),
                 cursorBrush = SolidColor(Accent),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { vm.parse() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 42.dp, end = 46.dp)
+                    .padding(start = 42.dp, end = if (filled) 46.dp else 92.dp)
                     .onFocusChanged { focused = it.isFocused },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
@@ -240,29 +243,47 @@ private fun LinkRow(vm: AppViewModel) {
                     }
                 },
             )
-            // One icon button inside the field: Paste while it is empty, Clear once there is text.
-            Box(
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 2.dp)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .clickable(
-                        onClickLabel = if (filled) "Clear link" else "Paste link",
-                        role = Role.Button,
-                    ) { if (filled) vm.reset() else vm.pasteFromClipboard(readClipboard(context)) },
-                contentAlignment = Alignment.Center,
-            ) {
-                VIconView(if (filled) VIcons.Clear else VIcons.Paste, 18.dp, palette.muted)
+            if (filled) {
+                // Clear, once there is text.
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 6.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable(onClickLabel = "Clear link", role = Role.Button) { vm.reset() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    VIconView(VIcons.Clear, 18.dp, palette.muted)
+                }
+            } else {
+                // Paste, while the field is empty.
+                Row(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 7.dp)
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(palette.card)
+                        .clickable(onClickLabel = "Paste link", role = Role.Button) {
+                            vm.pasteFromClipboard(readClipboard(context))
+                        }
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    VIconView(VIcons.Paste, 16.dp, palette.text)
+                    T("Paste", size = 13.sp, color = palette.text, weight = FontWeight.SemiBold, maxLines = 1)
+                }
             }
         }
         PillButton(
-            text = "Parse",
+            text = "Parse link",
             icon = VIcons.Play,
             onClick = { vm.parse() },
             modifier = Modifier.fillMaxWidth(),
             busy = vm.loading,
-            height = 40.dp,
+            height = 46.dp,
             spinner = vm.loading,
         )
     }

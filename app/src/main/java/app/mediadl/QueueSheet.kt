@@ -1,5 +1,6 @@
 package app.mediadl
 
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,51 +42,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-/** The queue button in the top right corner: a badge counts running downloads, a tap opens the list. */
+/** The download list. Opened from the Queue slot in the bottom bar. */
 @Composable
-fun QueueButton(vm: AppViewModel, modifier: Modifier = Modifier) {
-    val palette = LocalPalette.current
-    var open by rememberSaveable { mutableStateOf(false) }
-    val active = vm.queue.count { it.phase == ToastPhase.Active && it.parent == null }
-    LaunchedEffect(open, vm.queueUnread) { if (open && vm.queueUnread) vm.markQueueSeen() }
-    Box(modifier.size(36.dp), contentAlignment = Alignment.Center) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (active > 0) Accent.copy(alpha = 0.14f) else palette.card)
-                .clickable(onClickLabel = "Download queue", role = Role.Button) { open = true },
-            contentAlignment = Alignment.Center,
-        ) {
-            VIconView(VIcons.Queue, 18.dp, if (active > 0) Accent else palette.text)
-        }
-        if (vm.queueUnread && active == 0) {
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFE5484D)),
-            )
-        }
-        if (active > 0) {
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(Accent),
-                contentAlignment = Alignment.Center,
-            ) {
-                T(if (active > 9) "9+" else active.toString(), size = 9.sp, color = AccentOn, weight = FontWeight.Bold, lineHeight = 9.sp)
-            }
-        }
-    }
-    if (open) QueueDialog(vm) { open = false }
-}
-
-@Composable
-private fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
     val all = vm.queue.toList()
     val items = all.filter { it.parent == null }.asReversed().flatMap { head -> listOf(head) + all.filter { it.parent == head.id } }
@@ -96,7 +55,7 @@ private fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 .padding(horizontal = 20.dp)
                 .widthIn(max = 460.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(28.dp))
                 .background(palette.card),
         ) {
             Row(
@@ -190,14 +149,14 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                 item.phase == ToastPhase.Active && item.canCancel ->
                     QueueAction("Cancel", palette.text, palette.sep) { vm.cancelDownload(item.id) }
                 item.phase == ToastPhase.Bad && item.canRetry ->
-                    QueueAction("Retry", Accent, Accent.copy(alpha = 0.14f)) { vm.retryFromQueue(item.id) }
+                    QueueIconAction(VIcons.Refresh, "Retry", AccentOn, Accent) { vm.retryFromQueue(item.id) }
             }
             val debug = item.debug
             if (item.phase == ToastPhase.Bad && debug != null) {
                 val context = LocalContext.current
                 var copied by remember(item.id) { mutableStateOf(false) }
                 Box(Modifier.padding(start = 6.dp)) {
-                    QueueAction(if (copied) "Copied" else "Copy", palette.text, palette.sep) {
+                    QueueIconAction(if (copied) VIcons.Check else VIcons.Copy, "Copy debug info", palette.text, palette.sep) {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
                         copied = true
@@ -235,4 +194,23 @@ private fun QueueAction(label: String, textColor: androidx.compose.ui.graphics.C
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     ) { T(label, size = 12.5.sp, color = textColor, weight = FontWeight.SemiBold, maxLines = 1) }
+}
+
+/** A small icon-only button (Retry, Copy debug info). The label is only for screen readers. */
+@Composable
+private fun QueueIconAction(
+    icon: VIcon,
+    label: String,
+    tint: androidx.compose.ui.graphics.Color,
+    background: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(background)
+            .clickable(onClickLabel = label, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { VIconView(icon, 17.dp, tint) }
 }

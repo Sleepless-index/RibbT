@@ -1,5 +1,7 @@
 package app.mediadl
 
+import androidx.compose.foundation.layout.size
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -127,7 +129,7 @@ private fun ToastCard(
             slideOutVertically(tween(240, easing = WebEase)) { -it / 2 } +
             shrinkVertically(tween(240, easing = WebEase), shrinkTowards = Alignment.Top),
     ) {
-        val shape = RoundedCornerShape(14.dp)
+        val shape = RoundedCornerShape(20.dp)
         var dragX by remember { mutableFloatStateOf(0f) }
         Box(
             Modifier
@@ -204,14 +206,15 @@ private fun ToastCard(
                     ToastAction("Cancel", palette.text, palette.sep, palette.line, onCancel)
                 }
                 if (toast.canRetry && toast.phase == ToastPhase.Bad) {
-                    ToastAction("Retry", Accent, Accent.copy(alpha = 0.14f), Color.Transparent, onRetry)
+                    ToastIconAction(VIcons.Refresh, "Retry", Accent, Accent.copy(alpha = 0.14f), Color.Transparent, onRetry)
                 }
                 val debug = toast.debug
                 if (debug != null && toast.phase == ToastPhase.Bad) {
                     val context = LocalContext.current
                     var copied by remember(toast.id) { mutableStateOf(false) }
-                    ToastAction(
-                        if (copied) "Copied" else "Copy",
+                    ToastIconAction(
+                        if (copied) VIcons.Check else VIcons.Copy,
+                        "Copy debug info",
                         palette.text, palette.sep, palette.line,
                     ) {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -304,4 +307,24 @@ private fun ProgressBar(progress: Float?, modifier: Modifier) {
             )
         }
     }
+}
+
+/** Icon-only version of [ToastAction]; the label is only for screen readers. */
+@Composable
+private fun ToastIconAction(icon: VIcon, label: String, tint: Color, background: Color, edge: Color, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    val shape = RoundedCornerShape(11.dp)
+    Box(
+        Modifier
+            .padding(start = 6.dp)
+            .size(34.dp)
+            .clip(shape)
+            .background(background)
+            .border(1.dp, edge, shape)
+            .clickable(onClickLabel = label, role = Role.Button) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onClick()
+            },
+        contentAlignment = Alignment.Center,
+    ) { VIconView(icon, 17.dp, tint) }
 }

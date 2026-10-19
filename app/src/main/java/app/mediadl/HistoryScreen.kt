@@ -1,5 +1,8 @@
 package app.mediadl
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -184,7 +187,7 @@ private fun FilterRow(vm: AppViewModel) {
         Box(
             Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(CircleShape)
                 .background(if (active) Accent.copy(alpha = 0.14f) else palette.card)
                 .clickable(onClickLabel = "Filter and sort", role = Role.Button) { showFilters = true },
             contentAlignment = Alignment.Center,
@@ -270,7 +273,7 @@ private fun OptionChip(label: String, selected: Boolean, modifier: Modifier, idl
     Box(
         modifier
             .height(36.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(background)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -289,18 +292,22 @@ private fun HistoryRow(vm: AppViewModel, entry: HistoryEntry, onOpen: () -> Unit
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .clickable(onClick = onOpen)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(palette.sep),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (thumb != null) {
-                AsyncImage(model = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(52.dp))
-            } else {
-                VIconView(if (entry.kind == "video") VIcons.Video else VIcons.Photo, 22.dp, palette.muted)
+        // The file's own preview, with the service's logo as a badge on the corner.
+        Box(Modifier.size(56.dp)) {
+            Box(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).background(palette.soft),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (thumb != null) {
+                    AsyncImage(model = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    VIconView(if (entry.kind == "video") VIcons.Video else VIcons.Photo, 22.dp, palette.muted)
+                }
             }
+            PlatformBadge(entry.platform, Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 6.dp))
         }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             T(
@@ -342,10 +349,11 @@ private fun SearchField(vm: AppViewModel) {
     Row(
         Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .height(44.dp)
+            .clip(RoundedCornerShape(22.dp))
             .background(palette.card)
-            .padding(start = 12.dp, end = 4.dp),
+            .border(1.dp, palette.line, RoundedCornerShape(22.dp))
+            .padding(start = 14.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         VIconView(VIcons.Search, 18.dp, palette.muted)
@@ -355,7 +363,7 @@ private fun SearchField(vm: AppViewModel) {
                 value = vm.historyQuery,
                 onValueChange = { vm.historyQuery = it },
                 singleLine = true,
-                textStyle = TextStyle(color = palette.text, fontSize = 14.4.sp),
+                textStyle = TextStyle(color = palette.text, fontSize = 14.4.sp, fontFamily = AppFont),
                 cursorBrush = SolidColor(Accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),

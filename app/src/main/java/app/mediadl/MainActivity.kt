@@ -1,5 +1,11 @@
 package app.mediadl
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.shadow
+
 import android.app.Activity
 import android.Manifest
 import android.content.Intent
@@ -118,28 +124,29 @@ fun AppRoot(vm: AppViewModel) {
         }
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (vm.online != true) vm.refresh() }
 
-        Column(
+        var queueOpen by rememberSaveable { mutableStateOf(false) }
+        val running = vm.queue.count { it.phase == ToastPhase.Active && it.parent == null }
+        LaunchedEffect(queueOpen, vm.queueUnread) { if (queueOpen && vm.queueUnread) vm.markQueueSeen() }
+
+        Box(
             Modifier
                 .fillMaxSize()
-                .background(palette.card)
+                .background(palette.bg)
                 .imePadding(),
         ) {
+            // The screens stop above the floating bar, so nothing scrolls underneath it.
             Box(
                 Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(bottomStart = 26.dp, bottomEnd = 26.dp))
-                    .background(palette.bg)
-                    .statusBarsPadding(),
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(bottom = 76.dp),
             ) {
                 when (vm.tab) {
                     Tab.Home -> HomeScreen(vm)
                     Tab.History -> HistoryScreen(vm)
                     Tab.Settings -> SettingsScreen(vm)
                 }
-
-                // Top right, level with the screen titles (which leave room for it).
-                QueueButton(vm, Modifier.align(Alignment.TopEnd).padding(top = 22.dp, end = 12.dp))
 
                 ToastHost(
                     toasts = vm.toasts,
@@ -149,29 +156,61 @@ fun AppRoot(vm: AppViewModel) {
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
                 )
             }
-            NavBar(vm)
+            NavBar(vm, running, vm.queueUnread, { queueOpen = true }, Modifier.align(Alignment.BottomCenter))
         }
+        if (queueOpen) QueueDialog(vm) { queueOpen = false }
     }
 }
 
+/** A floating pill with Home, Queue, History and Settings. Queue opens the download list instead of a screen. */
 @Composable
-private fun NavBar(vm: AppViewModel) {
-    val tabs = listOf(Tab.Home to VIcons.Home, Tab.History to VIcons.History, Tab.Settings to VIcons.Settings)
+private fun NavBar(vm: AppViewModel, running: Int, unread: Boolean, onQueue: () -> Unit, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    val shape = RoundedCornerShape(30.dp)
     Row(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .navigationBarsPadding()
-            .height(46.dp)
-            .padding(start = 10.dp, end = 10.dp, top = 5.dp),
+            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+            .fillMaxWidth()
+            .shadow(12.dp, shape)
+            .clip(shape)
+            .background(palette.card)
+            .border(1.dp, palette.line, shape)
+            .height(60.dp)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        tabs.forEach { (tab, icon) -> NavItem(tab, icon, vm, Modifier.weight(1f)) }
+        NavItem(Tab.Home, VIcons.Home, vm, Modifier.weight(1f))
+        NavSlot("Queue", VIcons.Queue, false, Modifier.weight(1f), badge = running, dot = unread && running == 0, onClick = onQueue)
+        NavItem(Tab.History, VIcons.History, vm, Modifier.weight(1f))
+        NavItem(Tab.Settings, VIcons.Settings, vm, Modifier.weight(1f))
     }
 }
 
 @Composable
 private fun NavItem(tab: Tab, icon: VIcon, vm: AppViewModel, modifier: Modifier) {
+    NavSlot(tab.label, icon, vm.tab == tab, modifier) {
+        if (tab == Tab.Home && vm.tab == Tab.Home) vm.reset()
+        if (tab == Tab.Settings && vm.tab == Tab.Settings) vm.settingsPage = null
+        if (tab == Tab.History) vm.loadHistory()
+        vm.tab = tab
+    }
+}
+
+@Composable
+private fun NavSlot(
+    label: String,
+    icon: VIcon,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    /** Number of running downloads, drawn as a badge on the icon. */
+    badge: Int = 0,
+    /** A small dot for "something finished that you haven't seen". */
+    dot: Boolean = false,
+    onClick: () -> Unit,
+) {
     val palette = LocalPalette.current
-    val selected = vm.tab == tab
     val tint by animateColorAsState(if (selected) Accent else palette.muted, tween(200), label = "nav-tint")
     val highlight by animateFloatAsState(if (selected) 1f else 0f, tween(200), label = "nav-highlight")
     // A small pop when the tab is chosen: the icon starts a touch smaller and springs back with a slight overshoot.
@@ -186,26 +225,50 @@ private fun NavItem(tab: Tab, icon: VIcon, vm: AppViewModel, modifier: Modifier)
     }
     Box(
         modifier
-            .height(37.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .clickable {
-                if (tab == Tab.Home && vm.tab == Tab.Home) vm.reset()
-                if (tab == Tab.Settings && vm.tab == Tab.Settings) vm.settingsPage = null
-                if (tab == Tab.History) vm.loadHistory()
-                vm.tab = tab
-            },
+            .height(46.dp)
+            .clip(RoundedCornerShape(23.dp))
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Box(
             Modifier
-                .width(64.dp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(10.dp))
+                .fillMaxSize()
                 .background(Accent.copy(alpha = 0.12f * highlight)),
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            VIconView(icon, 18.dp, tint, Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value })
-            T(tab.label, size = 9.6.sp, color = tint, lineHeight = 11.5.sp, modifier = Modifier.padding(top = 1.dp))
+            Box(contentAlignment = Alignment.Center) {
+                VIconView(icon, 20.dp, tint, Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value })
+                if (badge > 0) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 10.dp, y = (-5).dp)
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(Accent),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        T(if (badge > 9) "9+" else badge.toString(), size = 9.sp, color = AccentOn, weight = FontWeight.Bold, lineHeight = 9.sp)
+                    }
+                } else if (dot) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 6.dp, y = (-2).dp)
+                            .size(9.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFE5484D)),
+                    )
+                }
+            }
+            T(
+                label,
+                size = 11.sp,
+                color = if (selected) palette.text else tint,
+                weight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                lineHeight = 13.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
     }
 }

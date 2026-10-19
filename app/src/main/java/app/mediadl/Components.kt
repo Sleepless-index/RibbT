@@ -1,5 +1,10 @@
 package app.mediadl
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -65,7 +70,7 @@ fun T(
         maxLines = maxLines,
         lineHeight = if (lineHeight == TextUnit.Unspecified) size * 1.4f else lineHeight,
         letterSpacing = letterSpacing,
-        fontFamily = fontFamily,
+        fontFamily = fontFamily ?: AppFont,
         overflow = if (maxLines == Int.MAX_VALUE) TextOverflow.Clip else TextOverflow.Ellipsis,
     )
 }
@@ -74,7 +79,7 @@ fun T(
 fun CardBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(26.dp))
             .background(LocalPalette.current.card),
     ) { content() }
 }
@@ -84,14 +89,20 @@ fun ScreenTitle(title: String, trailing: @Composable () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 4.dp, end = 4.dp, bottom = 18.dp),
+            .padding(start = 4.dp, end = 4.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        T(title, size = 20.8.sp, weight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        T(
+            title,
+            size = 34.sp,
+            weight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+            lineHeight = 38.sp,
+            letterSpacing = (-1).sp,
+            fontFamily = DisplayFont,
+        )
         Spacer(Modifier.width(12.dp))
         trailing()
-        // Room for the download queue button that floats in the top right corner.
-        Spacer(Modifier.width(44.dp))
     }
 }
 
@@ -99,10 +110,10 @@ fun ScreenTitle(title: String, trailing: @Composable () -> Unit = {}) {
 fun SectionTitle(title: String) {
     T(
         title,
-        modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
-        size = 12.48.sp,
+        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),
+        size = 13.sp,
         color = LocalPalette.current.muted,
-        weight = FontWeight.SemiBold,
+        weight = FontWeight.Bold,
     )
 }
 
@@ -157,7 +168,7 @@ fun PillButton(
     val palette = LocalPalette.current
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(14.dp)
     val background = when (style) {
         PillStyle.Primary -> if (pressed) AccentDark else Accent
         PillStyle.Tonal -> if (pressed) palette.line else palette.sep
@@ -180,7 +191,7 @@ fun PillButton(
                         Accent.copy(alpha = 0.45f * (1f - progress)),
                         topLeft = androidx.compose.ui.geometry.Offset(-grow, -grow),
                         size = androidx.compose.ui.geometry.Size(size.width + grow * 2, size.height + grow * 2),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(10.dp.toPx() + grow),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(14.dp.toPx() + grow),
                     )
                 }
             }
@@ -240,4 +251,25 @@ fun Modifier.appear(delayMs: Int = 0): Modifier {
         alpha = progress
         translationY = (1f - progress) * 10.dp.toPx()
     }
+}
+
+/**
+ * A service's logo as a small rounded badge, for sitting on the corner of a file preview.
+ * Draws nothing when the service has no bundled logo.
+ */
+@Composable
+fun PlatformBadge(platform: String, modifier: Modifier = Modifier, size: Dp = 22.dp) {
+    val context = LocalContext.current
+    val logo = remember(platform) { context.resources.getIdentifier("logo_$platform", "drawable", context.packageName) }
+    if (logo == 0) return
+    val shape = RoundedCornerShape(size / 3)
+    Image(
+        painter = painterResource(logo),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .border(2.dp, LocalPalette.current.card, shape),
+    )
 }
