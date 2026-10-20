@@ -62,6 +62,8 @@ data class Platform(
     val label: String,
     val hosts: List<String>,
     val display: List<String>,
+    /** True when the service can offer subtitle files. */
+    val subtitles: Boolean = false,
 )
 
 data class HistoryEntry(
@@ -299,6 +301,7 @@ fun JSONObject.toPlatform(): Platform = Platform(
     label = optString("label"),
     hosts = optJSONArray("hosts").strings(),
     display = optJSONArray("display").strings(),
+    subtitles = optBoolean("subtitles", false),
 )
 
 fun JSONObject.toHistoryEntry(): HistoryEntry = HistoryEntry(

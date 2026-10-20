@@ -1,5 +1,15 @@
 package app.mediadl
 
+import androidx.compose.foundation.layout.Spacer
+
+import androidx.compose.foundation.layout.navigationBarsPadding
+
+import androidx.compose.material3.rememberModalBottomSheetState
+
+import androidx.compose.material3.ModalBottomSheet
+
+import androidx.compose.material3.ExperimentalMaterial3Api
+
 import androidx.compose.foundation.layout.fillMaxSize
 
 import androidx.compose.foundation.layout.offset
@@ -50,22 +60,31 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-/** The download list. Opened from the Queue slot in the bottom bar. */
+/** The download list, as a bottom sheet. Opened from the Queue slot in the bottom bar. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
     val all = vm.queue.toList()
     val items = all.filter { it.parent == null }.asReversed().flatMap { head -> listOf(head) + all.filter { it.parent == head.id } }
     val finished = items.count { it.phase != ToastPhase.Active && it.parent == null }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            Modifier
-                .padding(horizontal = 20.dp)
-                .widthIn(max = 460.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(palette.card),
-        ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = palette.card,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = 10.dp, bottom = 4.dp)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(palette.line),
+            )
+        },
+    ) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -111,9 +130,7 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     }
                 }
             }
-            Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 4.dp)) {
-                PillButton(text = "Done", icon = null, onClick = onDismiss, modifier = Modifier.fillMaxWidth(), height = 42.dp)
-            }
+            Spacer(Modifier.height(12.dp))
         }
     }
 }

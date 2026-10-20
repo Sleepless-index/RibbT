@@ -83,5 +83,14 @@ private fun ServiceRow(platform: Platform) {
             T(platform.label, size = 15.2.sp, weight = FontWeight.SemiBold, lineHeight = 21.3.sp)
             T(platform.display.joinToString(", "), size = 12.16.sp, color = palette.muted, lineHeight = 16.4.sp)
         }
+        if (platform.subtitles) {
+            Box(
+                Modifier
+                    .padding(start = 8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Accent.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) { T("Subtitles", size = 11.5.sp, color = Accent, weight = FontWeight.SemiBold, maxLines = 1) }
+        }
     }
 }

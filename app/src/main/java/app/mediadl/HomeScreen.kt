@@ -1,5 +1,9 @@
 package app.mediadl
 
+import androidx.compose.foundation.layout.wrapContentHeight
+
+import androidx.compose.ui.draw.clipToBounds
+
 import androidx.compose.ui.graphics.luminance
 
 import android.content.ClipboardManager
@@ -123,18 +127,30 @@ fun HomeScreen(vm: AppViewModel) {
                     .onSizeChanged { contentHeight = it.height },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (!ready) {
-                    Mascot(
-                        mood,
-                        vm.hopSignal,
-                        typingSignal = vm.typingSignal,
-                        caret = minOf(vm.input.length, 40) / 40f,
-                        reducedMotion = rememberReducedMotion(vm.reduceMotion),
-                    )
-                    Spacer(Modifier.height(22.dp))
-                }
                 if (vm.online == false && vm.everOnline && !vm.starting) {
                     OfflinePill(vm)
+                    Spacer(Modifier.height(10.dp))
+                }
+                if (!ready) {
+                    // The bunny peeks over the top of the link card: it is drawn full size, but only the
+                    // part above the card's edge shows (the card is laid out right below this box).
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(144.dp)
+                            .clipToBounds()
+                            .wrapContentHeight(Alignment.Top, unbounded = true),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        Mascot(
+                            mood,
+                            vm.hopSignal,
+                            modifier = Modifier.size(width = 176.dp, height = 199.dp),
+                            typingSignal = vm.typingSignal,
+                            caret = minOf(vm.input.length, 40) / 40f,
+                            reducedMotion = rememberReducedMotion(vm.reduceMotion),
+                        )
+                    }
                 }
                 if (ready) LinkPill(vm) else LinkRow(vm)
                 vm.error?.takeIf { it.inline }?.let { info -> ErrorBox(info) }

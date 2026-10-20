@@ -94,10 +94,10 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 
-private val MOTION_CHOICES = listOf(Choice("system", "Auto (follows your phone)"), Choice("on", "Reduced"), Choice("off", "Full"))
+private val MOTION_CHOICES = listOf(Choice("system", "Auto"), Choice("on", "Reduced"), Choice("off", "Full"))
 private val LAYOUT_CHOICES = MediaLayout.entries.map { Choice(it.key, it.label) }
 private val CHANNEL_CHOICES = listOf(Choice("stable", "Stable"), Choice("nightly", "Nightly"))
-private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custom", "Custom address"))
+private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custom", "Custom"))
 private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Downloads", "Server")
 
 private const val PAGE_GENERAL = "General"
@@ -751,7 +751,19 @@ internal fun Dropdown(
 
 @Composable
 private fun ChoiceRow(label: String, hint: String?, options: List<Choice>, selected: String, onSelect: (String) -> Unit) {
-    RowShell(label, hint) { Dropdown(options, selected, onSelect) }
+    val short = options.size in 2..3 && options.all { it.enabled && it.note == null && it.label.length <= 12 }
+    if (short) {
+        val palette = LocalPalette.current
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            T(label, size = 14.4.sp, lineHeight = 18.7.sp)
+            if (!hint.isNullOrBlank()) {
+                T(hint, size = 12.16.sp, color = palette.muted, modifier = Modifier.padding(top = 2.dp), lineHeight = 15.8.sp)
+            }
+            Segments(options, selected, onSelect, Modifier.padding(top = 12.dp))
+        }
+    } else {
+        RowShell(label, hint) { Dropdown(options, selected, onSelect) }
+    }
 }
 
 @Composable
@@ -1058,32 +1070,37 @@ internal fun SmallButton(
 /** Light / Dark / System as one segmented control, like the mockup. */
 @Composable
 private fun ThemeSegments(selected: String, onSelect: (String) -> Unit) {
-    val palette = LocalPalette.current
     val options = listOf(Choice("light", "Light"), Choice("dark", "Dark"), Choice("system", "System"))
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
         T("Theme", size = 14.4.sp, lineHeight = 18.7.sp)
-        Row(
-            Modifier
-                .padding(top = 12.dp)
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(palette.soft)
-                .padding(3.dp),
-        ) {
-            options.forEach { option ->
-                val on = option.value == selected
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(if (on) palette.card else Color.Transparent)
-                        .clickable(role = Role.RadioButton) { onSelect(option.value) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    T(option.label, size = 14.sp, color = if (on) palette.text else palette.muted, weight = if (on) FontWeight.SemiBold else FontWeight.Medium)
-                }
+        Segments(options, selected, onSelect, Modifier.padding(top = 12.dp))
+    }
+}
+
+/** A row of 2-3 short options as one pill-shaped control. */
+@Composable
+private fun Segments(options: List<Choice>, selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(palette.soft)
+            .padding(3.dp),
+    ) {
+        options.forEach { option ->
+            val on = option.value == selected
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (on) palette.card else Color.Transparent)
+                    .clickable(role = Role.RadioButton) { onSelect(option.value) },
+                contentAlignment = Alignment.Center,
+            ) {
+                T(option.label, size = 14.sp, color = if (on) palette.text else palette.muted, weight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
             }
         }
     }

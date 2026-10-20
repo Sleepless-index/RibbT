@@ -52,6 +52,7 @@ def pick_adapter(url):
 def platform_catalog():
     return [
         {"name": a.name, "label": a.label, "hosts": list(a.hosts),
-         "display": list(a.display_hosts or a.hosts)}
+         "display": list(a.display_hosts or a.hosts),
+         "subtitles": bool(getattr(a, "subtitles", False))}
         for a in ADAPTERS
     ]
