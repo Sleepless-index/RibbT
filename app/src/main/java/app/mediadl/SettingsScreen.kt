@@ -204,8 +204,19 @@ private fun SettingsHome(vm: AppViewModel) {
     LaunchedEffect(Unit) { if (vm.appRelease == null && !vm.appChecking) vm.checkAppUpdate(silent = true) }
     CardBox(Modifier.fillMaxWidth()) { AppUpdateRow(vm) }
 
+    Column {
+        SectionTitle("Appearance")
+        CardBox(Modifier.fillMaxWidth()) {
+            Column {
+                ThemeSegments(vm.theme) { vm.updateTheme(it) }
+                Separator()
+                AccentPicker(vm)
+            }
+        }
+    }
+
     CardBox(Modifier.fillMaxWidth()) {
-        NavRow(iconFor(PAGE_GENERAL), PAGE_GENERAL, "Theme, accent color, layout, paste and go") { vm.settingsPage = PAGE_GENERAL }
+        NavRow(iconFor(PAGE_GENERAL), PAGE_GENERAL, "Layout, motion, paste and go, debug info") { vm.settingsPage = PAGE_GENERAL }
     }
 
     Column {
@@ -304,10 +315,6 @@ private fun OfflineHint(vm: AppViewModel) {
 private fun GeneralCard(vm: AppViewModel) {
     CardBox(Modifier.fillMaxWidth()) {
         Column {
-            ThemeSegments(vm.theme) { vm.updateTheme(it) }
-            Separator()
-            AccentPicker(vm)
-            Separator()
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                 T("Media layout", size = 14.4.sp, lineHeight = 18.7.sp)
                 T(
@@ -801,7 +808,7 @@ private fun AddressRow(vm: AppViewModel) {
                 value = text,
                 onValueChange = { text = it },
                 singleLine = true,
-                textStyle = TextStyle(color = palette.text, fontSize = 13.6.sp),
+                textStyle = TextStyle(color = palette.text, fontSize = 13.6.sp, fontFamily = AppFont),
                 cursorBrush = SolidColor(Accent),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { vm.saveBaseUrl(text) }),
