@@ -96,17 +96,14 @@ private fun CardFrame(
     val clamped = ratio.coerceIn(0.5f, 2.4f)
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         val cardWidth = if (wide) maxWidth else minOf(maxWidth, limit * clamped)
-        Column(Modifier.width(cardWidth)) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(clamped)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(palette.card),
-                content = stage,
-            )
-            Spacer(Modifier.height(10.dp))
-            below()
+        Column(
+            Modifier
+                .width(cardWidth)
+                .clip(RoundedCornerShape(26.dp))
+                .background(palette.card),
+        ) {
+            Box(Modifier.fillMaxWidth().aspectRatio(clamped), content = stage)
+            Column(Modifier.fillMaxWidth().padding(12.dp)) { below() }
         }
     }
 }

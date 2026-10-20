@@ -65,7 +65,7 @@ private fun ServiceRow(platform: Platform) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Accent.copy(alpha = 0.10f)),
+            Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Accent.copy(alpha = 0.10f)),
             contentAlignment = Alignment.Center,
         ) {
             if (logo != 0) {
@@ -73,7 +73,7 @@ private fun ServiceRow(platform: Platform) {
                     painter = painterResource(logo),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(40.dp),
+                    modifier = Modifier.size(44.dp),
                 )
             } else {
                 T(platform.label.take(1).uppercase(), size = 16.8.sp, color = Accent, weight = FontWeight.Bold)

@@ -1,5 +1,7 @@
 package app.mediadl
 
+import androidx.compose.ui.graphics.luminance
+
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
@@ -109,6 +111,10 @@ fun HomeScreen(vm: AppViewModel) {
                 .padding(start = 12.dp, end = 12.dp, top = 28.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (vm.online == true) {
+                ServerPill(Modifier.widthIn(max = 640.dp).fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+            }
             Spacer(Modifier.height(top))
             Column(
                 Modifier
@@ -117,18 +123,20 @@ fun HomeScreen(vm: AppViewModel) {
                     .onSizeChanged { contentHeight = it.height },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Mascot(
-                    mood,
-                    vm.hopSignal,
-                    typingSignal = vm.typingSignal,
-                    caret = minOf(vm.input.length, 40) / 40f,
-                    reducedMotion = rememberReducedMotion(vm.reduceMotion),
-                )
-                Spacer(Modifier.height(22.dp))
+                if (!ready) {
+                    Mascot(
+                        mood,
+                        vm.hopSignal,
+                        typingSignal = vm.typingSignal,
+                        caret = minOf(vm.input.length, 40) / 40f,
+                        reducedMotion = rememberReducedMotion(vm.reduceMotion),
+                    )
+                    Spacer(Modifier.height(22.dp))
+                }
                 if (vm.online == false && vm.everOnline && !vm.starting) {
                     OfflinePill(vm)
                 }
-                LinkRow(vm)
+                if (ready) LinkPill(vm) else LinkRow(vm)
                 vm.error?.takeIf { it.inline }?.let { info -> ErrorBox(info) }
                 if (((vm.online == false && !vm.everOnline) || vm.starting) && post == null) {
                     Spacer(Modifier.height(14.dp))
@@ -314,9 +322,9 @@ private fun ErrorBox(info: ErrorInfo) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(palette.errBg)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -347,8 +355,8 @@ private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
                 Modifier.padding(bottom = if (post.title.isNotBlank()) 12.dp else 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(34.dp)) {
-                    CircleLetter(post.author)
+                Box(Modifier.size(40.dp)) {
+                    CircleLetter(post.author, 40.dp)
                     if (avatar != null && !avatarFailed) {
                         AsyncImage(
                             model = avatar,
@@ -356,16 +364,17 @@ private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
                             contentScale = ContentScale.Crop,
                             onError = { avatarFailed = true },
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(palette.line),
                         )
                     }
                 }
                 Column(Modifier.padding(start = 10.dp)) {
-                    if (hasAuthor) T(post.author, size = 13.76.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                    if (hasAuthor) T(post.author, size = 14.4.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                    val service = vm.platforms.firstOrNull { it.name == post.platform }?.label
                     T(
-                        if (post.kind == "video") "Video" else "Photos",
+                        listOfNotNull(service, if (post.kind == "video") "Video" else "Photos").joinToString(" · "),
                         size = 11.52.sp,
                         color = palette.muted,
                         modifier = Modifier.padding(top = 1.dp),
@@ -374,7 +383,66 @@ private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
             }
         }
         if (post.title.isNotBlank()) {
-            T(post.title, size = 16.8.sp, weight = FontWeight.SemiBold, maxLines = 3)
+            T(
+                post.title,
+                size = 22.sp,
+                weight = FontWeight.Bold,
+                maxLines = 3,
+                lineHeight = 27.sp,
+                fontFamily = DisplayFont,
+                letterSpacing = (-0.4).sp,
+            )
         }
+    }
+}
+
+/** Top-right status, as in the mockup: a green dot while the server is up. */
+@Composable
+private fun ServerPill(modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    val ok = if (palette.bg.luminance() > 0.5f) Color(0xFF17783F) else Color(0xFF5BD68A)
+    Row(modifier, horizontalArrangement = Arrangement.End) {
+        Row(
+            Modifier
+                .height(34.dp)
+                .clip(CircleShape)
+                .background(palette.card)
+                .border(1.dp, palette.line, CircleShape)
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(ok))
+            T("Server ready", size = 13.sp, weight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+/** Once a link has been read, the field shrinks to a pill showing it, with a clear button. */
+@Composable
+private fun LinkPill(vm: AppViewModel) {
+    val palette = LocalPalette.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(CircleShape)
+            .background(palette.card)
+            .border(1.dp, palette.line, CircleShape)
+            .padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        VIconView(VIcons.Link, 20.dp, palette.muted)
+        T(
+            vm.input.ifBlank { vm.post?.link.orEmpty() }.removePrefix("https://").removePrefix("http://").removePrefix("www."),
+            size = 15.sp, maxLines = 1, modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+        )
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(onClickLabel = "Clear link", role = Role.Button) { vm.reset() },
+            contentAlignment = Alignment.Center,
+        ) { VIconView(VIcons.Clear, 18.dp, palette.muted) }
     }
 }

@@ -167,6 +167,9 @@ data class DlToast(
     val canRetry: Boolean = false,
     val debug: String? = null,
     val parent: Long? = null,
+    /** Preview image and service name, for the thumbnail and logo badge in the download list. */
+    val thumb: String? = null,
+    val platform: String? = null,
 )
 
 /** A file RibbT saved on this phone, remembered so History can open or share it later. */

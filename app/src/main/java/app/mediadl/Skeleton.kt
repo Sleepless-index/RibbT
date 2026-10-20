@@ -110,7 +110,7 @@ fun ParseSkeleton(modifier: Modifier = Modifier) {
                     Modifier
                         .fillMaxWidth()
                         .aspectRatio(0.75f)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(26.dp))
                         .shimmer(),
                 )
                 Spacer(Modifier.height(10.dp))

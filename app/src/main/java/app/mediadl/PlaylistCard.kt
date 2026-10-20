@@ -189,15 +189,14 @@ fun PlaylistLink(vm: AppViewModel, link: String, modifier: Modifier = Modifier) 
 @Composable
 fun SubtitlesCard(vm: AppViewModel, post: Post, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(26.dp)
     Column(
         modifier
             .widthIn(max = 640.dp)
             .fillMaxWidth()
             .clip(shape)
             .background(palette.card)
-            .border(1.dp, palette.line, shape)
-            .padding(12.dp),
+            .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         T("Subtitles", size = 13.44.sp, weight = FontWeight.SemiBold)

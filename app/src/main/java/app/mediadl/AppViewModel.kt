@@ -643,9 +643,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun addToast(name: String, status: String, cancellable: Boolean = false): Long {
+    private fun addToast(
+        name: String,
+        status: String,
+        cancellable: Boolean = false,
+        thumb: String? = null,
+        platform: String? = null,
+    ): Long {
         val id = ++toastCounter
-        val toast = DlToast(id, name, status, null, ToastPhase.Active, canCancel = cancellable)
+        val toast = DlToast(id, name, status, null, ToastPhase.Active, canCancel = cancellable, thumb = thumb, platform = platform)
         if (!cancellable) toasts.add(toast)
         if (cancellable) {
             queue.add(toast)
@@ -772,7 +778,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun download(post: Post, spec: DownloadSpec, pending: String = "Preparing…", record: Boolean = true) {
         if (downloads[spec.url] is DlState.Busy) return
         downloads[spec.url] = DlState.Busy(null)
-        val toast = addToast(spec.name, pending, cancellable = true)
+        val toast = addToast(spec.name, pending, cancellable = true, thumb = absolute(post.thumb), platform = post.platform)
         val job = viewModelScope.launch {
             val (target, note) = resolveSaveTarget(saveTo)
             val folder = saveOne(post, spec, toast, 1, 1, true, target, record = record)
@@ -919,7 +925,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val key = "all:" + post.link
         if (specs.isEmpty() || downloads[key] is DlState.Busy) return
         downloads[key] = DlState.Busy(null)
-        val toast = addToast(if (specs.size == 1) "1 file" else "${specs.size} files", "Preparing…", cancellable = true)
+        val toast = addToast(
+            if (specs.size == 1) "1 file" else "${specs.size} files", "Preparing…", cancellable = true,
+            thumb = absolute(post.thumb), platform = post.platform,
+        )
         val job = viewModelScope.launch {
             var folder: String? = null
             var saved = 0

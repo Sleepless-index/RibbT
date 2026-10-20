@@ -1,5 +1,7 @@
 package app.mediadl
 
+import androidx.compose.foundation.layout.fillMaxHeight
+
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -92,7 +94,6 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 
-private val THEME_CHOICES = listOf(Choice("system", "Auto"), Choice("light", "Light"), Choice("dark", "Dark"))
 private val MOTION_CHOICES = listOf(Choice("system", "Auto (follows your phone)"), Choice("on", "Reduced"), Choice("off", "Full"))
 private val LAYOUT_CHOICES = MediaLayout.entries.map { Choice(it.key, it.label) }
 private val CHANNEL_CHOICES = listOf(Choice("stable", "Stable"), Choice("nightly", "Nightly"))
@@ -303,7 +304,7 @@ private fun OfflineHint(vm: AppViewModel) {
 private fun GeneralCard(vm: AppViewModel) {
     CardBox(Modifier.fillMaxWidth()) {
         Column {
-            ChoiceRow("Theme", "Light, dark, or match your phone.", THEME_CHOICES, vm.theme) { vm.updateTheme(it) }
+            ThemeSegments(vm.theme) { vm.updateTheme(it) }
             Separator()
             AccentPicker(vm)
             Separator()
@@ -497,13 +498,18 @@ private fun PageHeader(title: String, onBack: () -> Unit, trailing: @Composable 
     ) {
         Box(
             Modifier
-                .size(36.dp)
+                .size(40.dp)
                 .clip(CircleShape)
+                .background(palette.card)
+                .border(1.dp, palette.line, CircleShape)
                 .clickable(onClickLabel = "Back", role = Role.Button, onClick = onBack),
             contentAlignment = Alignment.Center,
         ) { VIconView(VIcons.Back, 20.dp, palette.text) }
-        Spacer(Modifier.width(6.dp))
-        T(title, size = 20.8.sp, weight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(12.dp))
+        T(
+            title, size = 26.sp, weight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f),
+            fontFamily = DisplayFont, letterSpacing = (-0.6).sp,
+        )
         Spacer(Modifier.width(12.dp))
         trailing()
         Spacer(Modifier.width(44.dp))
@@ -522,9 +528,9 @@ private fun NavRow(icon: VIcon, title: String, summary: String?, onClick: () -> 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Accent.copy(alpha = 0.10f)),
+            Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Accent.copy(alpha = 0.10f)),
             contentAlignment = Alignment.Center,
-        ) { VIconView(icon, 18.dp, Accent) }
+        ) { VIconView(icon, 19.dp, Accent) }
         Column(Modifier.weight(1f).padding(start = 14.dp, end = 10.dp)) {
             T(title, size = 14.4.sp, lineHeight = 18.7.sp)
             if (!summary.isNullOrBlank()) {
@@ -1040,5 +1046,38 @@ internal fun SmallButton(
         contentAlignment = Alignment.Center,
     ) {
         T(text, size = 12.8.sp, color = if (tonal) palette.text else AccentOn, weight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+/** Light / Dark / System as one segmented control, like the mockup. */
+@Composable
+private fun ThemeSegments(selected: String, onSelect: (String) -> Unit) {
+    val palette = LocalPalette.current
+    val options = listOf(Choice("light", "Light"), Choice("dark", "Dark"), Choice("system", "System"))
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+        T("Theme", size = 14.4.sp, lineHeight = 18.7.sp)
+        Row(
+            Modifier
+                .padding(top = 12.dp)
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(palette.soft)
+                .padding(3.dp),
+        ) {
+            options.forEach { option ->
+                val on = option.value == selected
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(if (on) palette.card else Color.Transparent)
+                        .clickable(role = Role.RadioButton) { onSelect(option.value) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    T(option.label, size = 14.sp, color = if (on) palette.text else palette.muted, weight = if (on) FontWeight.SemiBold else FontWeight.Medium)
+                }
+            }
+        }
     }
 }

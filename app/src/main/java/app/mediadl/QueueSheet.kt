@@ -1,5 +1,13 @@
 package app.mediadl
 
+import androidx.compose.foundation.layout.fillMaxSize
+
+import androidx.compose.foundation.layout.offset
+
+import androidx.compose.ui.layout.ContentScale
+
+import coil.compose.AsyncImage
+
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -63,7 +71,7 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    T("Download queue", size = 18.sp, weight = FontWeight.Bold)
+                    T("Downloads", size = 24.sp, weight = FontWeight.Bold, fontFamily = DisplayFont, letterSpacing = (-0.5).sp)
                     val running = items.count { it.phase == ToastPhase.Active && it.parent == null }
                     T(
                         when {
@@ -99,7 +107,6 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                         .padding(bottom = 8.dp),
                 ) {
                     items.forEachIndexed { index, item ->
-                        if (index > 0) Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(palette.sep))
                         QueueRow(vm, item)
                     }
                 }
@@ -114,86 +121,93 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 @Composable
 private fun QueueRow(vm: AppViewModel, item: DlToast) {
     val palette = LocalPalette.current
-    val phaseIcon = when (item.phase) {
-        ToastPhase.Active -> VIcons.Download
-        ToastPhase.Ok -> VIcons.Check
-        ToastPhase.Bad -> VIcons.Error
-        ToastPhase.Cancelled -> VIcons.CloseSmall
-    }
-    val iconBg = when (item.phase) {
-        ToastPhase.Active -> Accent.copy(alpha = 0.16f)
-        ToastPhase.Ok -> Accent
-        ToastPhase.Bad -> palette.errBg
-        ToastPhase.Cancelled -> palette.sep
-    }
-    val iconColor = when (item.phase) {
-        ToastPhase.Active -> Accent
-        ToastPhase.Ok -> AccentOn
-        ToastPhase.Bad -> palette.err
-        ToastPhase.Cancelled -> palette.muted
-    }
     val child = item.parent != null
-    Column(Modifier.fillMaxWidth().padding(start = if (child) 44.dp else 20.dp, end = 20.dp, top = if (child) 8.dp else 12.dp, bottom = if (child) 8.dp else 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(if (child) 24.dp else 30.dp).clip(CircleShape).background(iconBg), contentAlignment = Alignment.Center) {
-                VIconView(phaseIcon, 16.dp, iconColor)
+    val bad = item.phase == ToastPhase.Bad
+    val statusColor = when (item.phase) {
+        ToastPhase.Bad -> palette.err
+        ToastPhase.Ok -> Accent
+        else -> palette.muted
+    }
+    val thumbSize = if (child) 40.dp else 52.dp
+    Box(Modifier.padding(start = if (child) 44.dp else 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(if (bad) palette.errBg else Color.Transparent)
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // The file's preview, with the service's logo on the corner.
+                Box(Modifier.size(thumbSize)) {
+                    Box(
+                        Modifier.fillMaxSize().clip(RoundedCornerShape(13.dp)).background(palette.soft),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (item.thumb != null) {
+                            AsyncImage(model = item.thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        } else {
+                            VIconView(
+                                when (item.phase) {
+                                    ToastPhase.Ok -> VIcons.Check
+                                    ToastPhase.Bad -> VIcons.Error
+                                    ToastPhase.Cancelled -> VIcons.CloseSmall
+                                    else -> VIcons.Download
+                                },
+                                20.dp,
+                                statusColor,
+                            )
+                        }
+                    }
+                    if (item.platform != null) {
+                        PlatformBadge(item.platform, Modifier.align(Alignment.BottomEnd).offset(x = 5.dp, y = 5.dp), size = 20.dp)
+                    }
+                }
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    T(item.name, size = 13.6.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                    T(
+                        item.status.ifBlank { " " }, size = 12.sp, color = statusColor,
+                        maxLines = if (bad) 3 else 1, modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
+                when {
+                    item.phase == ToastPhase.Active && item.canCancel ->
+                        QueueIconAction(VIcons.CloseSmall, "Cancel", palette.muted, Color.Transparent) { vm.cancelDownload(item.id) }
+                    bad && item.canRetry ->
+                        QueueIconAction(VIcons.Refresh, "Retry", AccentOn, Accent) { vm.retryFromQueue(item.id) }
+                }
+                val debug = item.debug
+                if (bad && debug != null) {
+                    val context = LocalContext.current
+                    var copied by remember(item.id) { mutableStateOf(false) }
+                    Box(Modifier.padding(start = 6.dp)) {
+                        QueueIconAction(if (copied) VIcons.Check else VIcons.Copy, "Copy debug info", palette.text, palette.card) {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
+                            copied = true
+                        }
+                    }
+                }
             }
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                T(item.name, size = 13.6.sp, weight = FontWeight.SemiBold, maxLines = 1)
-                T(
-                    item.status.ifBlank { " " }, size = 12.sp, color = palette.muted,
-                    maxLines = if (item.phase == ToastPhase.Bad) 3 else 1, modifier = Modifier.padding(top = 1.dp),
-                )
-            }
-            when {
-                item.phase == ToastPhase.Active && item.canCancel ->
-                    QueueAction("Cancel", palette.text, palette.sep) { vm.cancelDownload(item.id) }
-                item.phase == ToastPhase.Bad && item.canRetry ->
-                    QueueIconAction(VIcons.Refresh, "Retry", AccentOn, Accent) { vm.retryFromQueue(item.id) }
-            }
-            val debug = item.debug
-            if (item.phase == ToastPhase.Bad && debug != null) {
-                val context = LocalContext.current
-                var copied by remember(item.id) { mutableStateOf(false) }
-                Box(Modifier.padding(start = 6.dp)) {
-                    QueueIconAction(if (copied) VIcons.Check else VIcons.Copy, "Copy debug info", palette.text, palette.sep) {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
-                        copied = true
+            if (item.phase == ToastPhase.Active) {
+                Box(
+                    Modifier
+                        .padding(top = 10.dp, start = thumbSize + 12.dp, end = 44.dp)
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(palette.line),
+                ) {
+                    val progress = item.progress
+                    if (progress != null) {
+                        Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(Accent))
+                    } else {
+                        Box(Modifier.fillMaxWidth(0.3f).fillMaxHeight().background(Accent.copy(alpha = 0.55f)))
                     }
                 }
             }
         }
-        if (item.phase == ToastPhase.Active) {
-            Box(
-                Modifier
-                    .padding(top = 10.dp)
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(palette.line),
-            ) {
-                val progress = item.progress
-                if (progress != null) {
-                    Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(Accent))
-                } else {
-                    Box(Modifier.fillMaxWidth(0.3f).fillMaxHeight().background(Accent.copy(alpha = 0.55f)))
-                }
-            }
-        }
     }
-}
-
-@Composable
-private fun QueueAction(label: String, textColor: androidx.compose.ui.graphics.Color, background: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
-    Box(
-        Modifier
-            .clip(shape)
-            .background(background)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    ) { T(label, size = 12.5.sp, color = textColor, weight = FontWeight.SemiBold, maxLines = 1) }
 }
 
 /** A small icon-only button (Retry, Copy debug info). The label is only for screen readers. */
