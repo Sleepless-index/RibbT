@@ -187,7 +187,7 @@ enum class MediaLayout(val key: String, val label: String) {
     }
 }
 
-enum class Tab(val label: String) { Home("home"), History("history"), Settings("settings") }
+enum class Tab(val label: String) { Home("Home"), History("History"), Settings("Settings") }
 
 inline fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {
     val out = ArrayList<T>(length())
