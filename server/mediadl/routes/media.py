@@ -19,7 +19,7 @@ from ..services.transforms import (
     mux_preview_transform,
     video_transform,
 )
-from .common import audio_url_arg, current_preferences, filename_arg, media_url_arg, require_media_url
+from .common import audio_tags_arg, audio_url_arg, current_preferences, filename_arg, media_url_arg, require_media_url
 
 log = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def audio():
     url = require_media_url(media_url_arg())
     name = filename_arg("audio")
     settings = current_preferences()["audio"]
-    return transcode_to_file(url, name, audio_transform(settings["format"], settings["bitrate"]))
+    return transcode_to_file(url, name, audio_transform(settings["format"], settings["bitrate"], audio_tags_arg()))
 
 
 @bp.get("/api/subtitle")
