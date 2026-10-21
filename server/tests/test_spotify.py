@@ -43,6 +43,21 @@ class SpotifyTests(unittest.TestCase):
         self.assertEqual((post["title"], post["author"], post["album"]), ("Never Gonna Give You Up", "Rick Astley", "Whenever You Need Somebody"))
         self.assertEqual(post["_cover"][0], "https://i.scdn.co/image/abc")
 
+    def test_oembed_fallback_when_page_fails(self):
+        adapter = pick_adapter(TRACK)
+        info = {"id": "dQw4w9WgXcQ", "title": "x", "uploader": "u", "formats": [
+            {"url": "https://rr.googlevideo.com/v", "vcodec": "avc1", "acodec": "mp4a", "height": 720, "protocol": "https"}]}
+        response = mock.Mock()
+        response.json.return_value = {"title": "Never Gonna Give You Up", "thumbnail_url": "https://i.scdn.co/image/abc"}
+        session = mock.Mock()
+        session.get.return_value = response
+        with mock.patch.object(adapter, "fetch_page", side_effect=ValueError("Link redirected somewhere unexpected.")), \
+                mock.patch("mediadl.adapters.spotify.get_session", return_value=session), \
+                mock.patch("mediadl.adapters.spotify.dump_info", return_value=info):
+            post = adapter.extract(TRACK + "?si=abc&utm_source=copy-link")
+        self.assertEqual(post["title"], "Never Gonna Give You Up")
+        self.assertEqual(post["_cover"][0], "https://i.scdn.co/image/abc")
+
 
 if __name__ == "__main__":
     unittest.main()

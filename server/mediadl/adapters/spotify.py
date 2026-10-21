@@ -2,6 +2,8 @@ import html
 import re
 from urllib.parse import urlparse
 
+from ..config import DESKTOP_UA
+from ..services.net import fetch_page, get_session
 from .base import PlatformAdapter
 from .youtube import YouTubeAdapter
 from .ytdlp import dump_info
@@ -9,6 +11,14 @@ from .ytdlp import dump_info
 TRACK_RE = re.compile(r"^/(?:intl-[a-z-]+/)?track/([A-Za-z0-9]{22})/?$")
 OG_RE = r'<meta[^>]+property=["\']og:%s["\'][^>]+content=["\']([^"\']*)["\']'
 TITLE_LIMIT = 80
+# Spotify sends phones to an app-install page on another host, so ask like a desktop browser.
+PAGE_HEADERS = {
+    "User-Agent": DESKTOP_UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+}
+PAGE_HOSTS = ("spotify.com",)
+OEMBED = "https://open.spotify.com/oembed"
 
 
 def _og(page, name):
@@ -29,6 +39,23 @@ def parse_track_page(page):
     return title, artist, album, _og(page, "image")
 
 
+def _read_track(adapter, url):
+    """Track details from the page's share tags, or from Spotify's oEmbed when the page won't open."""
+    clean = "https://open.spotify.com" + urlparse(url).path
+    try:
+        _, page = adapter.fetch_page(clean, PAGE_HEADERS)
+        details = parse_track_page(page)
+        if details[0]:
+            return details
+    except Exception:
+        pass
+    try:
+        data = get_session().get(OEMBED, params={"url": clean}, headers=PAGE_HEADERS, timeout=15).json()
+        return (data.get("title") or "").strip(), "", "", data.get("thumbnail_url") or ""
+    except Exception:
+        return "", "", "", ""
+
+
 class SpotifyAdapter(PlatformAdapter):
     """Spotify streams are protected, so a track link is resolved by its title and artist.
 
@@ -39,7 +66,11 @@ class SpotifyAdapter(PlatformAdapter):
     name = "spotify"
     label = "Spotify"
     hosts = ("open.spotify.com",)
+    # Pages may bounce through other spotify.com hosts before the track page.
     display_hosts = ("spotify.com",)
+
+    def fetch_page(self, url, headers=None):
+        return fetch_page(url, PAGE_HOSTS, headers)
 
     def rank(self, candidates, prefs):
         return YouTubeAdapter().rank(candidates, prefs)
@@ -48,8 +79,7 @@ class SpotifyAdapter(PlatformAdapter):
         return super().matches(url) and bool(TRACK_RE.match(urlparse(url).path))
 
     def extract(self, url):
-        _, page = self.fetch_page(url)
-        title, artist, album, cover = parse_track_page(page)
+        title, artist, album, cover = _read_track(self, url)
         if not title:
             raise ValueError("Could not read that Spotify track.")
 
