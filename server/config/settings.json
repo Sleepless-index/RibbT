@@ -1,0 +1,27 @@
+{
+  "appearance": {
+    "theme": "auto"
+  },
+  "audio": {
+    "bitrate": "256",
+    "format": "mp3",
+    "tiktok_original": false
+  },
+  "display": {
+    "layout": "carousel"
+  },
+  "images": {
+    "container": "auto"
+  },
+  "metadata": {
+    "filename_style": "classic"
+  },
+  "video": {
+    "bitrate": "8m",
+    "container": "auto",
+    "quality": "1080"
+  },
+  "x": {
+    "loop_as_gif": false
+  }
+}
