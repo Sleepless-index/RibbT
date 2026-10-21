@@ -68,6 +68,57 @@ class SpotifyTests(unittest.TestCase):
                 mock.patch.object(ytdlp.cookie_store, "active_path", return_value=None):
             self.assertEqual(ytdlp.dump_infos("ytsearch4:x", "Spotify"), [{"id": "a"}, {"id": "b"}])
 
+    def test_falls_back_to_soundcloud(self):
+        adapter = pick_adapter(TRACK)
+        sc = {"id": "1", "title": "x", "uploader": "u", "duration": 213, "thumbnail": "https://i1.sndcdn.com/a.jpg", "formats": [
+            {"url": "https://cf-media.sndcdn.com/a.mp3", "vcodec": "none", "acodec": "mp3", "abr": 128, "protocol": "https"}]}
+        wrong = dict(sc, id="2", duration=60)
+
+        def search(query, label, *a):
+            return [{"id": "y", "formats": []}] if query.startswith("ytsearch") else [wrong, sc]
+
+        page = PAGE.replace("&middot;", "·") + '<meta name="music:duration" content="212"/>'
+        with mock.patch.object(adapter, "fetch_page", return_value=(TRACK, page)), \
+                mock.patch("mediadl.adapters.spotify.dump_infos", side_effect=search):
+            post = adapter.extract(TRACK)
+        self.assertEqual(post["kind"], "audio")
+        self.assertEqual(post["audio_track"]["url"], "https://cf-media.sndcdn.com/a.mp3")
+        self.assertEqual((post["title"], post["author"]), ("Never Gonna Give You Up", "Rick Astley"))
+
+
+class SoundCloudInstagramTests(unittest.TestCase):
+    def test_soundcloud_audio_post_and_app_item(self):
+        from mediadl.services.appview import build_app_post
+
+        adapter = pick_adapter("https://soundcloud.com/artist/track")
+        self.assertEqual(adapter.name, "soundcloud")
+        info = {"id": 5, "title": "Track", "uploader": "Artist", "duration": 100, "thumbnail": "https://i1.sndcdn.com/a.jpg",
+                "formats": [{"url": "https://cf-media.sndcdn.com/a.mp3", "vcodec": "none", "acodec": "mp3", "abr": 128, "protocol": "https"},
+                            {"url": "https://x/h.m3u8", "vcodec": "none", "acodec": "mp3", "abr": 256, "protocol": "m3u8_native"}]}
+        with mock.patch("mediadl.adapters.soundcloud.dump_info", return_value=info):
+            post = adapter.extract("https://soundcloud.com/artist/track")
+        post["cover"] = post.pop("_cover")[0]
+        prefs = {"metadata": {"filename_style": "classic"}, "audio": {"tiktok_original": False}, "x": {"loop_as_gif": False}}
+        app = build_app_post(post, "soundcloud", prefs, "https://soundcloud.com/artist/track")
+        self.assertEqual(app["kind"], "audio")
+        download = app["items"][0]["downloads"][0]
+        self.assertEqual(download["label"], "Audio")
+        self.assertIn("title=Track", download["url"])
+        self.assertIn("artist=Artist", download["url"])
+
+    def test_instagram_links_and_carousel(self):
+        adapter = pick_adapter("https://www.instagram.com/reel/Cabc123/?igsh=x")
+        self.assertEqual(adapter.name, "instagram")
+        self.assertIsNone(pick_adapter("https://www.instagram.com/someone/"))
+        entries = [
+            {"id": "1", "display_id": "Cabc", "title": "Hello", "uploader": "someone", "ext": "jpg", "url": "https://scontent.cdninstagram.com/a.jpg"},
+            {"id": "2", "ext": "jpg", "url": "https://scontent.cdninstagram.com/b.jpg"},
+        ]
+        with mock.patch("mediadl.adapters.instagram.dump_infos", return_value=entries):
+            post = adapter.extract("https://www.instagram.com/p/Cabc/")
+        self.assertEqual(len(post["_images"]), 2)
+        self.assertEqual((post["author"], post["title"]), ("someone", "Hello"))
+
 
 if __name__ == "__main__":
     unittest.main()

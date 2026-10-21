@@ -340,7 +340,7 @@ private fun HistoryRow(vm: AppViewModel, entry: HistoryEntry, onOpen: () -> Unit
                 if (thumb != null) {
                     AsyncImage(model = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 } else {
-                    VIconView(if (entry.kind == "video") VIcons.Video else VIcons.Photo, 22.dp, palette.muted)
+                    VIconView(when (entry.kind) { "video" -> VIcons.Video; "audio" -> VIcons.Audio; else -> VIcons.Photo }, 22.dp, palette.muted)
                 }
             }
             PlatformBadge(entry.platform, Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 6.dp))
@@ -471,7 +471,7 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                     )
                 } else {
                     Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
-                        VIconView(if (entry.kind == "video") VIcons.Video else VIcons.Photo, 36.dp, palette.muted)
+                        VIconView(when (entry.kind) { "video" -> VIcons.Video; "audio" -> VIcons.Audio; else -> VIcons.Photo }, 36.dp, palette.muted)
                     }
                 }
                 if (platformLabel.isNotBlank()) {

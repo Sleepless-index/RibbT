@@ -121,6 +121,26 @@ def build_app_post(post, platform, prefs, link):
             "downloads": downloads,
         })
 
+    track = post.get("audio_track")
+    if track:
+        audio_name = name_for("audio")
+        items.append({
+            "type": "image",
+            "label": "Cover",
+            "size": track.get("size"),
+            "duration": post.get("duration") or None,
+            "preview": media_path(cover, f"{post_id}_cover", True) if cover else None,
+            "downloads": [{
+                "label": "Audio",
+                "url": audio_path(
+                    track["url"], audio_name,
+                    title=post.get("title"), artist=post.get("author"),
+                    album=post.get("album") or (platform.title() if platform else None), source=link,
+                ),
+                "name": audio_name,
+            }],
+        })
+
     if post.get("kind") == "video" and cover:
         thumb_name = name_for("thumbnail")
         items.append({

@@ -6,6 +6,7 @@ from ..config import DESKTOP_UA
 from ..services.net import fetch_page, get_session
 from .base import PlatformAdapter
 from .youtube import YouTubeAdapter
+from .soundcloud import audio_post
 from .ytdlp import dump_infos
 
 TRACK_RE = re.compile(r"^/(?:intl-[a-z-]+/)?track/([A-Za-z0-9]{22})/?$")
@@ -18,6 +19,7 @@ PAGE_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 PAGE_HOSTS = ("spotify.com",)
+DURATION_SLACK = 12
 OEMBED = "https://open.spotify.com/oembed"
 
 
@@ -39,28 +41,38 @@ def parse_track_page(page):
     return title, artist, album, _og(page, "image")
 
 
+def _duration(page):
+    match = re.search(r'<meta[^>]+(?:name|property)=["\']music:duration["\'][^>]+content=["\'](\d+)["\']', page, re.I)
+    return int(match.group(1)) if match else None
+
+
 def _read_track(adapter, url):
-    """Track details from the page's share tags, or from Spotify's oEmbed when the page won't open."""
+    """(title, artist, album, cover, seconds) from the page's share tags, or from oEmbed when it won't open."""
     clean = "https://open.spotify.com" + urlparse(url).path
     try:
         _, page = adapter.fetch_page(clean, PAGE_HEADERS)
-        details = parse_track_page(page)
-        if details[0]:
-            return details
+        title, artist, album, cover = parse_track_page(page)
+        if title:
+            return title, artist, album, cover, _duration(page)
     except Exception:
         pass
     try:
         data = get_session().get(OEMBED, params={"url": clean}, headers=PAGE_HEADERS, timeout=15).json()
-        return (data.get("title") or "").strip(), "", "", data.get("thumbnail_url") or ""
+        return (data.get("title") or "").strip(), "", "", data.get("thumbnail_url") or "", None
     except Exception:
-        return "", "", "", ""
+        return "", "", "", "", None
+
+
+def _near(info, seconds):
+    length = info.get("duration")
+    return bool(seconds and length and abs(length - seconds) <= DURATION_SLACK)
 
 
 class SpotifyAdapter(PlatformAdapter):
     """Spotify streams are protected, so a track link is resolved by its title and artist.
 
-    The track's details are read from Spotify's public page, the best matching audio is found
-    on YouTube, and the result keeps Spotify's title, artist and cover.
+    The track's details are read from Spotify's public page and a matching copy is found on
+    YouTube, then on SoundCloud. The result keeps Spotify's title, artist and cover.
     """
 
     name = "spotify"
@@ -79,20 +91,12 @@ class SpotifyAdapter(PlatformAdapter):
         return super().matches(url) and bool(TRACK_RE.match(urlparse(url).path))
 
     def extract(self, url):
-        title, artist, album, cover = _read_track(self, url)
+        title, artist, album, cover, seconds = _read_track(self, url)
         if not title:
             raise ValueError("Could not read that Spotify track.")
 
-        # The first match sometimes has no stream RibbT can use, so the next few are tried in order.
-        query = f"ytsearch4:{artist} {title} audio".strip()
-        youtube = YouTubeAdapter()
-        post = None
-        for info in dump_infos(query, "Spotify"):
-            try:
-                post = youtube.post_from_info(info)
-                break
-            except ValueError:
-                continue
+        query = f"{artist} {title}".strip()
+        post = self._from_youtube(query, seconds) or self._from_soundcloud(query, seconds)
         if post is None:
             raise ValueError("Could not find a downloadable match for that Spotify track.")
         post["title"] = title[:TITLE_LIMIT]
@@ -102,3 +106,33 @@ class SpotifyAdapter(PlatformAdapter):
         if cover:
             post["_cover"] = [cover, *(post["_cover"] or [])]
         return post
+
+    @staticmethod
+    def _search(prefix, query, seconds):
+        """Search results, those with the right length first. A failed search just means no results."""
+        try:
+            infos = dump_infos(f"{prefix}4:{query}", "Spotify")
+        except ValueError:
+            return []
+        return sorted(infos, key=lambda info: not _near(info, seconds))
+
+    def _from_youtube(self, query, seconds):
+        # The first match sometimes has no stream RibbT can use, so the next few are tried in order.
+        youtube = YouTubeAdapter()
+        for info in self._search("ytsearch", f"{query} audio", seconds):
+            try:
+                return youtube.post_from_info(info)
+            except ValueError:
+                continue
+        return None
+
+    def _from_soundcloud(self, query, seconds):
+        # Uploads there are less reliable, so with a known length only a matching one is accepted.
+        for info in self._search("scsearch", query, seconds):
+            if seconds and info.get("duration") and not _near(info, seconds):
+                continue
+            try:
+                return audio_post(info)
+            except ValueError:
+                continue
+        return None
