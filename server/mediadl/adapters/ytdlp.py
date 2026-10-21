@@ -76,17 +76,19 @@ def dump_info(url, label, extra_args=()):
 
 
 def dump_infos(query, label, extra_args=()):
-    """Every result of a search query (one JSON document per line), best match first."""
-    command = ["--dump-json", "--no-download", "--no-warnings", *extra_args, query]
-    result = _launch(ytdlp_runner.run, command, label, YTDLP_TIMEOUT_SECONDS * 2)
-    infos = []
-    for line in result.stdout.splitlines():
-        try:
-            info = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(info, dict):
-            infos.append(info)
+    """Every result of a search query, best match first.
+
+    The whole result list is requested as one document: the embedded runner would otherwise
+    hand back only the first entry.
+    """
+    command = ["--dump-single-json", "--no-download", "--no-warnings", *extra_args, query]
+    result = _launch(ytdlp_runner.run_playlist, command, label, PLAYLIST_TIMEOUT_SECONDS)
+    try:
+        document = json.loads(result.stdout.strip().splitlines()[0])
+    except (json.JSONDecodeError, IndexError):
+        raise ValueError(f"Could not parse the {label} response.")
+    entries = document.get("entries") if isinstance(document, dict) else None
+    infos = [entry for entry in (entries if entries is not None else [document]) if isinstance(entry, dict)]
     if not infos:
         raise ValueError(f"Could not parse the {label} response.")
     return infos

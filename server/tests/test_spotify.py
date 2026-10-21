@@ -58,6 +58,16 @@ class SpotifyTests(unittest.TestCase):
         self.assertEqual(post["title"], "Never Gonna Give You Up")
         self.assertEqual(post["_cover"][0], "https://i.scdn.co/image/abc")
 
+    def test_search_reads_every_result_from_one_document(self):
+        import json
+        import subprocess
+        from mediadl.adapters import ytdlp
+
+        done = subprocess.CompletedProcess([], 0, json.dumps({"entries": [{"id": "a"}, None, {"id": "b"}]}) + "\n", "")
+        with mock.patch.object(ytdlp.ytdlp_runner, "run_playlist", return_value=done), \
+                mock.patch.object(ytdlp.cookie_store, "active_path", return_value=None):
+            self.assertEqual(ytdlp.dump_infos("ytsearch4:x", "Spotify"), [{"id": "a"}, {"id": "b"}])
+
 
 if __name__ == "__main__":
     unittest.main()
