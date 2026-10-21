@@ -478,7 +478,7 @@ private fun AppUpdateRow(vm: AppViewModel) {
     val busy = vm.appUpdateBusy
     RowShell(
         "Updates",
-        vm.appUpdateStatus ?: buildString {
+        buildString {
             append("Version ${vm.appVersion}")
             if (release?.available == true && !release.version.isNullOrBlank()) append(" · ${release.version} is ready")
         },
@@ -492,7 +492,7 @@ private fun AppUpdateRow(vm: AppViewModel) {
             }
             SmallButton(
                 text = when {
-                    busy -> "Updating…"
+                    busy -> vm.appUpdatePercent?.let { "$it%" } ?: vm.appUpdateStatus ?: "Updating…"
                     vm.appChecking -> "Checking…"
                     release?.available == true -> "Update"
                     else -> "Check"

@@ -6,7 +6,7 @@ from ..config import DESKTOP_UA
 from ..services.net import fetch_page, get_session
 from .base import PlatformAdapter
 from .youtube import YouTubeAdapter
-from .ytdlp import dump_info
+from .ytdlp import dump_infos
 
 TRACK_RE = re.compile(r"^/(?:intl-[a-z-]+/)?track/([A-Za-z0-9]{22})/?$")
 OG_RE = r'<meta[^>]+property=["\']og:%s["\'][^>]+content=["\']([^"\']*)["\']'
@@ -83,9 +83,18 @@ class SpotifyAdapter(PlatformAdapter):
         if not title:
             raise ValueError("Could not read that Spotify track.")
 
-        query = f"ytsearch1:{artist} {title} audio".strip()
-        info = dump_info(query, "Spotify", ("--no-playlist",))
-        post = YouTubeAdapter().post_from_info(info)
+        # The first match sometimes has no stream RibbT can use, so the next few are tried in order.
+        query = f"ytsearch4:{artist} {title} audio".strip()
+        youtube = YouTubeAdapter()
+        post = None
+        for info in dump_infos(query, "Spotify", ("--no-playlist",)):
+            try:
+                post = youtube.post_from_info(info)
+                break
+            except ValueError:
+                continue
+        if post is None:
+            raise ValueError("Could not find a downloadable match for that Spotify track.")
         post["title"] = title[:TITLE_LIMIT]
         post["author"] = artist or post["author"]
         post["album"] = album

@@ -75,6 +75,23 @@ def dump_info(url, label, extra_args=()):
         raise ValueError(f"Could not parse the {label} response.")
 
 
+def dump_infos(query, label, extra_args=()):
+    """Every result of a search query (one JSON document per line), best match first."""
+    command = ["--dump-json", "--no-download", "--no-warnings", *extra_args, query]
+    result = _launch(ytdlp_runner.run, command, label, YTDLP_TIMEOUT_SECONDS * 2)
+    infos = []
+    for line in result.stdout.splitlines():
+        try:
+            info = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(info, dict):
+            infos.append(info)
+    if not infos:
+        raise ValueError(f"Could not parse the {label} response.")
+    return infos
+
+
 def dump_playlist(url, label, limit=MAX_PLAYLIST_ENTRIES):
     command = [
         "--flat-playlist", "--dump-single-json", "--yes-playlist", "--no-warnings",
