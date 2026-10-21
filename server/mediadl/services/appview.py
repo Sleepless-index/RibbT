@@ -28,8 +28,11 @@ def subtitle_path(page, lang, auto, name):
     return _endpoint("/api/subtitle", {"u": page, "lang": lang, "auto": auto, "name": name})
 
 
-def audio_path(url, name):
-    return _endpoint("/api/audio", {"u": url, "name": name})
+def audio_path(url, name, title=None, artist=None, album=None, source=None):
+    return _endpoint(
+        "/api/audio",
+        {"u": url, "name": name, "title": title, "artist": artist, "album": album, "source": source},
+    )
 
 
 def video_path(url, name, loop=False, audio=None):
@@ -79,7 +82,11 @@ def build_app_post(post, platform, prefs, link):
             audio_name = name_for("liveaudio" if is_live else "audio", **extra)
             downloads.append({
                 "label": "Audio",
-                "url": audio_path(video.get("audio_url") or video["url"], audio_name),
+                "url": audio_path(
+                    video.get("audio_url") or video["url"], audio_name,
+                    title=post.get("title"), artist=post.get("author"),
+                    album=platform.title() if platform else None, source=link,
+                ),
                 "name": audio_name,
             })
         suffix = f"_{index}" if len(videos) > 1 else ""

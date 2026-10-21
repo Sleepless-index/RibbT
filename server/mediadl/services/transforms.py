@@ -105,13 +105,19 @@ def mux_transform(container):
     return Transform(args=(*MUX_MAPS, "-c", "copy", *tail), ext=ext, mime=mime, rw_timeout=VIDEO_RW_TIMEOUT)
 
 
-def audio_transform(fmt, bitrate):
+def audio_transform(fmt, bitrate, tags=None):
     codec, container, ext, mime = _AUDIO_FORMATS.get(fmt) or _AUDIO_FORMATS["mp3"]
+    tag_args = []
+    for key, value in (tags or {}).items():
+        if value:
+            tag_args += ["-metadata", f"{key}={value}"]
     args = (
         "-vn",
         "-c:a", codec,
         "-b:a", f"{bitrate}k",
         "-map_metadata", "0",
+        *(("-id3v2_version", "3") if ext == "mp3" else ()),
+        *tag_args,
         "-f", container,
     )
     return Transform(args=args, ext=ext, mime=mime)

@@ -28,3 +28,13 @@ def require_media_url(url):
     if not url.startswith("https://") or not host_ok(url, MEDIA_HOSTS):
         raise blocked_media_url()
     return url
+
+
+def audio_tags_arg():
+    """Title, artist, album and source link for the file's tags; blank values are dropped."""
+    tags = {}
+    for key, param in (("title", "title"), ("artist", "artist"), ("album", "album"), ("comment", "source")):
+        value = "".join(ch for ch in request.args.get(param, "") if ch.isprintable()).strip()
+        if value:
+            tags[key] = value[:300]
+    return tags

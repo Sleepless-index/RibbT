@@ -191,17 +191,9 @@ private fun LinkRow(vm: AppViewModel) {
     val context = LocalContext.current
     val filled = vm.input.isNotBlank()
     var focused by remember { mutableStateOf(false) }
-    val fieldShape = RoundedCornerShape(14.dp)
 
-    // One white card holds the field and the button.
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(palette.card)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Same pill as the one shown once a link is read (link icon, text, clear), minus the retry button.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -213,43 +205,43 @@ private fun LinkRow(vm: AppViewModel) {
                             AccentRing,
                             topLeft = Offset(-grow, -grow),
                             size = Size(size.width + grow * 2, size.height + grow * 2),
-                            cornerRadius = CornerRadius(14.dp.toPx() + grow),
+                            cornerRadius = CornerRadius(size.height / 2f + grow),
                         )
                     }
                 }
-                .background(palette.soft, fieldShape)
-                .border(1.dp, if (focused) Accent else Color.Transparent, fieldShape),
+                .clip(CircleShape)
+                .background(palette.card)
+                .border(1.dp, if (focused) Accent else palette.line, CircleShape),
             contentAlignment = Alignment.CenterStart,
         ) {
-            VIconView(VIcons.Link, 20.dp, palette.muted, Modifier.padding(start = 14.dp))
+            VIconView(VIcons.Link, 20.dp, palette.muted, Modifier.padding(start = 16.dp))
             BasicTextField(
                 value = vm.input,
                 onValueChange = { vm.input = it; vm.error = null; vm.typingSignal++ },
                 singleLine = true,
-                textStyle = TextStyle(color = palette.text, fontSize = 16.sp, fontFamily = AppFont),
+                textStyle = TextStyle(color = palette.text, fontSize = 15.sp, fontFamily = AppFont),
                 cursorBrush = SolidColor(Accent),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { vm.parse() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 42.dp, end = if (filled) 46.dp else 92.dp)
+                    .padding(start = 46.dp, end = if (filled) 48.dp else 104.dp)
                     .onFocusChanged { focused = it.isFocused },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (!filled && !focused) {
-                            T("Paste a link", color = palette.muted, size = 16.sp, maxLines = 1)
+                            T("Paste a link", color = palette.muted, size = 15.sp, maxLines = 1)
                         }
                         inner()
                     }
                 },
             )
             if (filled) {
-                // Clear, once there is text.
                 Box(
                     Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 6.dp)
-                        .size(36.dp)
+                        .padding(end = 4.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .clickable(onClickLabel = "Clear link", role = Role.Button) { vm.reset() },
                     contentAlignment = Alignment.Center,
@@ -261,14 +253,14 @@ private fun LinkRow(vm: AppViewModel) {
                 Row(
                     Modifier
                         .align(Alignment.CenterEnd)
-                        .padding(end = 7.dp)
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(palette.card)
+                        .padding(end = 6.dp)
+                        .height(36.dp)
+                        .clip(CircleShape)
+                        .background(palette.soft)
                         .clickable(onClickLabel = "Paste link", role = Role.Button) {
                             vm.pasteFromClipboard(readClipboard(context))
                         }
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {

@@ -605,13 +605,10 @@ private fun RowShell(
             ) { VIconView(icon, 20.dp, Accent) }
         }
         Column(Modifier.weight(1f)) {
+            T(label, size = 14.4.sp, lineHeight = 18.7.sp)
             if (badge != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    T(label, size = 14.4.sp, lineHeight = 18.7.sp, modifier = Modifier.weight(1f, fill = false))
-                    StatusPill(badge, badgeTone)
-                }
-            } else {
-                T(label, size = 14.4.sp, lineHeight = 18.7.sp)
+                // Under the label, so a narrow row never squeezes the title into one letter per line.
+                Box(Modifier.padding(top = 4.dp)) { StatusPill(badge, badgeTone) }
             }
             if (!hint.isNullOrBlank()) {
                 T(hint, size = 12.16.sp, color = palette.muted, modifier = Modifier.padding(top = 2.dp), lineHeight = 15.8.sp)
