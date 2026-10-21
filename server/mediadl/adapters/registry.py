@@ -4,6 +4,7 @@ from .bilibili import BilibiliAdapter
 from .pinterest import PinterestAdapter
 from .rednote import RedNoteAdapter
 from .reddit import RedditAdapter
+from .spotify import SpotifyAdapter
 from .tiktok import TikTokAdapter
 from .twitter import TwitterAdapter
 from .youtube import YouTubeAdapter
@@ -16,6 +17,7 @@ ADAPTERS = (
     YouTubeAdapter(),
     RedditAdapter(),
     PinterestAdapter(),
+    SpotifyAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"
