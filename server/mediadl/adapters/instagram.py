@@ -10,6 +10,23 @@ POST_PATH_RE = re.compile(r"^/(?:[\w.]+/)?(?:p|reel|reels|tv)/([\w-]+)")
 IMAGE_EXTS = ("jpg", "jpeg", "png", "webp")
 
 
+def _by_short_side(formats):
+    """Label vertical videos by their short side (720p, not 1280p), like every other site."""
+    fixed = []
+    for fmt in formats:
+        width, height = fmt.get("width"), fmt.get("height")
+        fixed.append({**fmt, "height": min(width, height)} if width and height else fmt)
+    return fixed
+
+
+def _caption_title(entry):
+    for key in ("description", "title"):
+        lines = (entry.get(key) or "").strip().splitlines()
+        if lines and lines[0].strip():
+            return lines[0].strip()[:TITLE_LIMIT]
+    return ""
+
+
 def _image_url(entry):
     url = clean_url(entry.get("url"))
     if url and (entry.get("ext") or "").lower() in IMAGE_EXTS:
@@ -33,12 +50,11 @@ class InstagramAdapter(PlatformAdapter):
         first = entries[0]
         post = new_post(
             id=str(first.get("display_id") or first.get("id") or ""),
-            title=(first.get("title") or first.get("description") or "").strip().splitlines()[0][:TITLE_LIMIT]
-            if (first.get("title") or first.get("description")) else "",
+            title=_caption_title(first),
             author=first.get("uploader") or first.get("channel") or first.get("uploader_id") or "",
         )
         for entry in entries:
-            formats = entry.get("formats") or []
+            formats = _by_short_side(entry.get("formats") or [])
             candidates = video_candidates(formats, best_audio_url(formats)) if formats else []
             if candidates:
                 post["_videos"].append(video_group(candidates))

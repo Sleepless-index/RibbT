@@ -28,10 +28,10 @@ def subtitle_path(page, lang, auto, name):
     return _endpoint("/api/subtitle", {"u": page, "lang": lang, "auto": auto, "name": name})
 
 
-def audio_path(url, name, title=None, artist=None, album=None, source=None):
+def audio_path(url, name, title=None, artist=None, album=None, source=None, hls=False):
     return _endpoint(
         "/api/audio",
-        {"u": url, "name": name, "title": title, "artist": artist, "album": album, "source": source},
+        {"u": url, "name": name, "title": title, "artist": artist, "album": album, "source": source, "hls": hls},
     )
 
 
@@ -136,6 +136,7 @@ def build_app_post(post, platform, prefs, link):
                     track["url"], audio_name,
                     title=post.get("title"), artist=post.get("author"),
                     album=post.get("album") or (platform.title() if platform else None), source=link,
+                    hls=bool(track.get("hls")),
                 ),
                 "name": audio_name,
             }],

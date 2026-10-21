@@ -5,22 +5,28 @@ from .base import PlatformAdapter, new_post
 from .ytdlp import DIRECT_PROTOCOLS, clock_text, dump_info, has_stream
 
 TITLE_LIMIT = 80
-# Progressive files first: HLS playlists can't be fetched as a single file.
+HLS_PROTOCOLS = ("m3u8", "m3u8_native")
 CODEC_PREFERENCE = ("mp3", "mp4a", "aac", "opus", "vorbis")
+
+
+def is_hls(fmt):
+    return fmt.get("protocol") in HLS_PROTOCOLS
 
 
 def _audio_rank(fmt):
     codec = (fmt.get("acodec") or "").lower()
     order = next((i for i, name in enumerate(CODEC_PREFERENCE) if codec.startswith(name)), len(CODEC_PREFERENCE))
-    return (fmt.get("abr") or fmt.get("tbr") or 0, -order)
+    # A plain file beats an HLS playlist; then bitrate, then codec.
+    return (not is_hls(fmt), fmt.get("abr") or fmt.get("tbr") or 0, -order)
 
 
 def audio_stream(info):
-    """Best direct audio-only stream of a yt-dlp result, or None."""
+    """Best audio-only stream of a yt-dlp result (a plain file, else an HLS playlist), or None."""
     streams = [
         f for f in info.get("formats") or []
         if f.get("url") and not has_stream(f.get("vcodec")) and has_stream(f.get("acodec"))
-        and f.get("protocol") in DIRECT_PROTOCOLS
+        and (f.get("protocol") in DIRECT_PROTOCOLS or is_hls(f))
+        and "preview" not in str(f.get("format_id") or "").lower()
     ]
     return max(streams, key=_audio_rank) if streams else None
 
@@ -36,7 +42,11 @@ def audio_post(info, id_prefix=""):
         author=info.get("uploader") or info.get("artist") or info.get("channel") or "",
         kind="audio",
     )
-    post["audio_track"] = {"url": stream["url"], "size": stream.get("filesize") or stream.get("filesize_approx")}
+    post["audio_track"] = {
+        "url": stream["url"],
+        "hls": is_hls(stream),
+        "size": stream.get("filesize") or stream.get("filesize_approx"),
+    }
     post["duration"] = clock_text(info.get("duration"))
     thumbnails = [t.get("url") for t in info.get("thumbnails") or [] if isinstance(t, dict) and t.get("url")]
     covers = [clean_url(u) for u in [info.get("thumbnail"), *reversed(thumbnails)]]

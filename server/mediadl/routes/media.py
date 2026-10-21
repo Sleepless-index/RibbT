@@ -6,7 +6,7 @@ from flask import Blueprint, Response, request
 from ..adapters import pick_adapter
 from ..config import TWITTER_MEDIA_HOSTS
 from ..errors import MediaError, blocked_media_url
-from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_to_file
+from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_from_network, transcode_to_file
 from ..services import subtitles as subtitle_service
 from ..services.ffmpeg import probe_bitrate
 from ..services.mediatypes import content_disposition
@@ -100,7 +100,11 @@ def audio():
     url = require_media_url(media_url_arg())
     name = filename_arg("audio")
     settings = current_preferences()["audio"]
-    return transcode_to_file(url, name, audio_transform(settings["format"], settings["bitrate"], audio_tags_arg()))
+    transform = audio_transform(settings["format"], settings["bitrate"], audio_tags_arg())
+    if request.args.get("hls") == "1" or ".m3u8" in url.split("?", 1)[0]:
+        # An HLS playlist is many small files: ffmpeg reads it straight from the network.
+        return transcode_from_network(url, name, transform)
+    return transcode_to_file(url, name, transform)
 
 
 @bp.get("/api/subtitle")
