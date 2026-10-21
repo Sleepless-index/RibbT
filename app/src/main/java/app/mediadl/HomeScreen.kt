@@ -360,7 +360,7 @@ private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
                     if (hasAuthor) T(post.author, size = 14.4.sp, weight = FontWeight.SemiBold, maxLines = 1)
                     val service = vm.platforms.firstOrNull { it.name == post.platform }?.label
                     T(
-                        listOfNotNull(service, if (post.kind == "video") "Video" else "Photos").joinToString(" · "),
+                        listOfNotNull(service, when (post.kind) { "video" -> "Video"; "audio" -> "Audio"; else -> "Photos" }).joinToString(" · "),
                         size = 11.52.sp,
                         color = palette.muted,
                         modifier = Modifier.padding(top = 1.dp),

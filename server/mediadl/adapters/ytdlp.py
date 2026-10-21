@@ -56,7 +56,7 @@ def _launch(runner, command, label, timeout_seconds):
     if result.returncode != 0:
         detail = _error_line(result.stderr)
         lowered = detail.lower()
-        if "sign in" in lowered or "bot" in lowered or "cookies" in lowered:
+        if any(word in lowered for word in ("sign in", "log in", "login", "bot", "cookies")):
             if ytdlp_runner.embedded():
                 fix = "Import your cookies.txt in Settings → Server → Sign-in cookies."
             else:

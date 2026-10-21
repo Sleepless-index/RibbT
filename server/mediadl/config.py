@@ -108,6 +108,11 @@ MEDIA_SOURCES = (
         hosts=("redd.it", "redditmedia.com"),
         referers=("https://www.reddit.com/",),
     ),
+    MediaSource(hosts=("sndcdn.com",), referers=("https://soundcloud.com/",)),
+    MediaSource(
+        hosts=("cdninstagram.com", "fbcdn.net"),
+        referers=("https://www.instagram.com/",),
+    ),
     MediaSource(hosts=("scdn.co",), referers=("https://open.spotify.com/",)),
     MediaSource(hosts=("pinimg.com",), referers=("https://www.pinterest.com/",)),
     MediaSource(

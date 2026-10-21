@@ -24,7 +24,7 @@ Download videos, photos and audio from social media.
 
 ## Supported sites
 
-YouTube, TikTok, X (Twitter), Reddit, Pinterest, Bilibili and RedNote.
+YouTube, TikTok, X (Twitter), Reddit, Pinterest, Bilibili, RedNote, Instagram, SoundCloud and Spotify (tracks).
 
 ## Install
 

@@ -1,9 +1,11 @@
 import re
 
 from .bilibili import BilibiliAdapter
+from .instagram import InstagramAdapter
 from .pinterest import PinterestAdapter
 from .rednote import RedNoteAdapter
 from .reddit import RedditAdapter
+from .soundcloud import SoundCloudAdapter
 from .spotify import SpotifyAdapter
 from .tiktok import TikTokAdapter
 from .twitter import TwitterAdapter
@@ -18,6 +20,8 @@ ADAPTERS = (
     RedditAdapter(),
     PinterestAdapter(),
     SpotifyAdapter(),
+    SoundCloudAdapter(),
+    InstagramAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"
