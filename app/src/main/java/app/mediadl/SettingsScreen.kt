@@ -101,6 +101,8 @@ private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custo
 private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Downloads", "Server")
 
 private const val PAGE_GENERAL = "General"
+private const val PAGE_APPEARANCE = "Appearance"
+private const val PAGE_ABOUT = "About"
 internal const val PAGE_SERVER = "Server"
 private const val PAGE_DOWNLOADING = "Downloads"
 
@@ -175,7 +177,8 @@ private fun groupSettings(server: ServerSettings?): GroupedSettings {
 }
 
 private fun iconFor(title: String): VIcon = when (title) {
-    PAGE_GENERAL -> VIcons.Settings
+    PAGE_GENERAL, PAGE_APPEARANCE -> VIcons.Settings
+    PAGE_ABOUT -> VIcons.Refresh
     "Video" -> VIcons.Video
     "Images" -> VIcons.Photo
     "Audio" -> VIcons.Audio
@@ -203,57 +206,37 @@ private fun SettingsHome(vm: AppViewModel) {
     // Looks for a new RibbT once per session when Settings opens, quietly.
     LaunchedEffect(Unit) { if (vm.appRelease == null && !vm.appChecking) vm.checkAppUpdate(silent = true) }
 
-    // What the three shortcut rows currently say, e.g. "Internal storage".
-    val saveName = when (vm.saveTo) {
-        "sdcard" -> "SD card"
-        "folder" -> vm.folderName.ifBlank { "Custom folder" }
-        else -> "Internal storage"
-    }
-    val qualityName = data.choices["video.quality"]
-        ?.firstOrNull { it.value == (vm.settingValue("video.quality") as? String) }?.label
-
     Column {
-        SectionTitle("Downloads")
+        SectionTitle("Quick settings")
+        CardBox(Modifier.fillMaxWidth()) { ThemeSegments(vm.theme) { vm.updateTheme(it) } }
+    }
+
+    // The media sections (Video, Images, ...) live on the Downloads page together with the save options.
+    val mediaSections = data.sections.filter { it != PAGE_SERVER && it != PAGE_DOWNLOADING }
+    val serverValue = when {
+        vm.online == true -> if (vm.serverMode == "custom") "Connected" else "Running"
+        vm.online == false -> "Offline"
+        else -> null
+    }
+    Column {
+        SectionTitle("All settings")
         CardBox(Modifier.fillMaxWidth()) {
             Column {
-                NavRow(VIcons.Folder, "Save to", null, value = saveName) { vm.settingsPage = PAGE_DOWNLOADING }
-                if ("Video" in data.sections) {
-                    Separator()
-                    NavRow(VIcons.Video, "Default quality", null, value = qualityName) { vm.settingsPage = "Video" }
-                }
+                NavRow(
+                    iconFor(PAGE_DOWNLOADING),
+                    PAGE_DOWNLOADING,
+                    (listOf("Location") + mediaSections).joinToString(", "),
+                ) { vm.settingsPage = PAGE_DOWNLOADING }
                 Separator()
-                NavRow(VIcons.Photo, "Media layout", null, value = MediaLayout.from(vm.layout).label) { vm.settingsPage = PAGE_GENERAL }
-            }
-        }
-    }
-
-    Column {
-        SectionTitle("Appearance")
-        CardBox(Modifier.fillMaxWidth()) {
-            Column {
-                ThemeSegments(vm.theme) { vm.updateTheme(it) }
+                NavRow(iconFor(PAGE_APPEARANCE), PAGE_APPEARANCE, "Accent color, layout, motion") { vm.settingsPage = PAGE_APPEARANCE }
                 Separator()
-                AccentPicker(vm)
-            }
-        }
-    }
-
-    Column {
-        SectionTitle("Media")
-        CardBox(Modifier.fillMaxWidth()) {
-            Column {
-                data.sections.filter { it != PAGE_SERVER }.forEachIndexed { index, title ->
-                    if (index > 0) Separator()
-                    NavRow(iconFor(title), title, summaryFor(title, data.rows[title].orEmpty())) { vm.settingsPage = title }
-                }
-            }
-        }
-    }
-
-    Column {
-        SectionTitle("App")
-        CardBox(Modifier.fillMaxWidth()) {
-            Column {
+                NavRow(
+                    iconFor(PAGE_SERVER),
+                    PAGE_SERVER,
+                    summaryFor(PAGE_SERVER, emptyList()),
+                    value = serverValue,
+                ) { vm.settingsPage = PAGE_SERVER }
+                Separator()
                 NavRow(
                     iconFor(PAGE_SERVICES),
                     PAGE_SERVICES,
@@ -265,17 +248,12 @@ private fun SettingsHome(vm: AppViewModel) {
                     },
                 ) { vm.settingsPage = PAGE_SERVICES }
                 Separator()
-                AppUpdateRow(vm)
-                Separator()
-                ToggleRow(
-                    "Debug info",
-                    "Adds Copy to failed downloads, with details for bug reports.",
-                    vm.debugInfo,
-                ) { vm.updateDebugInfo(it) }
-                Separator()
-                NavRow(iconFor(PAGE_GENERAL), PAGE_GENERAL, "Layout, motion, paste and go") { vm.settingsPage = PAGE_GENERAL }
-                Separator()
-                NavRow(iconFor(PAGE_SERVER), PAGE_SERVER, summaryFor(PAGE_SERVER, emptyList())) { vm.settingsPage = PAGE_SERVER }
+                NavRow(
+                    iconFor(PAGE_ABOUT),
+                    PAGE_ABOUT,
+                    "Version ${vm.appVersion}",
+                    value = if (vm.appRelease?.available == true) "Update available" else null,
+                ) { vm.settingsPage = PAGE_ABOUT }
             }
         }
     }
@@ -289,8 +267,19 @@ private fun SettingsPage(vm: AppViewModel, page: String, saveChoices: List<Choic
     if (page == PAGE_DOWNLOADING) StorageWatcher(vm)
     PageHeader(page, onBack = { vm.settingsPage = null }) { SavedLabel(vm) }
     when (page) {
-        PAGE_GENERAL -> GeneralCard(vm)
+        PAGE_APPEARANCE, PAGE_GENERAL -> AppearanceCards(vm)
         PAGE_SERVICES -> ServicesList(vm)
+        PAGE_ABOUT -> AboutCard(vm)
+        PAGE_DOWNLOADING -> {
+            SectionCard(vm, page, data, saveChoices, pickFolder)
+            data.sections.filter { it != PAGE_SERVER && it != PAGE_DOWNLOADING }.forEach { title ->
+                Column {
+                    SectionTitle(title)
+                    SectionCard(vm, title, data, saveChoices, pickFolder)
+                }
+            }
+            if (vm.server == null) OfflineHint(vm)
+        }
         else -> {
             SectionCard(vm, page, data, saveChoices, pickFolder)
             if (vm.server == null) OfflineHint(vm)
@@ -342,7 +331,8 @@ private fun OfflineHint(vm: AppViewModel) {
 }
 
 @Composable
-private fun GeneralCard(vm: AppViewModel) {
+private fun AppearanceCards(vm: AppViewModel) {
+    CardBox(Modifier.fillMaxWidth()) { AccentPicker(vm) }
     CardBox(Modifier.fillMaxWidth()) {
         Column {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -363,12 +353,22 @@ private fun GeneralCard(vm: AppViewModel) {
                 MOTION_CHOICES,
                 vm.reduceMotion,
             ) { vm.updateReduceMotion(it) }
+        }
+    }
+}
+
+@Composable
+private fun AboutCard(vm: AppViewModel) {
+    CardBox(Modifier.fillMaxWidth()) {
+        Column {
+            AppUpdateRow(vm)
             Separator()
             ToggleRow(
-                "Paste and go",
-                "Fetch a copied link when you open RibbT.",
-                vm.pasteAndGo,
-            ) { vm.updatePasteAndGo(it) }
+                "Debug info",
+                "Adds Copy to failed downloads, with details for bug reports.",
+                vm.debugInfo,
+                icon = VIcons.Copy,
+            ) { vm.updateDebugInfo(it) }
         }
     }
 }
@@ -401,6 +401,8 @@ private fun SectionCard(
                 }
                 Separator()
                 ToggleRow("Sort into folders by type", "Videos, Images and Audio subfolders.", vm.sortByType) { vm.updateSortByType(it) }
+                Separator()
+                ToggleRow("Paste and go", "Fetch a copied link when you open RibbT.", vm.pasteAndGo) { vm.updatePasteAndGo(it) }
                 first = false
             }
             if (title == PAGE_SERVER) {
@@ -482,8 +484,12 @@ private fun AppUpdateRow(vm: AppViewModel) {
         },
         badge = if (release != null && !busy) (if (release.available) "Update available" else "Up to date") else null,
         badgeTone = if (release?.available == true) PillTone.Accent else PillTone.Good,
+        icon = VIcons.Refresh,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (release?.available == true) {
+                IconSquareButton(VIcons.Open, "Release notes") { AppUpdate.open(context, release.pageUrl) }
+            }
             SmallButton(
                 text = when {
                     busy -> "Updating…"
@@ -492,11 +498,9 @@ private fun AppUpdateRow(vm: AppViewModel) {
                     else -> "Check"
                 },
                 enabled = !busy && !vm.appChecking,
+                minWidth = 76.dp,
                 onClick = { if (release?.available == true) vm.installAppUpdate() else vm.checkAppUpdate() },
             )
-            if (release != null) {
-                IconSquareButton(VIcons.Open, "Release notes") { AppUpdate.open(context, release.pageUrl) }
-            }
         }
     }
 }
@@ -524,12 +528,12 @@ private fun PageHeader(title: String, onBack: () -> Unit, trailing: @Composable 
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(end = 4.dp, bottom = 18.dp),
+            .padding(start = 4.dp, end = 8.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(40.dp)
+                .size(42.dp)
                 .clip(CircleShape)
                 .background(palette.card)
                 .border(1.dp, palette.line, CircleShape)
@@ -543,7 +547,6 @@ private fun PageHeader(title: String, onBack: () -> Unit, trailing: @Composable 
         )
         Spacer(Modifier.width(12.dp))
         trailing()
-        Spacer(Modifier.width(44.dp))
     }
 }
 
@@ -553,15 +556,15 @@ private fun NavRow(icon: VIcon, title: String, summary: String?, value: String? 
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 60.dp)
+            .heightIn(min = 64.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Accent.copy(alpha = 0.10f)),
+            Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Accent.copy(alpha = 0.10f)),
             contentAlignment = Alignment.Center,
-        ) { VIconView(icon, 19.dp, Accent) }
+        ) { VIconView(icon, 20.dp, Accent) }
         Column(Modifier.weight(1f).padding(start = 14.dp, end = 10.dp)) {
             T(title, size = 14.4.sp, lineHeight = 18.7.sp)
             if (!summary.isNullOrBlank()) {
@@ -582,17 +585,25 @@ private fun RowShell(
     /** Text of a small pill shown right after the label (e.g. "Up to date"); none when null. */
     badge: String? = null,
     badgeTone: PillTone = PillTone.Good,
+    /** An icon tile before the label, like the navigation rows have; none when null. */
+    icon: VIcon? = null,
     control: @Composable () -> Unit,
 ) {
     val palette = LocalPalette.current
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .heightIn(min = if (icon != null) 64.dp else 52.dp)
+            .padding(horizontal = 16.dp, vertical = if (icon != null) 12.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (icon != null) 14.dp else 12.dp),
     ) {
+        if (icon != null) {
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Accent.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center,
+            ) { VIconView(icon, 20.dp, Accent) }
+        }
         Column(Modifier.weight(1f)) {
             if (badge != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -822,8 +833,8 @@ private fun WebToggle(checked: Boolean, onChange: (Boolean) -> Unit) {
 }
 
 @Composable
-private fun ToggleRow(label: String, hint: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    RowShell(label, hint) { WebToggle(checked, onChange) }
+private fun ToggleRow(label: String, hint: String?, checked: Boolean, icon: VIcon? = null, onChange: (Boolean) -> Unit) {
+    RowShell(label, hint, icon = icon) { WebToggle(checked, onChange) }
 }
 
 @Composable
@@ -1094,6 +1105,7 @@ internal fun SmallButton(
         T(text, size = 12.8.sp, color = if (tonal) palette.text else AccentOn, weight = FontWeight.SemiBold, maxLines = 1)
     }
 }
+
 /** Light / Dark / System as one segmented control, like the mockup. */
 @Composable
 private fun ThemeSegments(selected: String, onSelect: (String) -> Unit) {
