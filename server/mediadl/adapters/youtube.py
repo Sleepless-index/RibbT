@@ -69,7 +69,9 @@ class YouTubeAdapter(PlatformAdapter):
         return payload
 
     def extract(self, url):
-        info = self._dump_info(url)
+        return self.post_from_info(self._dump_info(url))
+
+    def post_from_info(self, info):
         formats = info.get("formats") or []
         candidates = video_candidates(formats, best_audio_url(formats))
         if not candidates:
