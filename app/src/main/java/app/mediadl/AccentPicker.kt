@@ -98,7 +98,13 @@ fun AccentPicker(vm: AppViewModel) {
                     vm.updateAccent(DefaultAccent, save = true)
                     open = false
                 }
-                if (!isDefault) AccentSwatch(vm.accent, true, "Your custom accent, #${hexOf(vm.accent)}") { open = true }
+                val custom = if (isDefault) vm.customAccent else vm.accent
+                if (custom != null) {
+                    AccentSwatch(custom, !isDefault, "Your custom accent, #${hexOf(custom)}") {
+                        // Switching back from the default re-applies it; tapping the active one opens the picker.
+                        if (isDefault) vm.updateAccent(custom, save = true) else open = true
+                    }
+                }
                 Box(
                     Modifier
                         .size(32.dp)

@@ -75,6 +75,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var theme by mutableStateOf(prefs.theme)
     var accent by mutableStateOf(Color(prefs.accent))
+    var customAccent by mutableStateOf(prefs.customAccent.takeIf { it != 0 }?.let { Color(it) })
     var playlistAudio by mutableStateOf(prefs.playlistAudio)
     var saveTo by mutableStateOf(prefs.saveTo)
     var sortByType by mutableStateOf(prefs.sortByType)
@@ -257,6 +258,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         applyAccent(color)
         if (save) {
             prefs.accent = color.toArgb()
+            if (hexOf(color) != hexOf(DefaultAccent)) {
+                prefs.customAccent = color.toArgb()
+                customAccent = color
+            }
             savedPulse++
         }
     }
