@@ -388,6 +388,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** "Downloading · 42%" style line shown under the RibbT row while an update is in progress. */
     var appUpdateStatus by mutableStateOf<String?>(null)
+    /** Download progress of the app update, 0-100; null before it starts, when the size is unknown or when idle. */
+    var appUpdatePercent by mutableStateOf<Int?>(null)
 
     /**
      * Downloads the new APK inside the app (progress shows in the toast, the queue and the Settings row)
@@ -412,9 +414,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val fraction = if (total > 0) (done.toFloat() / total).coerceIn(0f, 1f) else null
                     val line = if (fraction != null) "Downloading · ${(fraction * 100).toInt()}%" else "Downloading · ${formatBytes(done)}"
                     appUpdateStatus = line
+                    appUpdatePercent = fraction?.let { (it * 100).toInt() }
                     updateToast(toast) { it.copy(progress = fraction, status = line) }
                 }
                 appUpdateStatus = "Installing…"
+                appUpdatePercent = null
                 updateToast(toast) { it.copy(progress = null, status = "Confirm the update on the next screen") }
                 AppInstaller.install(app, apk)
                 // Android now shows its own confirmation. The app is replaced and restarted when it finishes.
@@ -424,12 +428,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: ApiException) {
                 appUpdateBusy = false
                 appUpdateStatus = null
+                appUpdatePercent = null
                 finishToast(toast, ToastPhase.Bad, "Failed · ${e.message.orEmpty().take(90)}", notify = false)
             }
         }
         trackDownload(toast, job) {
             appUpdateBusy = false
             appUpdateStatus = null
+            appUpdatePercent = null
         }
     }
 

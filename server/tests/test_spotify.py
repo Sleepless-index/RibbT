@@ -37,9 +37,9 @@ class SpotifyTests(unittest.TestCase):
                     {"url": "https://rr.googlevideo.com/v", "vcodec": "avc1", "acodec": "none", "height": 720, "protocol": "https"},
                     {"url": "https://rr.googlevideo.com/a", "vcodec": "none", "acodec": "mp4a.40.2", "abr": 128, "protocol": "https"}]}
         with mock.patch.object(adapter, "fetch_page", return_value=(TRACK, PAGE.replace("&middot;", "·"))), \
-                mock.patch("mediadl.adapters.spotify.dump_info", return_value=info) as dump:
+                mock.patch("mediadl.adapters.spotify.dump_infos", return_value=[info]) as dump:
             post = adapter.extract(TRACK)
-        self.assertIn("ytsearch1:Rick Astley Never Gonna Give You Up", dump.call_args[0][0])
+        self.assertIn("ytsearch4:Rick Astley Never Gonna Give You Up", dump.call_args[0][0])
         self.assertEqual((post["title"], post["author"], post["album"]), ("Never Gonna Give You Up", "Rick Astley", "Whenever You Need Somebody"))
         self.assertEqual(post["_cover"][0], "https://i.scdn.co/image/abc")
 
@@ -53,7 +53,7 @@ class SpotifyTests(unittest.TestCase):
         session.get.return_value = response
         with mock.patch.object(adapter, "fetch_page", side_effect=ValueError("Link redirected somewhere unexpected.")), \
                 mock.patch("mediadl.adapters.spotify.get_session", return_value=session), \
-                mock.patch("mediadl.adapters.spotify.dump_info", return_value=info):
+                mock.patch("mediadl.adapters.spotify.dump_infos", return_value=[{"id": "bad", "formats": []}, info]):
             post = adapter.extract(TRACK + "?si=abc&utm_source=copy-link")
         self.assertEqual(post["title"], "Never Gonna Give You Up")
         self.assertEqual(post["_cover"][0], "https://i.scdn.co/image/abc")
