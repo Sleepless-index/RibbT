@@ -86,6 +86,27 @@ class SpotifyTests(unittest.TestCase):
         self.assertEqual((post["title"], post["author"]), ("Never Gonna Give You Up", "Rick Astley"))
 
 
+class AudioCoverTests(unittest.TestCase):
+    def test_cover_only_for_formats_that_can_carry_it(self):
+        from mediadl.services.transforms import audio_transform
+
+        self.assertIn("1:v:0", audio_transform("mp3", 192, {}, True).args)
+        self.assertIn("1:v:0", audio_transform("m4a", 192, {}, True).args)
+        self.assertNotIn("1:v:0", audio_transform("opus", 192, {}, True).args)
+        self.assertIn("-vn", audio_transform("mp3", 192, {}, False).args)
+
+    def test_audio_links_carry_cover_and_preview(self):
+        from mediadl.services.appview import build_app_post
+
+        post = {"id": "1", "title": "T", "author": "A", "kind": "audio", "cover": "https://i.scdn.co/image/abc",
+                "audio_track": {"url": "https://cf-hls-media.sndcdn.com/p.m3u8", "hls": True}}
+        prefs = {"metadata": {"filename_style": "classic"}, "audio": {"tiktok_original": False}, "x": {"loop_as_gif": False}}
+        item = build_app_post(post, "soundcloud", prefs, "https://soundcloud.com/a/b")["items"][0]
+        self.assertIn("cover=https%3A%2F%2Fi.scdn.co", item["downloads"][0]["url"])
+        self.assertIn("hls=1", item["downloads"][0]["url"])
+        self.assertTrue(item["play_audio"].startswith("/api/audio-preview"))
+
+
 class SoundCloudInstagramTests(unittest.TestCase):
     def test_soundcloud_audio_post_and_app_item(self):
         from mediadl.services.appview import build_app_post

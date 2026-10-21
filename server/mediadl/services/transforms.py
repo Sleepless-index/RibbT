@@ -62,6 +62,9 @@ _AUDIO_FORMATS = {
     "opus": ("libopus", "opus", "opus", "audio/ogg"),
 }
 
+# Opus in Ogg has no plain "attached picture", so only these two get album art.
+_COVER_EXTS = ("mp3", "m4a")
+
 _VIDEO_ENCODE_ARGS = (
     "-c:v", "libx264",
     "-preset", "fast",
@@ -105,14 +108,23 @@ def mux_transform(container):
     return Transform(args=(*MUX_MAPS, "-c", "copy", *tail), ext=ext, mime=mime, rw_timeout=VIDEO_RW_TIMEOUT)
 
 
-def audio_transform(fmt, bitrate, tags=None):
+def audio_transform(fmt, bitrate, tags=None, cover=False):
+    """Re-encode to the chosen audio format with tags and, when a second input is the cover, album art."""
     codec, container, ext, mime = _AUDIO_FORMATS.get(fmt) or _AUDIO_FORMATS["mp3"]
     tag_args = []
     for key, value in (tags or {}).items():
         if value:
             tag_args += ["-metadata", f"{key}={value}"]
+    cover = bool(cover) and ext in _COVER_EXTS
+    picture = (
+        "-map", "0:a:0", "-map", "1:v:0",
+        "-c:v", "mjpeg", "-q:v", "3", "-pix_fmt", "yuvj420p",
+        "-vf", "crop='min(iw,ih)':'min(iw,ih)',scale=600:600",
+        "-disposition:v:0", "attached_pic",
+        "-metadata:s:v", "title=Album cover", "-metadata:s:v", "comment=Cover (front)",
+    ) if cover else ("-vn",)
     args = (
-        "-vn",
+        *picture,
         "-c:a", codec,
         "-b:a", f"{bitrate}k",
         "-map_metadata", "0",
@@ -121,6 +133,20 @@ def audio_transform(fmt, bitrate, tags=None):
         "-f", container,
     )
     return Transform(args=args, ext=ext, mime=mime)
+
+
+def audio_supports_cover(fmt):
+    return (_AUDIO_FORMATS.get(fmt) or _AUDIO_FORMATS["mp3"])[2] in _COVER_EXTS
+
+
+def audio_preview_transform():
+    """A listenable stream for the in-app player when the source is an HLS playlist."""
+    return Transform(
+        args=("-vn", "-c:a", "aac", "-b:a", "160k", "-f", "adts", "-"),
+        ext="aac",
+        mime="audio/aac",
+        rw_timeout=STREAM_RW_TIMEOUT,
+    )
 
 
 def video_transform(container, cap_bps, mux=False):

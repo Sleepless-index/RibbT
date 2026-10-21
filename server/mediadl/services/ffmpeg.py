@@ -116,13 +116,15 @@ def _input_options(headers, rw_timeout):
     ]
 
 
-def spawn(urls, args, rw_timeout, stdout=subprocess.PIPE):
+def spawn(urls, args, rw_timeout, stdout=subprocess.PIPE, local=()):
     command = [FFMPEG, "-hide_banner", "-loglevel", "warning", "-nostdin", "-y"]
     for url in urls:
         final_url, headers = resolve_media(url)
         if not final_url:
             raise blocked_media_url()
         command += [*_input_options(headers, rw_timeout), "-i", final_url]
+    for path in local:
+        command += ["-i", path]
     command += args
     try:
         return subprocess.Popen(command, stdout=stdout, stderr=subprocess.PIPE, env=child_env())

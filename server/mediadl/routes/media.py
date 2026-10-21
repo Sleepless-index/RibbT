@@ -6,7 +6,7 @@ from flask import Blueprint, Response, request
 from ..adapters import pick_adapter
 from ..config import TWITTER_MEDIA_HOSTS
 from ..errors import MediaError, blocked_media_url
-from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_from_network, transcode_to_file
+from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_audio, transcode_to_file
 from ..services import subtitles as subtitle_service
 from ..services.ffmpeg import probe_bitrate
 from ..services.mediatypes import content_disposition
@@ -14,6 +14,8 @@ from ..services.net import content_type_of, host_ok, resolve_media
 from ..services.transforms import (
     IMAGE_TRANSFORMS,
     STREAM_TRANSFORMS,
+    audio_preview_transform,
+    audio_supports_cover,
     audio_transform,
     bitrate_to_bps,
     mux_preview_transform,
@@ -100,11 +102,30 @@ def audio():
     url = require_media_url(media_url_arg())
     name = filename_arg("audio")
     settings = current_preferences()["audio"]
-    transform = audio_transform(settings["format"], settings["bitrate"], audio_tags_arg())
-    if request.args.get("hls") == "1" or ".m3u8" in url.split("?", 1)[0]:
-        # An HLS playlist is many small files: ffmpeg reads it straight from the network.
-        return transcode_from_network(url, name, transform)
-    return transcode_to_file(url, name, transform)
+    tags = audio_tags_arg()
+    cover = request.args.get("cover", "")
+    cover = cover if cover and audio_supports_cover(settings["format"]) and _media_url_ok(cover) else None
+    hls = request.args.get("hls") == "1" or ".m3u8" in url.split("?", 1)[0]
+    return transcode_audio(
+        url, name,
+        lambda has_cover: audio_transform(settings["format"], settings["bitrate"], tags, has_cover),
+        cover_url=cover, hls=hls,
+    )
+
+
+@bp.get("/api/audio-preview")
+def audio_preview():
+    """Plays a track the app can't stream directly (an HLS playlist)."""
+    url = require_media_url(media_url_arg())
+    return stream_ffmpeg(url, filename_arg("preview"), audio_preview_transform(), inline=True)
+
+
+def _media_url_ok(url):
+    try:
+        require_media_url(url)
+        return True
+    except Exception:
+        return False
 
 
 @bp.get("/api/subtitle")

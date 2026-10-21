@@ -28,10 +28,10 @@ def subtitle_path(page, lang, auto, name):
     return _endpoint("/api/subtitle", {"u": page, "lang": lang, "auto": auto, "name": name})
 
 
-def audio_path(url, name, title=None, artist=None, album=None, source=None, hls=False):
+def audio_path(url, name, title=None, artist=None, album=None, source=None, hls=False, cover=None):
     return _endpoint(
         "/api/audio",
-        {"u": url, "name": name, "title": title, "artist": artist, "album": album, "source": source, "hls": hls},
+        {"u": url, "name": name, "title": title, "artist": artist, "album": album, "source": source, "hls": hls, "cover": cover},
     )
 
 
@@ -85,7 +85,7 @@ def build_app_post(post, platform, prefs, link):
                 "url": audio_path(
                     video.get("audio_url") or video["url"], audio_name,
                     title=post.get("title"), artist=post.get("author"),
-                    album=platform.title() if platform else None, source=link,
+                    album=platform.title() if platform else None, source=link, cover=cover,
                 ),
                 "name": audio_name,
             })
@@ -130,13 +130,15 @@ def build_app_post(post, platform, prefs, link):
             "size": track.get("size"),
             "duration": post.get("duration") or None,
             "preview": media_path(cover, f"{post_id}_cover", True) if cover else None,
+            "play_audio": _endpoint("/api/audio-preview", {"u": track["url"]}) if track.get("hls")
+            else media_path(track["url"], f"{post_id}_listen", True),
             "downloads": [{
                 "label": "Audio",
                 "url": audio_path(
                     track["url"], audio_name,
                     title=post.get("title"), artist=post.get("author"),
                     album=post.get("album") or (platform.title() if platform else None), source=link,
-                    hls=bool(track.get("hls")),
+                    hls=bool(track.get("hls")), cover=cover,
                 ),
                 "name": audio_name,
             }],
