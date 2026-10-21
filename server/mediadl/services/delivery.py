@@ -101,8 +101,9 @@ def fetch_sources(urls):
         raise
 
 
-def encode_local(paths, name, transform):
-    """Run ffmpeg over local input files into a temp file and send that. Always cleans ``paths``."""
+def encode_local(paths, name, transform, network_urls=None):
+    """Run ffmpeg over local input files (or, with ``network_urls``, over URLs it reads itself) into a
+    temp file and send that. Always cleans ``paths``."""
     out_path = None
     slot = None
     process = None
@@ -112,7 +113,10 @@ def encode_local(paths, name, transform):
         # The output is about as big as the inputs (a straight copy) or smaller (a re-encode).
         storage.require_space(sum(os.path.getsize(path) for path in paths))
         out_path = _temp_path("." + transform.ext)
-        process = ffmpeg.spawn_local(paths, [*transform.args, out_path], stdout=subprocess.DEVNULL)
+        if network_urls:
+            process = ffmpeg.spawn(network_urls, [*transform.args, out_path], transform.rw_timeout, stdout=subprocess.DEVNULL)
+        else:
+            process = ffmpeg.spawn_local(paths, [*transform.args, out_path], stdout=subprocess.DEVNULL)
         progress.attach(process)
         stderr = ffmpeg.StderrTail(process)
         try:
@@ -166,6 +170,11 @@ def encode_local(paths, name, transform):
 
 def transcode_to_file(url, name, transform, audio_url=None):
     return encode_local(fetch_sources(_sources(url, audio_url)), name, transform)
+
+
+def transcode_from_network(url, name, transform):
+    """For sources that are not one downloadable file (HLS playlists): ffmpeg reads them itself."""
+    return encode_local([], name, transform, network_urls=[url])
 
 
 def mux_to_file(url, audio_url, name, container, cap_bps):

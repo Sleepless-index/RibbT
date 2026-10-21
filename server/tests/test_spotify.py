@@ -106,6 +106,18 @@ class SoundCloudInstagramTests(unittest.TestCase):
         self.assertIn("title=Track", download["url"])
         self.assertIn("artist=Artist", download["url"])
 
+    def test_soundcloud_hls_only_track(self):
+        from mediadl.adapters.soundcloud import audio_post
+
+        info = {"id": 9, "title": "T", "uploader": "U", "formats": [
+            {"url": "https://cf-hls-media.sndcdn.com/p.m3u8", "format_id": "hls_aac_160k", "vcodec": "none",
+             "acodec": "aac", "abr": 160, "protocol": "m3u8_native"},
+            {"url": "https://cf-hls-media.sndcdn.com/x.m3u8", "format_id": "hls_mp3_128_preview", "vcodec": "none",
+             "acodec": "mp3", "abr": 999, "protocol": "m3u8_native"}]}
+        post = audio_post(info)
+        self.assertTrue(post["audio_track"]["hls"])
+        self.assertTrue(post["audio_track"]["url"].endswith("p.m3u8"))
+
     def test_instagram_links_and_carousel(self):
         adapter = pick_adapter("https://www.instagram.com/reel/Cabc123/?igsh=x")
         self.assertEqual(adapter.name, "instagram")
@@ -118,6 +130,12 @@ class SoundCloudInstagramTests(unittest.TestCase):
             post = adapter.extract("https://www.instagram.com/p/Cabc/")
         self.assertEqual(len(post["_images"]), 2)
         self.assertEqual((post["author"], post["title"]), ("someone", "Hello"))
+
+    def test_instagram_vertical_video_labelled_by_short_side(self):
+        from mediadl.adapters.instagram import _by_short_side
+
+        fixed = _by_short_side([{"width": 720, "height": 1280, "url": "u"}, {"url": "v"}])
+        self.assertEqual((fixed[0]["height"], fixed[1].get("height")), (720, None))
 
 
 if __name__ == "__main__":

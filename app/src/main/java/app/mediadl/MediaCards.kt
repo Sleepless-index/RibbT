@@ -536,7 +536,8 @@ fun MasonryWall(vm: AppViewModel, post: Post, items: List<MediaItem>, cover: Med
     Box(Modifier.alpha(if (ready) 1f else 0f)) {
         MasonryLayout(12.dp) {
             items.forEachIndexed { index, media ->
-                val wide = (ratios[index] ?: 0f) >= WIDE_RATIO
+                // A lone card takes the whole width, like the stacked layout; with more it goes back to two columns.
+                val wide = items.size == 1 || (ratios[index] ?: 0f) >= WIDE_RATIO
                 Box(Modifier.layoutId(if (wide) WIDE_CARD else "column")) {
                     MediaCard(
                         vm, post, media,
