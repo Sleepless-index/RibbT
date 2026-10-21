@@ -87,7 +87,7 @@ class SpotifyAdapter(PlatformAdapter):
         query = f"ytsearch4:{artist} {title} audio".strip()
         youtube = YouTubeAdapter()
         post = None
-        for info in dump_infos(query, "Spotify", ("--no-playlist",)):
+        for info in dump_infos(query, "Spotify"):
             try:
                 post = youtube.post_from_info(info)
                 break
