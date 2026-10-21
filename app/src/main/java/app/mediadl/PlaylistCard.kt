@@ -190,28 +190,56 @@ fun PlaylistLink(vm: AppViewModel, link: String, modifier: Modifier = Modifier) 
 fun SubtitlesCard(vm: AppViewModel, post: Post, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
     val shape = RoundedCornerShape(26.dp)
+    var open by remember(post.link) { mutableStateOf(false) }
+    val languages = post.subtitles.map { if (it.auto) "${it.label} (auto)" else it.label }
+    val summary = when {
+        languages.size <= 3 -> languages.joinToString(", ")
+        else -> languages.take(3).joinToString(", ") + " +${languages.size - 3}"
+    }
     Column(
         modifier
             .widthIn(max = 640.dp)
             .fillMaxWidth()
             .clip(shape)
-            .background(palette.card)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .background(palette.card),
     ) {
-        T("Subtitles", size = 13.44.sp, weight = FontWeight.SemiBold)
-        post.subtitles.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { track ->
-                    val state = vm.downloads[track.spec.url]
-                    val label = if (track.auto) "${track.label} (auto)" else track.label
-                    when (state) {
-                        is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.weight(1f), style = PillStyle.Tonal, busy = true)
-                        is DlState.Done -> PillButton(label, VIcons.Check, {}, Modifier.weight(1f), style = PillStyle.Done)
-                        else -> PillButton(label, VIcons.Download, { vm.downloadSubtitle(post, track) }, Modifier.weight(1f), style = PillStyle.Tonal)
+        // Header: tap to show or hide the languages you can save.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClickLabel = if (open) "Hide subtitles" else "Show subtitles", role = Role.Button) { open = !open }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Accent.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center,
+            ) { VIconView(VIcons.Captions, 19.dp, Accent) }
+            Column(Modifier.weight(1f).padding(start = 14.dp, end = 10.dp)) {
+                T("Subtitles", size = 14.4.sp, weight = FontWeight.SemiBold, lineHeight = 18.7.sp)
+                T(summary, size = 12.16.sp, color = palette.muted, maxLines = 1, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+            VIconView(VIcons.ChevronDown, 12.dp, palette.muted)
+        }
+        if (open) {
+            Column(
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                post.subtitles.chunked(2).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        row.forEach { track ->
+                            val state = vm.downloads[track.spec.url]
+                            val label = if (track.auto) "${track.label} (auto)" else track.label
+                            when (state) {
+                                is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.weight(1f), style = PillStyle.Tonal, busy = true)
+                                is DlState.Done -> PillButton(label, VIcons.Check, {}, Modifier.weight(1f), style = PillStyle.Done)
+                                else -> PillButton(label, VIcons.Download, { vm.downloadSubtitle(post, track) }, Modifier.weight(1f), style = PillStyle.Tonal)
+                            }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }

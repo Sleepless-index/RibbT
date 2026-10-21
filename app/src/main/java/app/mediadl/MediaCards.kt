@@ -1,5 +1,17 @@
 package app.mediadl
 
+import androidx.compose.foundation.layout.fillMaxHeight
+
+import androidx.compose.ui.semantics.Role
+
+import androidx.compose.runtime.saveable.rememberSaveable
+
+import androidx.compose.foundation.rememberScrollState
+
+import androidx.compose.foundation.horizontalScroll
+
+import kotlin.math.roundToInt
+
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -196,10 +208,13 @@ private fun VideoStage(
     poster: String?,
     onRatio: (Float) -> Unit,
     onFail: () -> Unit,
+    /** Drawn over the poster until playback starts (duration and size chips). */
+    overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     if (play == null) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             if (poster != null) ImageStage(poster, "Video preview", onRatio)
+            overlay()
         }
         return
     }
@@ -285,6 +300,7 @@ private fun VideoStage(
                 ) {
                     VIconView(VIcons.Play, 24.dp, Color.White)
                 }
+                overlay()
             }
         }
     }
@@ -338,6 +354,8 @@ fun MediaCard(
     modifier: Modifier = Modifier,
     onLoaded: () -> Unit = {},
     onRatio: (Float) -> Unit = {},
+    /** The post's thumbnail, offered as a "Cover" tab on the first video. */
+    cover: MediaItem? = null,
 ) {
     var ratio by remember { mutableFloatStateOf(0.75f) }
     var reported by remember { mutableStateOf(false) }
@@ -377,24 +395,27 @@ fun MediaCard(
                             ),
                         )
                     },
+                    overlay = {
+                        val width = if (reported && media.height > 0) ((media.height * ratio).roundToInt() / 2) * 2 else 0
+                        MediaChips(media.duration, if (width > 0) "$width × ${media.height}" else null)
+                    },
                 )
             } else {
                 ImageStage(preview, media.label, report)
             }
         },
         below = {
-            Actions(
-                wrapWhenNarrow = wide,
-                buttons = media.downloads.mapIndexed { index, spec ->
-                    val pending = when {
-                        !isVideo -> "Preparing…"
-                        index == 0 -> "Encoding…"
-                        else -> "Extracting…"
-                    }
-                    val button: @Composable (Modifier) -> Unit = { m -> DownloadButton(vm, post, spec, pending, m) }
-                    button
-                },
-            )
+            if (isVideo) {
+                VideoControls(vm, post, media, cover)
+            } else {
+                Actions(
+                    wrapWhenNarrow = wide,
+                    buttons = media.downloads.mapIndexed { _, spec ->
+                        val button: @Composable (Modifier) -> Unit = { m -> DownloadButton(vm, post, spec, "Preparing…", m) }
+                        button
+                    },
+                )
+            }
         },
     )
 }
@@ -502,7 +523,8 @@ private const val WIDE_CARD = "wide"
 private const val WIDE_RATIO = 1.2f
 
 @Composable
-fun MasonryWall(vm: AppViewModel, post: Post, items: List<MediaItem>) {
+fun MasonryWall(vm: AppViewModel, post: Post, items: List<MediaItem>, cover: MediaItem? = null) {
+    val firstVideo = items.firstOrNull { it.type == "video" }
     var loaded by remember(post) { mutableIntStateOf(0) }
     var timedOut by remember(post) { mutableStateOf(false) }
     val ratios = remember(post) { mutableStateMapOf<Int, Float>() }
@@ -521,9 +543,159 @@ fun MasonryWall(vm: AppViewModel, post: Post, items: List<MediaItem>) {
                         wide = true,
                         onLoaded = { loaded++ },
                         onRatio = { ratios[index] = it },
+                        cover = if (media === firstVideo) cover else null,
                     )
                 }
             }
         }
+    }
+}
+
+/** Duration (bottom left) and picture size (bottom right) over the video poster. */
+@Composable
+private fun BoxScope.MediaChips(duration: String?, resolution: String?) {
+    if (!duration.isNullOrBlank()) MediaChip(duration, Modifier.align(Alignment.BottomStart))
+    if (!resolution.isNullOrBlank()) MediaChip(resolution, Modifier.align(Alignment.BottomEnd))
+}
+
+@Composable
+private fun MediaChip(text: String, modifier: Modifier) {
+    Box(
+        modifier
+            .padding(10.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xB3000000))
+            .padding(horizontal = 9.dp, vertical = 4.dp),
+    ) { T(text, size = 11.5.sp, color = Color.White, weight = FontWeight.SemiBold, maxLines = 1, lineHeight = 14.sp) }
+}
+
+/**
+ * Under a video: Video / Audio / Cover tabs, the resolutions the server found, and one Download button.
+ * Every file the old Download / Audio / Thumbnail buttons could save is still reachable from here.
+ */
+@Composable
+private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover: MediaItem?) {
+    val palette = LocalPalette.current
+    val videoSpec = media.downloads.firstOrNull()
+    val audioSpec = media.downloads.getOrNull(1)
+    val coverSpec = cover?.downloads?.firstOrNull()
+    val tabs = buildList {
+        if (videoSpec != null) add("video")
+        if (audioSpec != null) add("audio")
+        if (coverSpec != null) add("cover")
+    }
+    var tab by remember(post.link, media.play) { mutableStateOf("video") }
+    var quality by remember(post.link, media.play) { mutableIntStateOf(media.height) }
+    val current = if (tab in tabs) tab else tabs.firstOrNull() ?: "video"
+    val picked = media.variants.firstOrNull { it.height == quality } ?: media.variants.firstOrNull { it.height == media.height }
+
+    // A half-width masonry card is too narrow for labels: tabs go icon-only and the chips scroll.
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val narrow = maxWidth < 300.dp
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (tabs.size > 1) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(palette.soft)
+                    .padding(3.dp),
+            ) {
+                tabs.forEach { key ->
+                    val on = key == current
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(11.dp))
+                            .background(if (on) palette.card else Color.Transparent)
+                            .clickable(role = Role.Tab) { tab = key },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val tint = if (on) palette.text else palette.muted
+                        VIconView(
+                            when (key) {
+                                "audio" -> VIcons.Audio
+                                "cover" -> VIcons.Photo
+                                else -> VIcons.Video
+                            },
+                            17.dp, tint,
+                        )
+                        if (!narrow) {
+                            Spacer(Modifier.width(6.dp))
+                            T(
+                                when (key) {
+                                    "audio" -> "Audio"
+                                    "cover" -> "Cover"
+                                    else -> "Video"
+                                },
+                                size = 13.5.sp, color = tint, weight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (current == "video" && media.variants.size > 1) {
+            val chips: @Composable (Modifier) -> Unit = { m ->
+                media.variants.forEach { option ->
+                    val on = option.height == (picked?.height ?: quality)
+                    Box(
+                        m
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (on) Accent.copy(alpha = 0.12f) else Color.Transparent)
+                            .border(1.5.dp, if (on) Accent else palette.line, RoundedCornerShape(14.dp))
+                            .clickable(role = Role.RadioButton) { quality = option.height },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        T(option.label, size = 13.5.sp, color = if (on) Accent else palette.text, weight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+                    }
+                }
+            }
+            if (!narrow && media.variants.size <= 4) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    chips(Modifier.weight(1f))
+                }
+            } else {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    chips(Modifier.width(76.dp))
+                }
+            }
+        }
+        when (current) {
+            "audio" -> if (audioSpec != null) {
+                ActionButton(
+                    vm, post, audioSpec,
+                    if (audioSpec.label.contains("sound", ignoreCase = true)) "Download original sound" else "Download audio",
+                    VIcons.Audio, "Extracting…",
+                )
+            }
+            "cover" -> if (coverSpec != null) {
+                ActionButton(vm, post, coverSpec, "Download cover", VIcons.Download, "Preparing…")
+            }
+            else -> if (videoSpec != null) {
+                val spec = picked?.spec ?: videoSpec
+                val bytes = picked?.size?.takeIf { it > 0 } ?: media.size
+                ActionButton(
+                    vm, post, spec,
+                    if (bytes > 0 && !narrow) "Download · ${formatBytes(bytes)}" else "Download",
+                    VIcons.Download, "Encoding…",
+                )
+            }
+        }
+    }
+    }
+}
+
+@Composable
+private fun ActionButton(vm: AppViewModel, post: Post, spec: DownloadSpec, label: String, icon: VIcon, pending: String) {
+    val modifier = Modifier.fillMaxWidth()
+    when (vm.downloads[spec.url]) {
+        is DlState.Busy -> PillButton(label, icon, {}, modifier, busy = true, height = 46.dp)
+        is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, modifier, style = PillStyle.Done, height = 46.dp)
+        else -> PillButton(label, icon, { vm.download(post, spec, pending) }, modifier, height = 46.dp)
     }
 }

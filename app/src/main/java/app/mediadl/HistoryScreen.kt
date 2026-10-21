@@ -1,5 +1,11 @@
 package app.mediadl
 
+import androidx.compose.foundation.horizontalScroll
+
+import androidx.compose.ui.res.painterResource
+
+import androidx.compose.foundation.Image
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.offset
 
@@ -174,49 +180,79 @@ private val SORT_CHOICES = listOf(
     Choice("newest", "Newest"), Choice("oldest", "Oldest"), Choice("largest", "Largest"),
 )
 
-/** Type chips on the page; platform and sort live behind the filter button. */
+/** Service chips (with their logos) on the page; type and sort live behind the filter button. */
 @Composable
 private fun FilterRow(vm: AppViewModel) {
     val palette = LocalPalette.current
     var showFilters by remember { mutableStateOf(false) }
-    val active = vm.historyPlatform.isNotEmpty() || vm.historySort != "newest"
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        TYPE_CHOICES.forEach { choice ->
-            OptionChip(choice.label, vm.historyType == choice.value, Modifier.weight(1f), palette.card) { vm.historyType = choice.value }
+    val active = vm.historyType.isNotEmpty() || vm.historySort != "newest"
+    val present = remember(vm.platforms, vm.history.size) {
+        vm.history.map { it.platform }.distinct().map { name ->
+            vm.platforms.firstOrNull { it.name == name } ?: Platform(name, name, emptyList(), emptyList())
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ServiceChip("All", null, vm.historyPlatform.isEmpty()) { vm.historyPlatform = "" }
+            present.forEach { platform ->
+                ServiceChip(platform.label, platform.name, vm.historyPlatform == platform.name) { vm.historyPlatform = platform.name }
+            }
         }
         Box(
             Modifier
-                .size(36.dp)
+                .size(44.dp)
                 .clip(CircleShape)
                 .background(if (active) Accent.copy(alpha = 0.14f) else palette.card)
+                .border(1.dp, if (active) Accent else palette.line, CircleShape)
                 .clickable(onClickLabel = "Filter and sort", role = Role.Button) { showFilters = true },
             contentAlignment = Alignment.Center,
         ) {
             VIconView(VIcons.Filter, 18.dp, if (active) Accent else palette.text)
-            if (active) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(Accent),
-                )
-            }
         }
     }
     if (showFilters) FilterDialog(vm) { showFilters = false }
 }
 
-/** Platform and sort, tucked behind the filter button. */
+/** "All" or one service: a pill with the service's logo, filled dark while selected. */
+@Composable
+private fun ServiceChip(label: String, platform: String?, selected: Boolean, onClick: () -> Unit) {
+    val palette = LocalPalette.current
+    val context = LocalContext.current
+    val logo = remember(platform) {
+        if (platform == null) 0 else context.resources.getIdentifier("logo_$platform", "drawable", context.packageName)
+    }
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        Modifier
+            .height(44.dp)
+            .clip(shape)
+            .background(if (selected) palette.text else palette.card)
+            .border(1.dp, if (selected) palette.text else palette.line, shape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (logo != 0) {
+            Image(
+                painter = painterResource(logo),
+                contentDescription = null,
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)),
+            )
+        }
+        T(label, size = 14.sp, color = if (selected) palette.bg else palette.text, weight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+/** Type and sort, tucked behind the filter button. */
 @Composable
 private fun FilterDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
-    val platformChoices = remember(vm.platforms, vm.history.size) {
-        val present = vm.history.map { it.platform }.toSet()
-        listOf(Choice("", "All")) + vm.platforms.filter { it.name in present }.map { Choice(it.name, it.label) }
-    }
-    val changed = vm.historyPlatform.isNotEmpty() || vm.historySort != "newest"
+    val changed = vm.historyType.isNotEmpty() || vm.historySort != "newest"
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier
@@ -229,8 +265,8 @@ private fun FilterDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 .padding(20.dp),
         ) {
             T("Filter and sort", size = 18.sp, weight = FontWeight.Bold)
-            T("Platform", size = 12.48.sp, color = palette.muted, weight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
-            ChipGrid(platformChoices, vm.historyPlatform) { vm.historyPlatform = it }
+            T("Type", size = 12.48.sp, color = palette.muted, weight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
+            ChipGrid(TYPE_CHOICES, vm.historyType) { vm.historyType = it }
             T("Sort by", size = 12.48.sp, color = palette.muted, weight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
             ChipGrid(SORT_CHOICES, vm.historySort) { vm.historySort = it }
             Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -238,7 +274,7 @@ private fun FilterDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     PillButton(
                         text = "Reset",
                         icon = null,
-                        onClick = { vm.historyPlatform = ""; vm.historySort = "newest" },
+                        onClick = { vm.historyType = ""; vm.historySort = "newest" },
                         modifier = Modifier.weight(1f),
                         style = PillStyle.Tonal,
                         height = 42.dp,
@@ -323,6 +359,13 @@ private fun HistoryRow(vm: AppViewModel, entry: HistoryEntry, onOpen: () -> Unit
             val size = if (entry.totalBytes > 0) " · ${formatBytes(entry.totalBytes)}" else ""
             T("$ago · $files$size", size = 12.16.sp, color = palette.muted, maxLines = 1, lineHeight = 16.4.sp)
         }
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .clickable(onClickLabel = "Details", role = Role.Button, onClick = onOpen),
+            contentAlignment = Alignment.Center,
+        ) { VIconView(VIcons.More, 18.dp, palette.muted) }
     }
 }
 

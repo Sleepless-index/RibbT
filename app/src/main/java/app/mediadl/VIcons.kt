@@ -106,6 +106,8 @@ object VIcons {
         1.8f,
     )
     val Plus = VIcon(listOf("M12 5v14", "M5 12h14"), 2.2f)
+    val More = VIcon(listOf("M5 12h.01", "M12 12h.01", "M19 12h.01"), 3f)
+    val Captions = VIcon(listOf("M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z", "M7 11h3", "M14 11h3", "M7 15h5", "M15 15h2"), 2f)
     val Copy = VIcon(
         listOf(
             "M11 8h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z",

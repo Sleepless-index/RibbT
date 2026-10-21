@@ -202,7 +202,30 @@ private fun SettingsHome(vm: AppViewModel) {
 
     // Looks for a new RibbT once per session when Settings opens, quietly.
     LaunchedEffect(Unit) { if (vm.appRelease == null && !vm.appChecking) vm.checkAppUpdate(silent = true) }
-    CardBox(Modifier.fillMaxWidth()) { AppUpdateRow(vm) }
+
+    // What the three shortcut rows currently say, e.g. "Internal storage".
+    val saveName = when (vm.saveTo) {
+        "sdcard" -> "SD card"
+        "folder" -> vm.folderName.ifBlank { "Custom folder" }
+        else -> "Internal storage"
+    }
+    val qualityName = data.choices["video.quality"]
+        ?.firstOrNull { it.value == (vm.settingValue("video.quality") as? String) }?.label
+
+    Column {
+        SectionTitle("Downloads")
+        CardBox(Modifier.fillMaxWidth()) {
+            Column {
+                NavRow(VIcons.Folder, "Save to", null, value = saveName) { vm.settingsPage = PAGE_DOWNLOADING }
+                if ("Video" in data.sections) {
+                    Separator()
+                    NavRow(VIcons.Video, "Default quality", null, value = qualityName) { vm.settingsPage = "Video" }
+                }
+                Separator()
+                NavRow(VIcons.Photo, "Media layout", null, value = MediaLayout.from(vm.layout).label) { vm.settingsPage = PAGE_GENERAL }
+            }
+        }
+    }
 
     Column {
         SectionTitle("Appearance")
@@ -213,10 +236,6 @@ private fun SettingsHome(vm: AppViewModel) {
                 AccentPicker(vm)
             }
         }
-    }
-
-    CardBox(Modifier.fillMaxWidth()) {
-        NavRow(iconFor(PAGE_GENERAL), PAGE_GENERAL, "Layout, motion, paste and go, debug info") { vm.settingsPage = PAGE_GENERAL }
     }
 
     Column {
@@ -235,17 +254,28 @@ private fun SettingsHome(vm: AppViewModel) {
         SectionTitle("App")
         CardBox(Modifier.fillMaxWidth()) {
             Column {
-                NavRow(iconFor(PAGE_SERVER), PAGE_SERVER, summaryFor(PAGE_SERVER, emptyList())) { vm.settingsPage = PAGE_SERVER }
-                Separator()
                 NavRow(
                     iconFor(PAGE_SERVICES),
                     PAGE_SERVICES,
-                    when {
-                        vm.platforms.isNotEmpty() -> "${vm.platforms.size} services"
-                        vm.online == false -> "Start the server to see them"
+                    null,
+                    value = when {
+                        vm.platforms.isNotEmpty() -> "${vm.platforms.size} sites"
+                        vm.online == false -> "Offline"
                         else -> "Loading…"
                     },
                 ) { vm.settingsPage = PAGE_SERVICES }
+                Separator()
+                AppUpdateRow(vm)
+                Separator()
+                ToggleRow(
+                    "Debug info",
+                    "Adds Copy to failed downloads, with details for bug reports.",
+                    vm.debugInfo,
+                ) { vm.updateDebugInfo(it) }
+                Separator()
+                NavRow(iconFor(PAGE_GENERAL), PAGE_GENERAL, "Layout, motion, paste and go") { vm.settingsPage = PAGE_GENERAL }
+                Separator()
+                NavRow(iconFor(PAGE_SERVER), PAGE_SERVER, summaryFor(PAGE_SERVER, emptyList())) { vm.settingsPage = PAGE_SERVER }
             }
         }
     }
@@ -329,7 +359,7 @@ private fun GeneralCard(vm: AppViewModel) {
             Separator()
             ChoiceRow(
                 "Reduce motion",
-                "Stops the mascot from moving.",
+                "Auto follows your phone. Reduced stops the mascot from moving.",
                 MOTION_CHOICES,
                 vm.reduceMotion,
             ) { vm.updateReduceMotion(it) }
@@ -339,12 +369,6 @@ private fun GeneralCard(vm: AppViewModel) {
                 "Fetch a copied link when you open RibbT.",
                 vm.pasteAndGo,
             ) { vm.updatePasteAndGo(it) }
-            Separator()
-            ToggleRow(
-                "Debug info",
-                "Adds a Copy button to failed downloads with details for bug reports.",
-                vm.debugInfo,
-            ) { vm.updateDebugInfo(it) }
         }
     }
 }
@@ -451,7 +475,7 @@ private fun AppUpdateRow(vm: AppViewModel) {
     val release = vm.appRelease
     val busy = vm.appUpdateBusy
     RowShell(
-        "RibbT",
+        "Updates",
         vm.appUpdateStatus ?: buildString {
             append("Version ${vm.appVersion}")
             if (release?.available == true && !release.version.isNullOrBlank()) append(" · ${release.version} is ready")
@@ -524,7 +548,7 @@ private fun PageHeader(title: String, onBack: () -> Unit, trailing: @Composable 
 }
 
 @Composable
-private fun NavRow(icon: VIcon, title: String, summary: String?, onClick: () -> Unit) {
+private fun NavRow(icon: VIcon, title: String, summary: String?, value: String? = null, onClick: () -> Unit) {
     val palette = LocalPalette.current
     Row(
         Modifier
@@ -543,6 +567,9 @@ private fun NavRow(icon: VIcon, title: String, summary: String?, onClick: () -> 
             if (!summary.isNullOrBlank()) {
                 T(summary, size = 12.16.sp, color = palette.muted, maxLines = 1, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp))
             }
+        }
+        if (!value.isNullOrBlank()) {
+            T(value, size = 13.5.sp, color = palette.muted, maxLines = 1, modifier = Modifier.widthIn(max = 150.dp).padding(end = 12.dp))
         }
         VIconView(VIcons.ChevronRight, 7.dp, palette.muted)
     }

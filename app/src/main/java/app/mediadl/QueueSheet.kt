@@ -176,6 +176,26 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                             )
                         }
                     }
+                    if (item.thumb != null && item.phase != ToastPhase.Active) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopStart)
+                                .offset(x = (-4).dp, y = (-4).dp)
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(if (bad) palette.err else if (item.phase == ToastPhase.Ok) Accent else palette.muted),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            VIconView(
+                                when (item.phase) {
+                                    ToastPhase.Ok -> VIcons.Check
+                                    ToastPhase.Bad -> VIcons.Error
+                                    else -> VIcons.CloseSmall
+                                },
+                                11.dp, Color.White,
+                            )
+                        }
+                    }
                     if (item.platform != null) {
                         PlatformBadge(item.platform, Modifier.align(Alignment.BottomEnd).offset(x = 5.dp, y = 5.dp), size = 20.dp)
                     }

@@ -5,11 +5,19 @@ import org.json.JSONObject
 
 data class DownloadSpec(val label: String, val url: String, val name: String)
 
+/** One resolution a video can be saved in. [size] is in bytes, 0 when the site doesn't say. */
+data class QualityOption(val height: Int, val label: String, val size: Long, val spec: DownloadSpec)
+
 data class MediaItem(
     val type: String,
     val label: String,
     val preview: String?,
     val downloads: List<DownloadSpec>,
+    /** Pixel height of the stream the server picked, 0 when unknown. */
+    val height: Int = 0,
+    val size: Long = 0L,
+    val duration: String? = null,
+    val variants: List<QualityOption> = emptyList(),
     val play: String? = null,
     val playAlt: String? = null,
     /** Separate audio track to play together with [play] (YouTube serves video and sound apart). */
@@ -253,6 +261,17 @@ fun JSONObject.toPost(): Post = Post(
             play = item.optStringOrNull("play"),
             playAlt = item.optStringOrNull("play_alt"),
             playAudio = item.optStringOrNull("play_audio"),
+            height = item.optInt("height", 0),
+            size = item.optLong("size", 0L),
+            duration = item.optStringOrNull("duration"),
+            variants = (item.optJSONArray("variants") ?: JSONArray()).mapObjects { v ->
+                QualityOption(
+                    height = v.optInt("height", 0),
+                    label = v.optString("label"),
+                    size = v.optLong("size", 0L),
+                    spec = DownloadSpec("Download", v.optString("url"), v.optString("name")),
+                )
+            }.filter { it.height > 0 && it.spec.url.isNotBlank() },
             downloads = (item.optJSONArray("downloads") ?: JSONArray()).mapObjects {
                 DownloadSpec(it.optString("label"), it.optString("url"), it.optString("name"))
             },

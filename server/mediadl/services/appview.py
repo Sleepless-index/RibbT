@@ -83,10 +83,26 @@ def build_app_post(post, platform, prefs, link):
                 "name": audio_name,
             })
         suffix = f"_{index}" if len(videos) > 1 else ""
+        variants = []
+        for variant in video.get("variants") or []:
+            variant_name = name_for(
+                "live" if is_live else "video",
+                **{**extra, "height": variant["height"], "codec": variant.get("codec")},
+            )
+            variants.append({
+                "height": variant["height"],
+                "label": f"{variant['height']}p",
+                "size": variant.get("size"),
+                "name": variant_name,
+                "url": video_path(variant["url"], variant_name, loop, variant.get("audio_url")),
+            })
         items.append({
             "type": "video",
             "label": video["label"] if is_live else (f"Video {index}" if len(videos) > 1 else "Video"),
             "height": video.get("height"),
+            "size": video.get("size"),
+            "duration": post.get("duration") or None,
+            "variants": variants,
             "preview": media_path(cover, f"{post_id}_poster", True) if cover else None,
             # The app plays the picture and the sound as two streams and joins them itself, so the
             # preview needs no ffmpeg (and still has sound when ffmpeg isn't available).

@@ -94,7 +94,10 @@ fun AccentPicker(vm: AppViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AccentSwatch(DefaultAccent, isDefault, "Use the default accent") { vm.updateAccent(DefaultAccent, save = true) }
+                AccentSwatch(DefaultAccent, isDefault, "Use the default accent") {
+                    vm.updateAccent(DefaultAccent, save = true)
+                    open = false
+                }
                 if (!isDefault) AccentSwatch(vm.accent, true, "Your custom accent, #${hexOf(vm.accent)}") { open = true }
                 Box(
                     Modifier

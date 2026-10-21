@@ -162,6 +162,11 @@ fun HomeScreen(vm: AppViewModel) {
                     Spacer(Modifier.height(16.dp))
                     ParseSkeleton()
                 }
+                if (ready && vm.loading) {
+                    // Opening a playlist from a post, or parsing again: show progress while the old result stays.
+                    Spacer(Modifier.height(16.dp))
+                    ParseSkeleton()
+                }
                 if (post != null) {
                     Spacer(Modifier.height(16.dp))
                     Results(vm, post)
@@ -179,7 +184,12 @@ private fun Results(vm: AppViewModel, post: Post) {
     val layout = MediaLayout.from(vm.layout)
     val photos = post.items.filter { isPhoto(it) }
     val useCarousel = layout == MediaLayout.Carousel && photos.size >= 2
-    val singles = if (useCarousel) post.items.filter { !isPhoto(it) } else post.items
+    // On a video post the thumbnail is the "Cover" tab under the first video, not a card of its own.
+    val cover = post.items.firstOrNull { it.type == "image" && it.label == "Thumbnail" }
+        ?.takeIf { post.items.any { item -> item.type == "video" } }
+    val base = if (useCarousel) post.items.filter { !isPhoto(it) } else post.items
+    val singles = base.filter { it !== cover }
+    val firstVideo = singles.firstOrNull { it.type == "video" }
     val hasInfo = post.author.isNotBlank() || post.title.isNotBlank() || !post.avatar.isNullOrBlank()
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(22.dp)) {
@@ -193,10 +203,14 @@ private fun Results(vm: AppViewModel, post: Post) {
             step++
         }
         if (layout == MediaLayout.Masonry) {
-            MasonryWall(vm, post, singles)
+            MasonryWall(vm, post, singles, cover)
         } else {
             singles.forEach { media ->
-                MediaCard(vm, post, media, wide = false, modifier = Modifier.appear(minOf(step, 8) * 35))
+                MediaCard(
+                    vm, post, media, wide = false,
+                    modifier = Modifier.appear(minOf(step, 8) * 35),
+                    cover = if (media === firstVideo) cover else null,
+                )
                 step++
             }
             if (useCarousel) {
@@ -453,6 +467,15 @@ private fun LinkPill(vm: AppViewModel) {
             vm.input.ifBlank { vm.post?.link.orEmpty() }.removePrefix("https://").removePrefix("http://").removePrefix("www."),
             size = 15.sp, maxLines = 1, modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
         )
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(onClickLabel = "Parse this link again", role = Role.Button) {
+                    vm.parse(vm.input.ifBlank { vm.post?.link.orEmpty() })
+                },
+            contentAlignment = Alignment.Center,
+        ) { VIconView(VIcons.Refresh, 18.dp, palette.muted) }
         Box(
             Modifier
                 .size(40.dp)

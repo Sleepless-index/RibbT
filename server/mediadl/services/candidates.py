@@ -113,8 +113,8 @@ def codec_from_ytdlp(vcodec):
     return None
 
 
-def candidate(url, src=None, codec=None, height=None):
-    return {"url": url, "src": src, "codec": codec, "height": height}
+def candidate(url, src=None, codec=None, height=None, size=None):
+    return {"url": url, "src": src, "codec": codec, "height": height, "size": size}
 
 
 def candidate_from_url(url):

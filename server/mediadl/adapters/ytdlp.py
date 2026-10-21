@@ -90,7 +90,7 @@ def dump_playlist(url, label, limit=MAX_PLAYLIST_ENTRIES):
     return info
 
 
-def _clock(seconds):
+def clock_text(seconds):
     try:
         total = int(seconds)
     except (TypeError, ValueError):
@@ -137,7 +137,7 @@ def playlist_payload(info, watch_base=None, thumb_base=None):
             "id": str(entry.get("id") or ""),
             "title": title[:TITLE_LIMIT] or "Untitled",
             "author": entry.get("uploader") or entry.get("channel") or "",
-            "duration": _clock(entry.get("duration")),
+            "duration": clock_text(entry.get("duration")),
             "url": link,
             "thumb": _entry_thumb(entry, thumb_base),
         })
@@ -208,6 +208,7 @@ def video_candidates(formats, audio_url):
             src=f.get("format_note") or None,
             codec=codec_from_ytdlp(f.get("vcodec")),
             height=f.get("height"),
+            size=f.get("filesize") or f.get("filesize_approx"),
         )
         if audio_url and not has_stream(f.get("acodec")):
             entry["audio"] = audio_url

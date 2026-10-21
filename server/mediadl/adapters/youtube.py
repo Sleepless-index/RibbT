@@ -6,6 +6,7 @@ from ..services.ranking import CODEC_PRIORITY, UNKNOWN_CODEC_RANK, quality_score
 from .base import PlatformAdapter, new_post, video_group
 from .ytdlp import (
     best_audio_url,
+    clock_text,
     dump_info,
     dump_playlist,
     playlist_payload,
@@ -83,6 +84,7 @@ class YouTubeAdapter(PlatformAdapter):
         )
         post["_videos"].append(video_group(candidates))
         post["subtitles"] = subtitle_tracks(info)
+        post["duration"] = clock_text(info.get("duration"))
 
         covers = []
         if VIDEO_ID_RE.match(video_id):

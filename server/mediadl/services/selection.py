@@ -19,6 +19,29 @@ def first_working(candidates, kind, cache):
     return candidates[0]
 
 
+MAX_VARIANTS = 8
+
+
+def _variants(candidates):
+    """One entry per resolution (the best-ranked stream at that height), tallest first."""
+    seen = set()
+    variants = []
+    for c in candidates:
+        height = c.get("height")
+        if not height or height in seen:
+            continue
+        seen.add(height)
+        variants.append({
+            "height": height,
+            "url": c["url"],
+            "audio_url": c.get("audio"),
+            "size": c.get("size"),
+            "codec": c.get("codec"),
+        })
+    variants.sort(key=lambda v: v["height"], reverse=True)
+    return variants[:MAX_VARIANTS]
+
+
 def resolve_video(group, cache, adapter, prefs):
     candidates = adapter.rank(group["cands"], prefs)
     if not candidates:
@@ -47,6 +70,11 @@ def resolve_video(group, cache, adapter, prefs):
     }
     if chosen.get("audio"):
         result["audio_url"] = chosen["audio"]
+    if chosen.get("size"):
+        result["size"] = chosen["size"]
+    variants = _variants(working)
+    if len(variants) > 1:
+        result["variants"] = variants
     for key in PASSTHROUGH_KEYS:
         if group.get(key):
             result[key] = group[key]

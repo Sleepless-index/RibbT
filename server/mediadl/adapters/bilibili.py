@@ -9,6 +9,7 @@ from ..services.candidates import candidate, codec_from_ytdlp, image_candidates
 from ..services.net import host_ok
 from .base import PlatformAdapter, new_post, video_group
 from .ytdlp import (
+    clock_text,
     best_audio_url,
     dump_playlist,
     has_stream as _has_stream,
@@ -73,6 +74,7 @@ class BilibiliAdapter(PlatformAdapter):
                 src=f.get("format_note") or None,
                 codec=codec_from_ytdlp(f.get("vcodec")),
                 height=f.get("height"),
+                size=f.get("filesize") or f.get("filesize_approx"),
             )
             if audio_url and not _has_stream(f.get("acodec")):
                 entry["audio"] = audio_url
@@ -81,6 +83,7 @@ class BilibiliAdapter(PlatformAdapter):
             raise ValueError("No downloadable stream found for that Bilibili video.")
         post["_videos"].append(video_group(candidates))
         post["subtitles"] = subtitle_tracks(info)
+        post["duration"] = clock_text(info.get("duration"))
 
         if info.get("thumbnail"):
             post["_cover"] = image_candidates({"urlDefault": info["thumbnail"]})
