@@ -97,6 +97,7 @@ object VIcons {
         listOf("M8 5.14v13.72a1 1 0 0 0 1.54.84l10.29-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14z"),
         0f,
     )
+    val Pause = VIcon(listOf("M7 5h3.2v14H7z", "M13.8 5H17v14h-3.2z"), 0f)
     val Trash = VIcon(
         listOf("M3 6h18", "M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2", "M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14"),
         1.8f,

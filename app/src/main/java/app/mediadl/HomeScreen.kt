@@ -114,12 +114,13 @@ fun HomeScreen(vm: AppViewModel) {
                     OfflinePill(vm)
                     Spacer(Modifier.height(10.dp))
                 }
+                // "Starting RibbT" and the offline card sit above the input.
+                if (((vm.online == false && !vm.everOnline) || vm.starting) && post == null) {
+                    ServerStatusCard(vm)
+                    Spacer(Modifier.height(14.dp))
+                }
                 if (ready) LinkPill(vm) else LinkRow(vm)
                 vm.error?.takeIf { it.inline }?.let { info -> ErrorBox(info) }
-                if (((vm.online == false && !vm.everOnline) || vm.starting) && post == null) {
-                    Spacer(Modifier.height(14.dp))
-                    ServerStatusCard(vm)
-                }
                 if (post == null && playlist == null && vm.loading) {
                     Spacer(Modifier.height(16.dp))
                     ParseSkeleton()

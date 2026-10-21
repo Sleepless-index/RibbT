@@ -60,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
+private val QUEUE_BODY_MIN = 150.dp
+
 /** The download list, as a bottom sheet. Opened from the Queue slot in the bottom bar. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,8 +114,10 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
             }
             if (items.isEmpty()) {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 36.dp),
+                    // Same minimum height as the list below, so the sheet doesn't change size.
+                    Modifier.fillMaxWidth().heightIn(min = QUEUE_BODY_MIN).padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
                     VIconView(VIcons.Queue, 34.dp, palette.muted)
                     T("Downloads you start show up here.", size = 13.sp, color = palette.muted, modifier = Modifier.padding(top = 10.dp))
@@ -121,7 +125,7 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
             } else {
                 Column(
                     Modifier
-                        .heightIn(max = 460.dp)
+                        .heightIn(min = QUEUE_BODY_MIN, max = 460.dp)
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 8.dp),
                 ) {

@@ -114,7 +114,9 @@ def encode_local(paths, name, transform, network_urls=None):
         storage.require_space(sum(os.path.getsize(path) for path in paths))
         out_path = _temp_path("." + transform.ext)
         if network_urls:
-            process = ffmpeg.spawn(network_urls, [*transform.args, out_path], transform.rw_timeout, stdout=subprocess.DEVNULL)
+            process = ffmpeg.spawn(
+                network_urls, [*transform.args, out_path], transform.rw_timeout, stdout=subprocess.DEVNULL, local=paths,
+            )
         else:
             process = ffmpeg.spawn_local(paths, [*transform.args, out_path], stdout=subprocess.DEVNULL)
         progress.attach(process)
@@ -172,9 +174,32 @@ def transcode_to_file(url, name, transform, audio_url=None):
     return encode_local(fetch_sources(_sources(url, audio_url)), name, transform)
 
 
-def transcode_from_network(url, name, transform):
-    """For sources that are not one downloadable file (HLS playlists): ffmpeg reads them itself."""
-    return encode_local([], name, transform, network_urls=[url])
+def _fetch_cover(url):
+    """The cover picture as a temp file, or None: a missing cover never fails the download."""
+    if not url:
+        return None
+    try:
+        return fetch_sources([url])[0]
+    except Exception:
+        log.info("cover art could not be fetched; continuing without it")
+        return None
+
+
+def transcode_audio(url, name, make_transform, cover_url=None, hls=False):
+    """Audio download with optional album art. ``make_transform(has_cover)`` builds the ffmpeg arguments.
+
+    An HLS playlist is not one downloadable file, so ffmpeg reads it from the network itself.
+    """
+    cover = _fetch_cover(cover_url)
+    try:
+        paths = [] if hls else fetch_sources([url])
+    except BaseException:
+        if cover:
+            _remove(cover)
+        raise
+    if cover:
+        paths.append(cover)
+    return encode_local(paths, name, make_transform(bool(cover)), network_urls=[url] if hls else None)
 
 
 def mux_to_file(url, audio_url, name, container, cap_bps):

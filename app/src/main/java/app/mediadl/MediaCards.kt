@@ -339,7 +339,7 @@ private fun DownloadButton(
     val lower = spec.label.lowercase()
     val icon = if (lower.contains("sound") || lower.contains("audio")) VIcons.Audio else VIcons.Download
     when (vm.downloads[spec.url]) {
-        is DlState.Busy -> PillButton(spec.label, icon, {}, modifier, busy = true)
+        is DlState.Busy -> PillButton(spec.label, icon, {}, modifier, busy = true, spinner = true)
         is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, modifier, style = PillStyle.Done)
         else -> PillButton(spec.label, icon, { vm.download(post, spec, pending) }, modifier)
     }
@@ -408,6 +408,9 @@ fun MediaCard(
             if (isVideo) {
                 VideoControls(vm, post, media, cover)
             } else {
+                media.playAudio?.let { listen ->
+                    AudioPreview(vm.absolute(listen) ?: listen, Modifier.padding(bottom = 10.dp))
+                }
                 Actions(
                     wrapWhenNarrow = wide,
                     buttons = media.downloads.mapIndexed { _, spec ->
@@ -478,7 +481,7 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
                 val allKey = "all:" + post.link
                 val label = "Download all (${photos.size})"
                 when (vm.downloads[allKey]) {
-                    is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.weight(1f), busy = true)
+                    is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.weight(1f), busy = true, spinner = true)
                     is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, Modifier.weight(1f), style = PillStyle.Done)
                     else -> PillButton(label, VIcons.Download, { vm.downloadAll(post, photos) }, Modifier.weight(1f))
                 }
@@ -668,6 +671,10 @@ private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover:
         }
         when (current) {
             "audio" -> if (audioSpec != null) {
+                // Listen first: the separate sound track when there is one, else the video file's own sound.
+                (media.playAudio ?: media.play)?.let { listen ->
+                    AudioPreview(vm.absolute(listen) ?: listen)
+                }
                 ActionButton(
                     vm, post, audioSpec,
                     if (audioSpec.label.contains("sound", ignoreCase = true)) "Download original sound" else "Download audio",
@@ -695,7 +702,7 @@ private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover:
 private fun ActionButton(vm: AppViewModel, post: Post, spec: DownloadSpec, label: String, icon: VIcon, pending: String) {
     val modifier = Modifier.fillMaxWidth()
     when (vm.downloads[spec.url]) {
-        is DlState.Busy -> PillButton(label, icon, {}, modifier, busy = true, height = 46.dp)
+        is DlState.Busy -> PillButton(label, icon, {}, modifier, busy = true, spinner = true, height = 46.dp)
         is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, modifier, style = PillStyle.Done, height = 46.dp)
         else -> PillButton(label, icon, { vm.download(post, spec, pending) }, modifier, height = 46.dp)
     }
