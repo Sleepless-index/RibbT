@@ -1,11 +1,5 @@
 package app.mediadl
 
-import androidx.compose.foundation.layout.wrapContentHeight
-
-import androidx.compose.ui.draw.clipToBounds
-
-import androidx.compose.ui.graphics.luminance
-
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
@@ -91,13 +85,6 @@ fun HomeScreen(vm: AppViewModel) {
     val scroll = rememberScrollState()
     LaunchedEffect(post, playlist) { if (post == null && playlist == null) scroll.scrollTo(0) }
 
-    val mood = when {
-        vm.loading -> Mood.Thinking
-        vm.error != null -> Mood.Error
-        vm.idea -> Mood.Idea
-        else -> Mood.Normal
-    }
-
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         var contentHeight by remember { mutableIntStateOf(0) }
@@ -115,10 +102,6 @@ fun HomeScreen(vm: AppViewModel) {
                 .padding(start = 12.dp, end = 12.dp, top = 28.dp, bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (vm.online == true) {
-                ServerPill(Modifier.widthIn(max = 640.dp).fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-            }
             Spacer(Modifier.height(top))
             Column(
                 Modifier
@@ -130,27 +113,6 @@ fun HomeScreen(vm: AppViewModel) {
                 if (vm.online == false && vm.everOnline && !vm.starting) {
                     OfflinePill(vm)
                     Spacer(Modifier.height(10.dp))
-                }
-                if (!ready) {
-                    // The bunny peeks over the top of the link card: it is drawn full size, but only the
-                    // part above the card's edge shows (the card is laid out right below this box).
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(144.dp)
-                            .clipToBounds()
-                            .wrapContentHeight(Alignment.Top, unbounded = true),
-                        contentAlignment = Alignment.TopCenter,
-                    ) {
-                        Mascot(
-                            mood,
-                            vm.hopSignal,
-                            modifier = Modifier.size(width = 176.dp, height = 199.dp),
-                            typingSignal = vm.typingSignal,
-                            caret = minOf(vm.input.length, 40) / 40f,
-                            reducedMotion = rememberReducedMotion(vm.reduceMotion),
-                        )
-                    }
                 }
                 if (ready) LinkPill(vm) else LinkRow(vm)
                 vm.error?.takeIf { it.inline }?.let { info -> ErrorBox(info) }
@@ -315,15 +277,17 @@ private fun LinkRow(vm: AppViewModel) {
                 }
             }
         }
-        PillButton(
-            text = "Parse link",
-            icon = VIcons.Play,
-            onClick = { vm.parse() },
-            modifier = Modifier.fillMaxWidth(),
-            busy = vm.loading,
-            height = 46.dp,
-            spinner = vm.loading,
-        )
+        if (filled) {
+            PillButton(
+                text = "Parse link",
+                icon = VIcons.Play,
+                onClick = { vm.parse() },
+                modifier = Modifier.fillMaxWidth(),
+                busy = vm.loading,
+                height = 46.dp,
+                spinner = vm.loading,
+            )
+        }
     }
 }
 
@@ -422,28 +386,6 @@ private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
                 fontFamily = DisplayFont,
                 letterSpacing = (-0.4).sp,
             )
-        }
-    }
-}
-
-/** Top-right status, as in the mockup: a green dot while the server is up. */
-@Composable
-private fun ServerPill(modifier: Modifier = Modifier) {
-    val palette = LocalPalette.current
-    val ok = if (palette.bg.luminance() > 0.5f) Color(0xFF17783F) else Color(0xFF5BD68A)
-    Row(modifier, horizontalArrangement = Arrangement.End) {
-        Row(
-            Modifier
-                .height(34.dp)
-                .clip(CircleShape)
-                .background(palette.card)
-                .border(1.dp, palette.line, CircleShape)
-                .padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Box(Modifier.size(8.dp).clip(CircleShape).background(ok))
-            T("Server ready", size = 13.sp, weight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
