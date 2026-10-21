@@ -30,6 +30,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("accent", DEFAULT_ACCENT)
         set(value) = sp.edit().putInt("accent", value).apply()
 
+    /** The last custom accent (ARGB), kept so switching back to the default doesn't lose it; 0 when none. */
+    var customAccent: Int
+        get() = sp.getInt("custom_accent", 0)
+        set(value) = sp.edit().putInt("custom_accent", value).apply()
+
     /** Save playlists and mixes as audio instead of video. */
     var playlistAudio: Boolean
         get() = sp.getBoolean("playlistAudio", false)
