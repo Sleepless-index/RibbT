@@ -50,6 +50,7 @@ def _image_urls(item):
 class RedditAdapter(PlatformAdapter):
     name = "reddit"
     label = "Reddit"
+    features = ('Video', 'Photos')
     hosts = ("reddit.com", "redd.it")
 
     def extract(self, url):

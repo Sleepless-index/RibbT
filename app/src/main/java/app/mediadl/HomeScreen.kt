@@ -218,7 +218,7 @@ private fun LinkRow(vm: AppViewModel) {
             VIconView(VIcons.Link, 20.dp, palette.muted, Modifier.padding(start = 16.dp))
             BasicTextField(
                 value = vm.input,
-                onValueChange = { vm.input = it; vm.error = null; vm.typingSignal++ },
+                onValueChange = { vm.input = it; vm.error = null },
                 singleLine = true,
                 textStyle = TextStyle(color = palette.text, fontSize = 15.sp, fontFamily = AppFont),
                 cursorBrush = SolidColor(Accent),

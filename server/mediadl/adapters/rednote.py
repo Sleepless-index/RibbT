@@ -35,6 +35,7 @@ def is_original(candidate_):
 class RedNoteAdapter(PlatformAdapter):
     name = "rednote"
     label = "RedNote"
+    features = ('Video', 'Photos')
     hosts = ("xiaohongshu.com", "xhslink.com", "xhslink.cn", "rednote.com", "xhs.cn")
     display_hosts = ("rednote.com", "xiaohongshu.com", "xhslink.com")
 

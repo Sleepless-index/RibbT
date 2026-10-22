@@ -22,6 +22,7 @@ def _photo_candidates(photos):
 class TwitterAdapter(PlatformAdapter):
     name = "x"
     label = "X/Twitter"
+    features = ('Video', 'Photos')
     hosts = ("twitter.com", "x.com", "t.co")
 
     def extract(self, url):

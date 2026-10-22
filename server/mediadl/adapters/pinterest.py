@@ -101,6 +101,7 @@ def _pin_media(pin):
 class PinterestAdapter(PlatformAdapter):
     name = "pinterest"
     label = "Pinterest"
+    features = ('Video', 'Photos')
     hosts = (
         "pinterest.com", "pin.it",
         "pinterest.at", "pinterest.ca", "pinterest.ch", "pinterest.cl", "pinterest.de",

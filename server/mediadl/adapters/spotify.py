@@ -77,6 +77,8 @@ class SpotifyAdapter(PlatformAdapter):
 
     name = "spotify"
     label = "Spotify"
+    features = ('Audio',)
+    note = 'Tracks only. Spotify can’t be saved directly, so RibbT finds the same song on YouTube or SoundCloud and tags it with Spotify’s details.'
     hosts = ("open.spotify.com",)
     # Pages may bounce through other spotify.com hosts before the track page.
     display_hosts = ("spotify.com",)

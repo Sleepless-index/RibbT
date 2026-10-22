@@ -94,7 +94,6 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
 
-private val MOTION_CHOICES = listOf(Choice("system", "Auto"), Choice("on", "Reduced"), Choice("off", "Full"))
 private val LAYOUT_CHOICES = MediaLayout.entries.map { Choice(it.key, it.label) }
 private val CHANNEL_CHOICES = listOf(Choice("stable", "Stable"), Choice("nightly", "Nightly"))
 private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custom", "Custom"))
@@ -228,7 +227,7 @@ private fun SettingsHome(vm: AppViewModel) {
                     (listOf("Location") + mediaSections).joinToString(", "),
                 ) { vm.settingsPage = PAGE_DOWNLOADING }
                 Separator()
-                NavRow(iconFor(PAGE_APPEARANCE), PAGE_APPEARANCE, "Accent color, layout, motion") { vm.settingsPage = PAGE_APPEARANCE }
+                NavRow(iconFor(PAGE_APPEARANCE), PAGE_APPEARANCE, "Accent color and media layout") { vm.settingsPage = PAGE_APPEARANCE }
                 Separator()
                 NavRow(
                     iconFor(PAGE_SERVER),
@@ -346,13 +345,6 @@ private fun AppearanceCards(vm: AppViewModel) {
                 )
                 LayoutPicker(vm.layout, onSelect = { vm.updateLayout(it) })
             }
-            Separator()
-            ChoiceRow(
-                "Reduce motion",
-                "Auto follows your phone. Reduced stops the mascot from moving.",
-                MOTION_CHOICES,
-                vm.reduceMotion,
-            ) { vm.updateReduceMotion(it) }
         }
     }
 }
@@ -362,13 +354,6 @@ private fun AboutCard(vm: AppViewModel) {
     CardBox(Modifier.fillMaxWidth()) {
         Column {
             AppUpdateRow(vm)
-            Separator()
-            ToggleRow(
-                "Debug info",
-                "Adds Copy to failed downloads, with details for bug reports.",
-                vm.debugInfo,
-                icon = VIcons.Copy,
-            ) { vm.updateDebugInfo(it) }
         }
     }
 }
@@ -446,6 +431,13 @@ private fun SectionCard(
                     }
                 }
                 if (showYtdlpSettings) YtdlpSettingsDialog(vm) { showYtdlpSettings = false }
+                Separator()
+                ToggleRow(
+                    "Debug info",
+                    "Adds Copy to failed downloads, with details for bug reports.",
+                    vm.debugInfo,
+                    icon = VIcons.Copy,
+                ) { vm.updateDebugInfo(it) }
                 first = false
             }
             rows.forEach { row ->

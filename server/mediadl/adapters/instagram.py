@@ -40,6 +40,8 @@ class InstagramAdapter(PlatformAdapter):
 
     name = "instagram"
     label = "Instagram"
+    features = ('Video', 'Photos')
+    note = 'Posts, reels and carousels. Usually needs your sign-in cookies (Settings → Server).'
     hosts = ("instagram.com", "instagr.am")
 
     def matches(self, url):

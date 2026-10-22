@@ -59,6 +59,7 @@ def platform_catalog():
     return [
         {"name": a.name, "label": a.label, "hosts": list(a.hosts),
          "display": list(a.display_hosts or a.hosts),
-         "subtitles": bool(getattr(a, "subtitles", False))}
+         "subtitles": bool(getattr(a, "subtitles", False)),
+         "features": list(a.features), "note": a.note}
         for a in ADAPTERS
     ]
