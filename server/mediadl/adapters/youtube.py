@@ -36,6 +36,7 @@ def _list_id(url):
 class YouTubeAdapter(PlatformAdapter):
     name = "youtube"
     label = "YouTube"
+    features = ('Video', 'Audio', 'Subtitles', 'Playlists')
     hosts = ("youtube.com", "youtu.be")
     subtitles = True
 

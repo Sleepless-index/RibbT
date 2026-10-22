@@ -72,6 +72,10 @@ data class Platform(
     val display: List<String>,
     /** True when the service can offer subtitle files. */
     val subtitles: Boolean = false,
+    /** What a link can give you: "Video", "Photos", "Audio", "Subtitles", "Playlists"… */
+    val features: List<String> = emptyList(),
+    /** Anything worth knowing before pasting a link (a sign-in is needed, tracks only…). */
+    val note: String = "",
 )
 
 data class HistoryEntry(
@@ -321,6 +325,8 @@ fun JSONObject.toPlatform(): Platform = Platform(
     hosts = optJSONArray("hosts").strings(),
     display = optJSONArray("display").strings(),
     subtitles = optBoolean("subtitles", false),
+    features = optJSONArray("features").strings(),
+    note = optString("note"),
 )
 
 fun JSONObject.toHistoryEntry(): HistoryEntry = HistoryEntry(

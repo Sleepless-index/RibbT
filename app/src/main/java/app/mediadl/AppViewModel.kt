@@ -27,7 +27,6 @@ import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
-private val LINK_HINT = Regex("https?://|\\w\\.\\w{2,}/", RegexOption.IGNORE_CASE)
 
 private const val COOKIE_MAX_BYTES = 2 * 1024 * 1024
 private const val QUEUE_LIMIT = 40
@@ -65,8 +64,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Every download of this session, newest last: what the queue button lists after the toasts are gone. */
     val queue = mutableStateListOf<DlToast>()
-    var idea by mutableStateOf(false)
-    var hopSignal by mutableIntStateOf(0)
     var savedPulse by mutableIntStateOf(0)
 
     var platforms by mutableStateOf<List<Platform>>(emptyList())
@@ -83,10 +80,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** An SD card is inserted right now (checked when the Downloading page opens and when one is plugged or pulled). */
     var sdAvailable by mutableStateOf(Storage.sdAvailable(application))
     var pasteAndGo by mutableStateOf(prefs.pasteAndGo)
-    var reduceMotion by mutableStateOf(prefs.reduceMotion)
 
-    /** Bumps on every edit of the link field so the mascot can watch it being typed. */
-    var typingSignal by mutableIntStateOf(0)
     var layout by mutableStateOf(prefs.layout)
     var folderName by mutableStateOf(prefs.folderName)
 
@@ -116,7 +110,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var starting by mutableStateOf(false)
 
     private var parseJob: Job? = null
-    private var ideaJob: Job? = null
     private var parseToken = 0
     private var toastCounter = 0L
     private val savedCounts = HashMap<String, Int>()
@@ -300,7 +293,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun savedText(prefix: String, folder: String, note: String?): String =
         if (note == null) "$prefix $folder" else "$note · $prefix $folder"
-    fun updateReduceMotion(value: String) { prefs.reduceMotion = value; reduceMotion = value; savedPulse++ }
     fun updatePasteAndGo(value: Boolean) { prefs.pasteAndGo = value; pasteAndGo = value; savedPulse++ }
     fun updateDebugInfo(value: Boolean) { prefs.debugInfo = value; debugInfo = value; savedPulse++ }
     fun updateLayout(value: String) { prefs.layout = value; layout = value; savedPulse++ }
@@ -492,15 +484,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun pulseIdea() {
-        ideaJob?.cancel()
-        idea = true
-        ideaJob = viewModelScope.launch {
-            delay(2200)
-            idea = false
-        }
-    }
-
     fun parse(raw: String = input) {
         error = null
         val text = raw.trim()
@@ -524,8 +507,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         parseJob?.cancel()
-        ideaJob?.cancel()
-        idea = false
         val token = ++parseToken
         input = link
         loading = true
@@ -541,7 +522,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     is ParseResult.Listing -> playlist = result.playlist
                 }
                 online = true
-                pulseIdea()
             } catch (e: ApiException) {
                 if (e.offline) {
                     markOffline()
@@ -565,8 +545,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (loading) return
         error = null
         parseJob?.cancel()
-        ideaJob?.cancel()
-        idea = false
         val token = ++parseToken
         loading = true
         parseJob = viewModelScope.launch {
@@ -574,7 +552,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 playlist = api.playlist(link)
                 post = null
                 online = true
-                pulseIdea()
             } catch (e: ApiException) {
                 if (e.offline) {
                     markOffline()
@@ -596,8 +573,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reset() {
         parseJob?.cancel()
-        ideaJob?.cancel()
-        idea = false
         parseToken++
         loading = false
         input = ""
@@ -631,7 +606,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         error = null
         input = clean
         pasteReady = false
-        if (LINK_HINT.containsMatchIn(clean)) hopSignal++
     }
 
     fun checkClipboard(text: String?) {
@@ -754,7 +728,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val name = (toasts.firstOrNull { it.id == id } ?: queue.firstOrNull { it.id == id })?.name.orEmpty()
         if (notify) Notifier.download(getApplication(), id, name, status, ok = phase == ToastPhase.Ok)
         updateToast(id) { it.copy(status = status, progress = null, phase = phase, canCancel = false) }
-        if (phase == ToastPhase.Ok) hopSignal++
         if (phase != ToastPhase.Cancelled && queue.any { it.id == id && it.parent == null }) queueUnread = true
         val lingers = phase == ToastPhase.Bad && toasts.firstOrNull { it.id == id }?.debug != null
         viewModelScope.launch {

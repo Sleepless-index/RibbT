@@ -26,6 +26,7 @@ PLAYLIST_PATH_MARKERS = ("/favlist", "/medialist", "/lists", "/channel")
 class BilibiliAdapter(PlatformAdapter):
     name = "bilibili"
     label = "Bilibili"
+    features = ('Video', 'Playlists')
     hosts = ("bilibili.com", "m.bilibili.com", "b23.tv")
     display_hosts = ("bilibili.com", "m.bilibili.com", "b23.tv")
     subtitles = True

@@ -23,6 +23,7 @@ def _as_dict(value, string_key):
 class TikTokAdapter(PlatformAdapter):
     name = "tiktok"
     label = "TikTok"
+    features = ('Video', 'Photos', 'Original sound')
     hosts = ("tiktok.com",)
 
     def extract(self, url):

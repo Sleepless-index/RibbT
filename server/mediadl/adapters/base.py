@@ -8,6 +8,9 @@ class PlatformAdapter:
     hosts = ()
     display_hosts = ()
     subtitles = False
+    # What a link from this site can give you, and anything worth knowing before pasting one.
+    features = ()
+    note = ""
 
     def matches(self, url):
         return host_ok(url, self.hosts)

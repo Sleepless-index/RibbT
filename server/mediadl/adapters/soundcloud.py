@@ -57,6 +57,8 @@ def audio_post(info, id_prefix=""):
 class SoundCloudAdapter(PlatformAdapter):
     name = "soundcloud"
     label = "SoundCloud"
+    features = ('Audio',)
+    note = 'Single tracks only, not playlists.'
     hosts = ("soundcloud.com",)
 
     def matches(self, url):
