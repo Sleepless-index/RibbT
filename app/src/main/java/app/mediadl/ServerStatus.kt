@@ -1,29 +1,20 @@
 package app.mediadl
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,7 +22,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * What the home screen shows when there is no server to talk to. Starting up and being offline are
- * deliberately different pictures: starting is calm and accent-coloured with a moving bar and no
+ * deliberately different pictures: starting is a slim spinner strip pinned to the top with no
  * buttons; offline is red, says what is wrong and what to do, and offers the way out.
  */
 @Composable
@@ -39,55 +30,21 @@ fun ServerStatusCard(vm: AppViewModel, modifier: Modifier = Modifier) {
     if (vm.starting) StartingCard(modifier) else OfflineCard(vm, modifier)
 }
 
+/** A slim "spinner + Starting RibbT" strip. It only says the app is warming up, so it takes little room. */
 @Composable
 private fun StartingCard(modifier: Modifier) {
-    val palette = LocalPalette.current
-    val transition = rememberInfiniteTransition(label = "starting")
-    val sweep by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing)),
-        label = "sweep",
-    )
     CardBox(modifier.fillMaxWidth()) {
-        Column {
-            // Indeterminate bar along the top edge.
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .background(Accent.copy(alpha = 0.14f))
-                    .drawBehind {
-                        val bar = size.width * 0.35f
-                        val x = -bar + (size.width + bar) * sweep
-                        drawRoundRect(
-                            Accent,
-                            topLeft = Offset(x, 0f),
-                            size = Size(bar, size.height),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2),
-                        )
-                    },
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                color = Accent,
+                strokeWidth = 2.5.dp,
             )
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Accent.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    VIconView(VIcons.Server, 20.dp, Accent)
-                }
-                Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                    T("Starting RibbT", size = 15.2.sp, weight = FontWeight.SemiBold)
-                    T(
-                        "Getting things ready. This takes a few seconds, a little longer right after installing.",
-                        modifier = Modifier.padding(top = 4.dp),
-                        size = 13.sp,
-                        color = palette.muted,
-                    )
-                }
-            }
+            T("Starting RibbT", size = 14.4.sp, weight = FontWeight.SemiBold)
         }
     }
 }

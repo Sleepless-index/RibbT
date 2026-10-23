@@ -58,7 +58,7 @@ class SoundCloudAdapter(PlatformAdapter):
     name = "soundcloud"
     label = "SoundCloud"
     features = ('Audio',)
-    note = 'Single tracks only, not playlists.'
+    note = 'Single tracks only.'
     hosts = ("soundcloud.com",)
 
     def matches(self, url):
