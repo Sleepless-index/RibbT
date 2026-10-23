@@ -5,6 +5,7 @@ from .instagram import InstagramAdapter
 from .pinterest import PinterestAdapter
 from .rednote import RedNoteAdapter
 from .reddit import RedditAdapter
+from .safebooru import SafebooruAdapter
 from .soundcloud import SoundCloudAdapter
 from .spotify import SpotifyAdapter
 from .tiktok import TikTokAdapter
@@ -22,6 +23,7 @@ ADAPTERS = (
     SpotifyAdapter(),
     SoundCloudAdapter(),
     InstagramAdapter(),
+    SafebooruAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"

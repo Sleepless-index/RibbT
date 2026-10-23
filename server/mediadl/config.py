@@ -114,6 +114,7 @@ MEDIA_SOURCES = (
         referers=("https://www.instagram.com/",),
     ),
     MediaSource(hosts=("scdn.co",), referers=("https://open.spotify.com/",)),
+    MediaSource(hosts=("safebooru.org",), referers=("https://safebooru.org/",)),
     MediaSource(hosts=("pinimg.com",), referers=("https://www.pinterest.com/",)),
     MediaSource(
         hosts=("xhscdn.com", "xhscdn.net", "xiaohongshu.com"),

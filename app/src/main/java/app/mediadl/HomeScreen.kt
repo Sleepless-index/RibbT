@@ -114,8 +114,8 @@ fun HomeScreen(vm: AppViewModel) {
                     OfflinePill(vm)
                     Spacer(Modifier.height(10.dp))
                 }
-                // "Starting RibbT" and the offline card sit above the input.
-                if (((vm.online == false && !vm.everOnline) || vm.starting) && post == null) {
+                // The offline card sits above the input; "Starting RibbT" is pinned to the top of the screen instead.
+                if (vm.online == false && !vm.everOnline && !vm.starting && post == null) {
                     ServerStatusCard(vm)
                     Spacer(Modifier.height(14.dp))
                 }
@@ -138,6 +138,15 @@ fun HomeScreen(vm: AppViewModel) {
                     PlaylistCard(vm, playlist, Modifier.appear(0))
                 }
             }
+        }
+        if (vm.starting && post == null) {
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp),
+            ) { ServerStatusCard(vm) }
         }
     }
 }
