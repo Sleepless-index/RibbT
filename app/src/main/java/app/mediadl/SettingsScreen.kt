@@ -1,7 +1,5 @@
 package app.mediadl
 
-import androidx.compose.foundation.layout.fillMaxHeight
-
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -32,7 +30,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -99,9 +99,7 @@ private val CHANNEL_CHOICES = listOf(Choice("stable", "Stable"), Choice("nightly
 private val SERVER_CHOICES = listOf(Choice("builtin", "Built-in"), Choice("custom", "Custom"))
 private val SECTION_ORDER = listOf("Video", "Images", "Audio", "X / Twitter", "Downloads", "Server")
 
-private const val PAGE_GENERAL = "General"
 private const val PAGE_APPEARANCE = "Appearance"
-private const val PAGE_ABOUT = "About"
 internal const val PAGE_SERVER = "Server"
 private const val PAGE_DOWNLOADING = "Downloads"
 
@@ -176,8 +174,7 @@ private fun groupSettings(server: ServerSettings?): GroupedSettings {
 }
 
 private fun iconFor(title: String): VIcon = when (title) {
-    PAGE_GENERAL, PAGE_APPEARANCE -> VIcons.Settings
-    PAGE_ABOUT -> VIcons.Refresh
+    PAGE_APPEARANCE -> VIcons.Palette
     "Video" -> VIcons.Video
     "Images" -> VIcons.Photo
     "Audio" -> VIcons.Audio
@@ -188,15 +185,6 @@ private fun iconFor(title: String): VIcon = when (title) {
     else -> VIcons.Settings
 }
 
-private fun summaryFor(title: String, rows: List<SettingRow>): String {
-    val labels = rows.map { it.label }
-    return when (title) {
-        PAGE_DOWNLOADING -> (listOf("Location", "Folders") + labels).distinct().joinToString(", ")
-        PAGE_SERVER -> "Connection and yt-dlp"
-        else -> labels.distinct().joinToString(", ")
-    }
-}
-
 @Composable
 private fun SettingsHome(vm: AppViewModel) {
     val data = remember(vm.server) { groupSettings(vm.server) }
@@ -205,59 +193,175 @@ private fun SettingsHome(vm: AppViewModel) {
     // Looks for a new RibbT once per session when Settings opens, quietly.
     LaunchedEffect(Unit) { if (vm.appRelease == null && !vm.appChecking) vm.checkAppUpdate(silent = true) }
 
-    Column {
-        SectionTitle("Quick settings")
-        CardBox(Modifier.fillMaxWidth()) { ThemeSegments(vm.theme) { vm.updateTheme(it) } }
-    }
+    StatusCard(vm)
 
     // The media sections (Video, Images, ...) live on the Downloads page together with the save options.
     val mediaSections = data.sections.filter { it != PAGE_SERVER && it != PAGE_DOWNLOADING }
-    val serverValue = when {
-        vm.online == true -> if (vm.serverMode == "custom") "Connected" else "Running"
-        vm.online == false -> "Offline"
-        else -> null
+    val themeLabel = when (vm.theme) {
+        "light" -> "Light"
+        "dark" -> "Dark"
+        else -> "System"
     }
+    val serviceNames = vm.platforms.map { it.label }
     Column {
-        SectionTitle("All settings")
+        SectionTitle("Preferences")
         CardBox(Modifier.fillMaxWidth()) {
             Column {
                 NavRow(
                     iconFor(PAGE_DOWNLOADING),
                     PAGE_DOWNLOADING,
-                    (listOf("Location") + mediaSections).joinToString(", "),
+                    (listOf("Location") + mediaSections + "Filenames").joinToString(", "),
                 ) { vm.settingsPage = PAGE_DOWNLOADING }
                 Separator()
-                NavRow(iconFor(PAGE_APPEARANCE), PAGE_APPEARANCE, "Accent color and media layout") { vm.settingsPage = PAGE_APPEARANCE }
-                Separator()
+                NavRow(
+                    iconFor(PAGE_APPEARANCE),
+                    PAGE_APPEARANCE,
+                    "Theme, accent color, media layout",
+                    value = themeLabel,
+                ) { vm.settingsPage = PAGE_APPEARANCE }
+            }
+        }
+    }
+    Column {
+        SectionTitle("Engine")
+        CardBox(Modifier.fillMaxWidth()) {
+            Column {
                 NavRow(
                     iconFor(PAGE_SERVER),
                     PAGE_SERVER,
-                    summaryFor(PAGE_SERVER, emptyList()),
-                    value = serverValue,
+                    "Built-in, yt-dlp, sign-in cookies, debug info",
                 ) { vm.settingsPage = PAGE_SERVER }
                 Separator()
                 NavRow(
                     iconFor(PAGE_SERVICES),
                     PAGE_SERVICES,
-                    null,
+                    if (serviceNames.isEmpty()) null else serviceNames.take(3).joinToString(", ") + " and more",
                     value = when {
                         vm.platforms.isNotEmpty() -> "${vm.platforms.size} sites"
                         vm.online == false -> "Offline"
                         else -> "Loading…"
                     },
                 ) { vm.settingsPage = PAGE_SERVICES }
-                Separator()
-                NavRow(
-                    iconFor(PAGE_ABOUT),
-                    PAGE_ABOUT,
-                    "Version ${vm.appVersion}",
-                    value = if (vm.appRelease?.available == true) "Update available" else null,
-                ) { vm.settingsPage = PAGE_ABOUT }
             }
         }
     }
 
     if (vm.server == null) OfflineHint(vm)
+}
+
+/** The top card of Settings: RibbT's own update, and the server and yt-dlp at a glance. */
+@Composable
+private fun StatusCard(vm: AppViewModel) {
+    val palette = LocalPalette.current
+    val release = vm.appRelease
+    val busy = vm.appUpdateBusy
+    val available = release?.available == true
+    val good = if (palette.dark) Color(0xFF5BD68A) else Color(0xFF1E8E4E)
+    CardBox(Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(
+                    Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Accent),
+                    contentAlignment = Alignment.Center,
+                ) { VIconView(VIcons.Download, 22.dp, AccentOn) }
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        T("RibbT", size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                        if (release != null && !busy) {
+                            StatusPill(
+                                if (available) "Update available" else "Up to date",
+                                if (available) PillTone.Accent else PillTone.Good,
+                            )
+                        }
+                    }
+                    T(
+                        buildString {
+                            append("Version ${vm.appVersion}")
+                            if (available && !release?.version.isNullOrBlank()) append(" · ${release?.version} is ready")
+                        },
+                        size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                SmallButton(
+                    text = when {
+                        busy -> vm.appUpdatePercent?.let { "$it%" } ?: vm.appUpdateStatus ?: "Updating…"
+                        vm.appChecking -> "Checking…"
+                        available -> "Update"
+                        else -> "Check"
+                    },
+                    enabled = !busy && !vm.appChecking,
+                    tonal = !available && !busy,
+                    minWidth = 76.dp,
+                    onClick = { if (available) vm.installAppUpdate() else vm.checkAppUpdate() },
+                )
+            }
+            Separator()
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                val serverText = when {
+                    vm.starting -> "Starting…"
+                    vm.online == true -> if (vm.serverMode == "custom") "Connected" else "Running"
+                    vm.online == false -> "Offline"
+                    else -> "Checking…"
+                }
+                StatusCell("Server", Modifier.weight(1f), onClick = { vm.settingsPage = PAGE_SERVER }) {
+                    Box(
+                        Modifier.size(8.dp).clip(CircleShape).background(
+                            when (vm.online) {
+                                true -> good
+                                false -> palette.err
+                                null -> palette.muted
+                            },
+                        ),
+                    )
+                    T(serverText, size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                }
+                val version = vm.ytdlpVersion
+                StatusCell("yt-dlp", Modifier.weight(1f), onClick = { vm.settingsPage = PAGE_SERVER }) {
+                    T(
+                        when (version) {
+                            null -> "Checking…"
+                            "" -> "Not installed"
+                            else -> version.split('.').take(3).joinToString(".")
+                        },
+                        size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1,
+                    )
+                    if (!version.isNullOrEmpty() && vm.ytdlpAvailable != null) {
+                        StatusPill(
+                            if (vm.ytdlpAvailable == true) "Update" else "Latest",
+                            if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusCell(label: String, modifier: Modifier, onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    val palette = LocalPalette.current
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(palette.soft)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        T(label, size = 11.5.sp, color = palette.muted, weight = FontWeight.SemiBold)
+        Row(
+            Modifier.padding(top = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            content = content,
+        )
+    }
 }
 
 @Composable
@@ -266,21 +370,36 @@ private fun SettingsPage(vm: AppViewModel, page: String, saveChoices: List<Choic
     if (page == PAGE_DOWNLOADING) StorageWatcher(vm)
     PageHeader(page, onBack = { vm.settingsPage = null }) { SavedLabel(vm) }
     when (page) {
-        PAGE_APPEARANCE, PAGE_GENERAL -> AppearanceCards(vm)
+        PAGE_APPEARANCE -> AppearanceCards(vm)
         PAGE_SERVICES -> ServicesList(vm)
-        PAGE_ABOUT -> AboutCard(vm)
+        PAGE_SERVER -> ServerPage(vm, data)
         PAGE_DOWNLOADING -> {
-            SectionCard(vm, page, data, saveChoices, pickFolder)
+            Column {
+                SectionTitle("Where files go")
+                DownloadLocationCard(vm, saveChoices, pickFolder)
+            }
             data.sections.filter { it != PAGE_SERVER && it != PAGE_DOWNLOADING }.forEach { title ->
                 Column {
-                    SectionTitle(title)
-                    SectionCard(vm, title, data, saveChoices, pickFolder)
+                    IconSectionTitle(iconFor(title), title)
+                    SectionCard(vm, title, data)
+                }
+            }
+            if (data.rows[PAGE_DOWNLOADING].orEmpty().isNotEmpty()) {
+                Column {
+                    SectionTitle("Filenames")
+                    CardBox(Modifier.fillMaxWidth()) {
+                        Column {
+                            SettingRows(vm, data.rows[PAGE_DOWNLOADING].orEmpty(), data)
+                            Separator()
+                            FilenamePreview(vm.settingValue("metadata.filename_style") as? String ?: "classic")
+                        }
+                    }
                 }
             }
             if (vm.server == null) OfflineHint(vm)
         }
         else -> {
-            SectionCard(vm, page, data, saveChoices, pickFolder)
+            SectionCard(vm, page, data)
             if (vm.server == null) OfflineHint(vm)
         }
     }
@@ -331,170 +450,223 @@ private fun OfflineHint(vm: AppViewModel) {
 
 @Composable
 private fun AppearanceCards(vm: AppViewModel) {
+    CardBox(Modifier.fillMaxWidth()) { ThemeSegments(vm.theme) { vm.updateTheme(it) } }
     CardBox(Modifier.fillMaxWidth()) { AccentPicker(vm) }
     CardBox(Modifier.fillMaxWidth()) {
-        Column {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-                T("Media layout", size = 14.4.sp, lineHeight = 18.7.sp)
-                T(
-                    "How results are shown. Tap the one that looks right.",
-                    size = 12.16.sp,
-                    color = LocalPalette.current.muted,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
-                    lineHeight = 15.8.sp,
-                )
-                LayoutPicker(vm.layout, onSelect = { vm.updateLayout(it) })
-            }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            T("Media layout", size = 14.4.sp, lineHeight = 18.7.sp)
+            T(
+                "How results are shown. One result always fills the width; two or more follow the layout.",
+                size = 12.16.sp,
+                color = LocalPalette.current.muted,
+                modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
+                lineHeight = 15.8.sp,
+            )
+            LayoutPicker(vm.layout, onSelect = { vm.updateLayout(it) })
         }
     }
 }
 
+/** A section title with a small icon before it (Video, Audio, ...). */
 @Composable
-private fun AboutCard(vm: AppViewModel) {
+private fun IconSectionTitle(icon: VIcon, title: String) {
+    val palette = LocalPalette.current
+    Row(Modifier.padding(start = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        VIconView(icon, 14.dp, palette.muted)
+        Spacer(Modifier.width(6.dp))
+        T(title, size = 13.sp, color = palette.muted, weight = FontWeight.Bold)
+    }
+}
+
+/** Where downloads are saved, how they are sorted, and whether a copied link is fetched on open. */
+@Composable
+private fun DownloadLocationCard(vm: AppViewModel, saveChoices: List<Choice>, pickFolder: () -> Unit) {
     CardBox(Modifier.fillMaxWidth()) {
         Column {
-            AppUpdateRow(vm)
+            ChoiceRow("Download location", locationHint(vm), saveChoices, vm.saveTo) { value ->
+                // A custom folder has to be picked once; after that it is just switched to.
+                if (value == "folder" && (vm.folderName.isBlank() || !vm.folderOk)) pickFolder() else vm.updateSaveTo(value)
+            }
+            if (vm.saveTo == "folder") {
+                Separator()
+                RowShell("Folder", if (vm.folderName.isBlank()) "None picked yet" else vm.folderName) {
+                    SmallButton(text = if (vm.folderName.isBlank()) "Pick" else "Change", enabled = true, tonal = true, onClick = pickFolder)
+                }
+            }
+            Separator()
+            ToggleRow("Sort into folders by type", "Videos, Images and Audio subfolders.", vm.sortByType) { vm.updateSortByType(it) }
+            Separator()
+            ToggleRow("Paste and go", "Fetch a copied link when you open RibbT.", vm.pasteAndGo) { vm.updatePasteAndGo(it) }
         }
     }
 }
 
+/** The server's own settings rows (toggles and choices), with separators between them. */
 @Composable
-private fun SectionCard(
-    vm: AppViewModel,
-    title: String,
-    data: GroupedSettings,
-    saveChoices: List<Choice>,
-    pickFolder: () -> Unit,
-) {
+private fun SettingRows(vm: AppViewModel, rows: List<SettingRow>, data: GroupedSettings) {
+    rows.forEachIndexed { index, row ->
+        if (index > 0) Separator()
+        if (row.type == "toggle") {
+            ToggleRow(row.label, row.hint, vm.settingValue(row.path) as? Boolean ?: false) {
+                vm.updateServerSetting(row.path, it)
+            }
+        } else {
+            ChoiceRow(
+                row.label, row.hint, data.choices[row.path].orEmpty(),
+                vm.settingValue(row.path) as? String ?: "",
+            ) { vm.updateServerSetting(row.path, it) }
+        }
+    }
+}
+
+/** One server-driven section (Video, Images, Audio, ...) as a card. A section the server doesn't send shows nothing. */
+@Composable
+private fun SectionCard(vm: AppViewModel, title: String, data: GroupedSettings) {
     val rows = data.rows[title].orEmpty()
-    var showYtdlpSettings by rememberSaveable { mutableStateOf(false) }
-    // A server-driven section that isn't there (yet) has nothing to show.
-    if (rows.isEmpty() && title != PAGE_DOWNLOADING && title != PAGE_SERVER) return
+    if (rows.isEmpty()) return
+    CardBox(Modifier.fillMaxWidth()) { Column { SettingRows(vm, rows, data) } }
+}
+
+/** Connection first (built-in or a PC), then the engine behind it, then troubleshooting. */
+@Composable
+private fun ServerPage(vm: AppViewModel, data: GroupedSettings) {
     CardBox(Modifier.fillMaxWidth()) {
         Column {
-            var first = true
-            if (title == PAGE_DOWNLOADING) {
-                ChoiceRow("Download location", locationHint(vm), saveChoices, vm.saveTo) { value ->
-                    // A custom folder has to be picked once; after that it is just switched to.
-                    if (value == "folder" && (vm.folderName.isBlank() || !vm.folderOk)) pickFolder() else vm.updateSaveTo(value)
-                }
-                if (vm.saveTo == "folder") {
-                    Separator()
-                    RowShell("Folder", if (vm.folderName.isBlank()) "None picked yet" else vm.folderName) {
-                        SmallButton(text = if (vm.folderName.isBlank()) "Pick" else "Change", enabled = true, tonal = true, onClick = pickFolder)
-                    }
-                }
-                Separator()
-                ToggleRow("Sort into folders by type", "Videos, Images and Audio subfolders.", vm.sortByType) { vm.updateSortByType(it) }
-                Separator()
-                ToggleRow("Paste and go", "Fetch a copied link when you open RibbT.", vm.pasteAndGo) { vm.updatePasteAndGo(it) }
-                first = false
+            ServerHero(vm)
+            Separator()
+            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                Segments(SERVER_CHOICES, vm.serverMode, { vm.updateServerMode(it) })
+                T(
+                    "Run the downloader inside RibbT, or connect to Termux or a PC.",
+                    size = 12.16.sp, color = LocalPalette.current.muted, lineHeight = 15.8.sp,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
             }
-            if (title == PAGE_SERVER) {
-                ChoiceRow(
-                    "Server", "Run the downloader inside RibbT, or connect to Termux or a PC.",
-                    SERVER_CHOICES, vm.serverMode,
-                ) { vm.updateServerMode(it) }
+            if (vm.serverMode == "custom") {
                 Separator()
-                if (vm.serverMode == "custom") AddressRow(vm) else BuiltInStatusRow(vm)
-                Separator()
-                // "Version X" with a pill beside it once we know whether a newer one exists.
-                val version = vm.ytdlpVersion
-                val showPill = vm.ytdlpStatus == null && !version.isNullOrEmpty() && vm.ytdlpAvailable != null
-                RowShell(
-                    "yt-dlp",
-                    vm.ytdlpStatus ?: when (version) {
-                        null -> "Checking version…"
-                        "" -> "Not installed on the server"
-                        else -> "Version $version"
-                    },
-                    badge = if (showPill) {
-                        if (vm.ytdlpAvailable == true) "Update available" else "Up to date"
-                    } else {
-                        null
-                    },
-                    badgeTone = if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        // "Check" looks for a newer yt-dlp; once one is found the button turns into "Update".
-                        SmallButton(
-                            text = when {
-                                vm.ytdlpBusy -> "Updating…"
-                                vm.ytdlpChecking -> "Checking…"
-                                vm.ytdlpAvailable == true -> "Update"
-                                else -> "Check"
-                            },
-                            enabled = !vm.ytdlpBusy && !vm.ytdlpChecking && vm.online == true,
-                            onClick = { if (vm.ytdlpAvailable == true) vm.updateYtdlp() else vm.checkYtdlp(manual = true) },
-                        )
-                        IconSquareButton(VIcons.Settings, "yt-dlp settings") { showYtdlpSettings = true }
-                    }
-                }
-                if (showYtdlpSettings) YtdlpSettingsDialog(vm) { showYtdlpSettings = false }
-                Separator()
-                ToggleRow(
-                    "Debug info",
-                    "Adds Copy to failed downloads, with details for bug reports.",
-                    vm.debugInfo,
-                    icon = VIcons.Copy,
-                ) { vm.updateDebugInfo(it) }
-                first = false
+                AddressRow(vm)
             }
-            rows.forEach { row ->
-                if (!first) Separator()
-                first = false
-                if (row.type == "toggle") {
-                    ToggleRow(row.label, row.hint, vm.settingValue(row.path) as? Boolean ?: false) {
-                        vm.updateServerSetting(row.path, it)
-                    }
-                } else {
-                    ChoiceRow(
-                        row.label, row.hint, data.choices[row.path].orEmpty(),
-                        vm.settingValue(row.path) as? String ?: "",
-                    ) { vm.updateServerSetting(row.path, it) }
-                }
-            }
-            if (title == PAGE_DOWNLOADING) {
+        }
+    }
+    Column {
+        SectionTitle("Engine")
+        CardBox(Modifier.fillMaxWidth()) {
+            Column {
+                YtdlpRow(vm)
                 Separator()
-                FilenamePreview(vm.settingValue("metadata.filename_style") as? String ?: "classic")
+                CookiesRow(vm)
             }
+        }
+    }
+    val extra = data.rows[PAGE_SERVER].orEmpty()
+    if (extra.isNotEmpty()) CardBox(Modifier.fillMaxWidth()) { Column { SettingRows(vm, extra, data) } }
+    Column {
+        SectionTitle("Troubleshooting")
+        CardBox(Modifier.fillMaxWidth()) {
+            ToggleRow(
+                "Debug info",
+                "Adds Copy to failed downloads, with details for bug reports.",
+                vm.debugInfo,
+                icon = VIcons.Copy,
+            ) { vm.updateDebugInfo(it) }
+        }
+    }
+    if (vm.server == null) OfflineHint(vm)
+}
+
+@Composable
+private fun ServerHero(vm: AppViewModel) {
+    val palette = LocalPalette.current
+    val builtIn = vm.serverMode == "builtin"
+    val good = if (palette.dark) Color(0xFF5BD68A) else Color(0xFF1E8E4E)
+    val status = when {
+        vm.starting -> "Starting…"
+        !builtIn -> vm.baseUrl.ifBlank { "No address yet" }
+        vm.online == true -> "Running on this phone"
+        vm.builtInFailure != null -> "Couldn’t start: ${vm.builtInFailure}"
+        vm.online == false -> "Not answering. Tap Retry."
+        else -> "Checking…"
+    }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(Modifier.size(48.dp)) {
+            Box(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(15.dp)).background(Accent.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center,
+            ) { VIconView(VIcons.Server, 22.dp, Accent) }
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 2.dp, y = 2.dp)
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(palette.card)
+                    .padding(3.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when (vm.online) {
+                            true -> good
+                            false -> palette.err
+                            null -> palette.muted
+                        },
+                    ),
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            T(if (builtIn) "Built-in server" else "Custom server", size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
+            T(status, size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp))
+        }
+        when {
+            vm.starting -> StatusPill("Starting", PillTone.Accent)
+            vm.online == true -> StatusPill(if (builtIn) "Running" else "Connected", PillTone.Good)
+            vm.online == false && builtIn -> SmallButton(text = "Retry", enabled = true, onClick = { vm.refresh() })
         }
     }
 }
 
-/** RibbT's own update: check, then download and install without leaving the app. */
+/** yt-dlp's version, with Check / Update and its own settings. */
 @Composable
-private fun AppUpdateRow(vm: AppViewModel) {
-    val context = LocalContext.current
-    val release = vm.appRelease
-    val busy = vm.appUpdateBusy
+private fun YtdlpRow(vm: AppViewModel) {
+    var showYtdlpSettings by rememberSaveable { mutableStateOf(false) }
+    // "Version X" with a pill beside it once we know whether a newer one exists.
+    val version = vm.ytdlpVersion
+    val showPill = vm.ytdlpStatus == null && !version.isNullOrEmpty() && vm.ytdlpAvailable != null
     RowShell(
-        "Updates",
-        buildString {
-            append("Version ${vm.appVersion}")
-            if (release?.available == true && !release.version.isNullOrBlank()) append(" · ${release.version} is ready")
+        "yt-dlp",
+        vm.ytdlpStatus ?: when (version) {
+            null -> "Checking version…"
+            "" -> "Not installed on the server"
+            else -> "Version $version"
         },
-        badge = if (release != null && !busy) (if (release.available) "Update available" else "Up to date") else null,
-        badgeTone = if (release?.available == true) PillTone.Accent else PillTone.Good,
+        badge = if (showPill) {
+            if (vm.ytdlpAvailable == true) "Update available" else "Up to date"
+        } else {
+            null
+        },
+        badgeTone = if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
         icon = VIcons.Refresh,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (release?.available == true) {
-                IconSquareButton(VIcons.Open, "Release notes") { AppUpdate.open(context, release.pageUrl) }
-            }
+            // "Check" looks for a newer yt-dlp; once one is found the button turns into "Update".
             SmallButton(
                 text = when {
-                    busy -> vm.appUpdatePercent?.let { "$it%" } ?: vm.appUpdateStatus ?: "Updating…"
-                    vm.appChecking -> "Checking…"
-                    release?.available == true -> "Update"
+                    vm.ytdlpBusy -> "Updating…"
+                    vm.ytdlpChecking -> "Checking…"
+                    vm.ytdlpAvailable == true -> "Update"
                     else -> "Check"
                 },
-                enabled = !busy && !vm.appChecking,
-                minWidth = 76.dp,
-                onClick = { if (release?.available == true) vm.installAppUpdate() else vm.checkAppUpdate() },
+                enabled = !vm.ytdlpBusy && !vm.ytdlpChecking && vm.online == true,
+                tonal = vm.ytdlpAvailable != true,
+                minWidth = 64.dp,
+                onClick = { if (vm.ytdlpAvailable == true) vm.updateYtdlp() else vm.checkYtdlp(manual = true) },
             )
+            IconSquareButton(VIcons.Settings, "yt-dlp settings") { showYtdlpSettings = true }
         }
     }
+    if (showYtdlpSettings) YtdlpSettingsDialog(vm) { showYtdlpSettings = false }
 }
 
 /** The small "Saved" confirmation next to a title. Only reacts to saves made while it is on screen. */
@@ -857,20 +1029,6 @@ private fun AddressRow(vm: AppViewModel) {
     }
 }
 
-@Composable
-private fun BuiltInStatusRow(vm: AppViewModel) {
-    val status = when {
-        vm.starting -> "Starting…"
-        vm.online == true -> "Running inside the app."
-        vm.builtInFailure != null -> "Couldn’t start: ${vm.builtInFailure}"
-        vm.online == false -> "Not answering. Tap Retry."
-        else -> "Checking…"
-    }
-    RowShell("Built-in server", status) {
-        if (vm.online == false && !vm.starting) SmallButton(text = "Retry", enabled = true, onClick = { vm.refresh() })
-    }
-}
-
 private const val SAMPLE_ID = "0000000000000000000"
 
 private fun previewName(style: String, kind: String): String {
@@ -953,7 +1111,7 @@ private fun FilenamePreview(style: String) {
     }
 }
 
-/** yt-dlp's own settings: which build the update button installs, and the cookies for age-restricted YouTube videos. */
+/** yt-dlp's own settings: which build the update button installs. */
 @Composable
 private fun YtdlpSettingsDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
@@ -1003,10 +1161,7 @@ private fun YtdlpSettingsDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            Separator()
-            CookiesRow(vm)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(16.dp))
             PillButton(
                 text = "Done",
                 icon = null,
@@ -1018,7 +1173,7 @@ private fun YtdlpSettingsDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     }
 }
 
-/** Import / replace / remove the YouTube cookies (a cookies.txt exported from a browser). */
+/** Import / replace / remove sign-in cookies (a cookies.txt exported from a browser). */
 @Composable
 private fun CookiesRow(vm: AppViewModel) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -1031,9 +1186,9 @@ private fun CookiesRow(vm: AppViewModel) {
         info == null -> if (vm.online == true) "Checking…" else "Start the server to set this up."
         info.present -> "${info.count} cookies for ${info.domains.take(3).joinToString(", ")}" +
             if (info.domains.size > 3) " and more" else ""
-        else -> "In case a YouTube video is age restricted and fails to download."
+        else -> "For sites that ask you to log in, like Instagram, and age-restricted YouTube videos."
     }
-    RowShell("Cookies", status) {
+    RowShell("Sign-in cookies", status, icon = VIcons.Lock) {
         val enabled = !vm.cookiesBusy && vm.online == true && info != null
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (present) SmallButton(text = "Remove", enabled = enabled, tonal = true, minWidth = 68.dp, onClick = { vm.removeCookies() })
