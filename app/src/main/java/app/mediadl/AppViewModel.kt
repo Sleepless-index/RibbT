@@ -91,6 +91,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var ytdlpChecking by mutableStateOf(false)
 
     var debugInfo by mutableStateOf(prefs.debugInfo)
+    var iconFollowsAccent by mutableStateOf(prefs.iconFollowsAccent)
     val appVersion: String = AppUpdate.installedVersion(application)
     var appChecking by mutableStateOf(false)
     var appRelease by mutableStateOf<AppRelease?>(null)
@@ -243,6 +244,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refresh()
     }
 
+    fun updateIconFollowsAccent(value: Boolean) {
+        prefs.iconFollowsAccent = value
+        iconFollowsAccent = value
+        AppIcon.apply(getApplication<Application>(), if (value) accent else null)
+        savedPulse++
+    }
+
     fun updateTheme(value: String) { prefs.theme = value; theme = value; savedPulse++ }
 
     /** Applies the accent colour at once; [save] is false while a finger is still dragging in the picker. */
@@ -255,6 +263,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 prefs.customAccent = color.toArgb()
                 customAccent = color
             }
+            if (iconFollowsAccent) AppIcon.apply(getApplication<Application>(), color)
             savedPulse++
         }
     }
