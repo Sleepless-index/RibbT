@@ -22,7 +22,7 @@ object Notifier {
     const val SERVER_CHANNEL = "builtin-server"
     const val DOWNLOAD_CHANNEL = "downloads"
 
-    /** The full-colour bunny, shown large inside the notification (the small status-bar icon must be flat white). */
+    /** The full-colour app icon, shown large inside the notification (the small status-bar icon must be flat white). */
     fun largeIcon(context: Context): Bitmap? =
         runCatching { ContextCompat.getDrawable(context, R.mipmap.ic_launcher)?.toBitmap(128, 128) }.getOrNull()
 
