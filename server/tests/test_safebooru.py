@@ -27,7 +27,7 @@ class SafebooruTests(unittest.TestCase):
 
     def test_matches_and_finds_links(self):
         from mediadl.adapters import find_link
-        from mediadl.adapters.safebooru import post_id
+        from mediadl.adapters.dapi import post_id
         self.assertEqual(self.adapter.name, "safebooru")
         self.assertEqual(find_link(f"look {VIEW}"), VIEW)
         self.assertEqual(post_id(VIEW), "4567890")
@@ -36,7 +36,7 @@ class SafebooruTests(unittest.TestCase):
     def test_extract_from_api(self):
         session = mock.Mock()
         session.get.return_value = reply([RECORD])
-        with mock.patch("mediadl.adapters.safebooru.get_session", return_value=session):
+        with mock.patch("mediadl.adapters.dapi.get_session", return_value=session):
             post = self.adapter.extract(VIEW)
         self.assertEqual(post["kind"], "images")
         self.assertEqual(post["author"], "someone")
@@ -47,14 +47,14 @@ class SafebooruTests(unittest.TestCase):
         xml = '<posts count="1"><post id="4567890" directory="3841" image="abc123.jpg" hash="abc123" sample="false" owner="o"/></posts>'
         session = mock.Mock()
         session.get.return_value = reply(None, text=xml)
-        with mock.patch("mediadl.adapters.safebooru.get_session", return_value=session):
+        with mock.patch("mediadl.adapters.dapi.get_session", return_value=session):
             post = self.adapter.extract(VIEW)
         self.assertEqual(post["_images"][0], ["https://safebooru.org/images/3841/abc123.jpg"])
 
     def test_video_post(self):
         session = mock.Mock()
         session.get.return_value = reply([{**RECORD, "image": "clip.webm", "sample": 0}])
-        with mock.patch("mediadl.adapters.safebooru.get_session", return_value=session):
+        with mock.patch("mediadl.adapters.dapi.get_session", return_value=session):
             post = self.adapter.extract(VIEW)
         self.assertEqual(post["kind"], "video")
         self.assertTrue(post["_videos"][0]["cands"][0]["url"].endswith("clip.webm"))
@@ -63,7 +63,7 @@ class SafebooruTests(unittest.TestCase):
         page = '<img alt="x" id="image" src="//safebooru.org/images/3841/abc123.jpg?4567890"/>'
         session = mock.Mock()
         session.get.return_value = reply(None, ok=False)
-        with mock.patch("mediadl.adapters.safebooru.get_session", return_value=session), \
+        with mock.patch("mediadl.adapters.dapi.get_session", return_value=session), \
                 mock.patch.object(self.adapter, "fetch_page", return_value=(VIEW, page)):
             post = self.adapter.extract(VIEW)
         self.assertEqual(post["_images"][0][0], "https://safebooru.org/images/3841/abc123.jpg?4567890")

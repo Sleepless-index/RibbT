@@ -101,7 +101,10 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         if (intent?.action == Intent.ACTION_SEND) {
-            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { vm.receiveShared(it) }
+            // Some apps send the link as a styled CharSequence, or only in the clip, not as a plain String extra.
+            val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+                ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString()
+            text?.takeIf { it.isNotBlank() }?.let { vm.receiveShared(it) }
         }
     }
 }

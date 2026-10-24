@@ -1,6 +1,8 @@
 import re
 
 from .bilibili import BilibiliAdapter
+from .danbooru import DanbooruAdapter
+from .gelbooru import GelbooruAdapter
 from .instagram import InstagramAdapter
 from .pinterest import PinterestAdapter
 from .rednote import RedNoteAdapter
@@ -24,6 +26,8 @@ ADAPTERS = (
     SoundCloudAdapter(),
     InstagramAdapter(),
     SafebooruAdapter(),
+    DanbooruAdapter(),
+    GelbooruAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"
