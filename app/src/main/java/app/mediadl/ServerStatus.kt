@@ -1,12 +1,13 @@
 package app.mediadl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,7 +24,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * What the home screen shows when there is no server to talk to. Starting up and being offline are
- * deliberately different pictures: starting is a slim spinner strip pinned to the top with no
+ * deliberately different pictures: starting is a small floating pill at the top with no
  * buttons; offline is red, says what is wrong and what to do, and offers the way out.
  */
 @Composable
@@ -30,22 +32,28 @@ fun ServerStatusCard(vm: AppViewModel, modifier: Modifier = Modifier) {
     if (vm.starting) StartingCard(modifier) else OfflineCard(vm, modifier)
 }
 
-/** A slim "spinner + Starting RibbT" strip. It only says the app is warming up, so it takes little room. */
+/** A small floating pill with a spinner and "Starting RibbT". It only says the app is warming up. */
 @Composable
 private fun StartingCard(modifier: Modifier) {
-    CardBox(modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            androidx.compose.material3.CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                color = Accent,
-                strokeWidth = 2.5.dp,
-            )
-            T("Starting RibbT", size = 14.4.sp, weight = FontWeight.SemiBold)
-        }
+    val palette = LocalPalette.current
+    Row(
+        modifier
+            .shadow(8.dp, CircleShape)
+            .clip(CircleShape)
+            .background(palette.card)
+            .border(1.dp, palette.line, CircleShape)
+            .height(40.dp)
+            .padding(start = 14.dp, end = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        androidx.compose.material3.CircularProgressIndicator(
+            modifier = Modifier.size(18.dp),
+            color = Accent,
+            trackColor = Accent.copy(alpha = 0.25f),
+            strokeWidth = 2.5.dp,
+        )
+        T("Starting RibbT", size = 13.5.sp, weight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
