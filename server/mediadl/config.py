@@ -115,6 +115,8 @@ MEDIA_SOURCES = (
     ),
     MediaSource(hosts=("scdn.co",), referers=("https://open.spotify.com/",)),
     MediaSource(hosts=("safebooru.org",), referers=("https://safebooru.org/",)),
+    MediaSource(hosts=("donmai.us",), referers=("https://danbooru.donmai.us/",)),
+    MediaSource(hosts=("gelbooru.com",), referers=("https://gelbooru.com/",)),
     MediaSource(hosts=("pinimg.com",), referers=("https://www.pinterest.com/",)),
     MediaSource(
         hosts=("xhscdn.com", "xhscdn.net", "xiaohongshu.com"),

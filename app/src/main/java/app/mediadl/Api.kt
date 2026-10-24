@@ -321,7 +321,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
                         info.phase == "converting" -> "converting"
                         else -> "downloading"
                     }
-                    onProgress(DlProgress(phase, info.fraction, info.bytes))
+                    onProgress(DlProgress(phase, info.fraction, info.bytes, info.total))
                 }
             }
             delay(500)
@@ -427,7 +427,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
                                     val percent = (written * 100 / total).toInt()
                                     if (percent != lastPercent) {
                                         lastPercent = percent
-                                        onProgress(DlProgress("saving", (written.toFloat() / total).coerceAtMost(1f), written))
+                                        onProgress(DlProgress("saving", (written.toFloat() / total).coerceAtMost(1f), written, total))
                                     }
                                 } else {
                                     onProgress(DlProgress("saving", null, written))

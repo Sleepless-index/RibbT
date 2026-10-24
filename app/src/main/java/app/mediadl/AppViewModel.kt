@@ -39,6 +39,45 @@ fun formatBytes(bytes: Long): String = when {
     else -> String.format(Locale.US, "%.2f GB", bytes / 1073741824.0)
 }
 
+/** "34.2 of 55.0 MB": both numbers in the unit of the total, so they line up. Just the size when the total is unknown. */
+fun formatBytesOf(done: Long, total: Long): String {
+    if (total <= 0L) return formatBytes(done)
+    val (divisor, unit) = when {
+        total < 1024L * 1024L -> 1024.0 to "KB"
+        total < 1024L * 1024L * 1024L -> 1048576.0 to "MB"
+        else -> 1073741824.0 to "GB"
+    }
+    val digits = if (unit == "KB") "%.0f" else "%.1f"
+    return String.format(Locale.US, "$digits of $digits %s", done / divisor, total / divisor, unit)
+}
+
+/** Smooths bytes-over-time into a speed, so the number in the queue does not jump around. */
+class SpeedMeter {
+    private var lastBytes = 0L
+    private var lastAt = 0L
+    private var speed = 0.0
+
+    /** Call with the bytes done so far; returns bytes per second, 0 until there are two samples. */
+    fun update(bytes: Long): Long {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (lastAt == 0L || bytes < lastBytes) {
+            // First sample, or a new stage started counting from zero again.
+            lastBytes = bytes
+            lastAt = now
+            speed = 0.0
+            return 0L
+        }
+        val seconds = (now - lastAt) / 1000.0
+        if (seconds >= 0.4) {
+            val instant = (bytes - lastBytes) / seconds
+            speed = if (speed == 0.0) instant else speed * 0.7 + instant * 0.3
+            lastBytes = bytes
+            lastAt = now
+        }
+        return speed.toLong()
+    }
+}
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     val prefs = Prefs(application)
     private val api = Api(application, prefs)
@@ -752,19 +791,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         else -> null // waiting or converting: nothing to measure, the bar sweeps instead
     }
 
-    private fun progressText(position: Int, total: Int, progress: DlProgress): String {
+    private fun progressText(position: Int, total: Int, progress: DlProgress, meter: SpeedMeter): String {
         val verb = when (progress.phase) {
             "waiting" -> "Waiting"
             "converting" -> "Converting"
             else -> "Downloading" // fetching on the server and copying to the phone read as one download
         }
         val measurable = progress.phase == "downloading" || progress.phase == "saving"
-        val percent = if (measurable) progress.fraction?.let { (it * 100).toInt().coerceIn(0, 99) } else null
-        val bytes = if (measurable) formatBytes(progress.bytes) else ""
+        val speed = if (measurable) meter.update(progress.bytes) else 0L
         return buildString {
             append(if (total > 1) "$verb $position of $total" else verb)
-            if (percent != null) append(" · $percent%")
-            if (total == 1 && bytes.isNotEmpty()) append(" · $bytes")
+            if (measurable && progress.bytes > 0L) append(" · ${formatBytesOf(progress.bytes, progress.total)}")
+            if (speed > 0L) append(" · ${formatBytes(speed)}/s")
         }
     }
 
@@ -958,6 +996,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         reportFailure: Boolean = true,
     ): String? {
         var jobId: String? = null
+        val meter = SpeedMeter()
         return try {
             val saved = api.download(
                 spec,
@@ -978,7 +1017,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 onProgress = { progress ->
                     val overall = mergedFraction(progress)?.let { (position - 1 + it) / total }
                     updateToast(toast) {
-                        it.copy(progress = overall, status = progressText(position, total, progress))
+                        it.copy(progress = overall, status = progressText(position, total, progress, meter))
                     }
                 },
             )
@@ -1018,13 +1057,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             toastServerJobs[toast] = job.id
             val (target, note) = resolveSaveTarget(job.saveTo)
             val resumed = viewModelScope.launch {
+                val meter = SpeedMeter()
                 try {
                     val saved = api.resumeJob(
                         job.id, job.name, target,
                         onFileName = { name -> updateToast(toast) { it.copy(name = name) } },
                         onProgress = { progress ->
                             updateToast(toast) {
-                                it.copy(progress = mergedFraction(progress), status = progressText(1, 1, progress))
+                                it.copy(progress = mergedFraction(progress), status = progressText(1, 1, progress, meter))
                             }
                         },
                     )
