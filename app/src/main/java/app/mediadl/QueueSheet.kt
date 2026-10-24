@@ -68,7 +68,11 @@ private val QUEUE_BODY_MIN = 150.dp
 fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
     val all = vm.queue.toList()
-    val items = all.filter { it.parent == null }.asReversed().flatMap { head -> listOf(head) + all.filter { it.parent == head.id } }
+    val heads = all.filter { it.parent == null }.asReversed()
+    fun withChildren(list: List<DlToast>) = list.flatMap { head -> listOf(head) + all.filter { it.parent == head.id } }
+    val runningItems = withChildren(heads.filter { it.phase == ToastPhase.Active })
+    val finishedItems = withChildren(heads.filter { it.phase != ToastPhase.Active })
+    val items = runningItems + finishedItems
     val finished = items.count { it.phase != ToastPhase.Active && it.parent == null }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -129,8 +133,13 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 8.dp),
                 ) {
-                    items.forEachIndexed { index, item ->
-                        QueueRow(vm, item)
+                    if (runningItems.isNotEmpty()) {
+                        QueueSection("Running")
+                        runningItems.forEach { QueueRow(vm, it) }
+                    }
+                    if (finishedItems.isNotEmpty()) {
+                        QueueSection("Finished")
+                        finishedItems.forEach { QueueRow(vm, it) }
                     }
                 }
             }
@@ -140,102 +149,84 @@ fun QueueDialog(vm: AppViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
+private fun QueueSection(title: String) {
+    T(
+        title,
+        size = 12.sp,
+        weight = FontWeight.Bold,
+        color = LocalPalette.current.muted,
+        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
 private fun QueueRow(vm: AppViewModel, item: DlToast) {
     val palette = LocalPalette.current
     val child = item.parent != null
     val bad = item.phase == ToastPhase.Bad
+    val running = item.phase == ToastPhase.Active
     val statusColor = when (item.phase) {
         ToastPhase.Bad -> palette.err
         ToastPhase.Ok -> Accent
         else -> palette.muted
     }
-    val thumbSize = if (child) 40.dp else 52.dp
-    Box(Modifier.padding(start = if (child) 44.dp else 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(if (bad) palette.errBg else Color.Transparent)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // The file's preview, with the service's logo on the corner.
-                Box(Modifier.size(thumbSize)) {
-                    Box(
-                        Modifier.fillMaxSize().clip(RoundedCornerShape(13.dp)).background(palette.soft),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (item.thumb != null) {
-                            AsyncImage(model = item.thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                        } else {
-                            VIconView(
-                                when (item.phase) {
-                                    ToastPhase.Ok -> VIcons.Check
-                                    ToastPhase.Bad -> VIcons.Error
-                                    ToastPhase.Cancelled -> VIcons.CloseSmall
-                                    else -> VIcons.Download
-                                },
-                                20.dp,
-                                statusColor,
-                            )
-                        }
-                    }
-                    if (item.thumb != null && item.phase != ToastPhase.Active) {
-                        Box(
-                            Modifier
-                                .align(Alignment.TopStart)
-                                .offset(x = (-4).dp, y = (-4).dp)
-                                .size(18.dp)
-                                .clip(CircleShape)
-                                .background(if (bad) palette.err else if (item.phase == ToastPhase.Ok) Accent else palette.muted),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            VIconView(
-                                when (item.phase) {
-                                    ToastPhase.Ok -> VIcons.Check
-                                    ToastPhase.Bad -> VIcons.Error
-                                    else -> VIcons.CloseSmall
-                                },
-                                11.dp, Color.White,
-                            )
-                        }
-                    }
-                    if (item.platform != null) {
-                        PlatformBadge(item.platform, Modifier.align(Alignment.BottomEnd).offset(x = 5.dp, y = 5.dp), size = 20.dp)
-                    }
-                }
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    T(item.name, size = 13.6.sp, weight = FontWeight.SemiBold, maxLines = 1)
-                    T(
-                        item.status.ifBlank { " " }, size = 12.sp, color = statusColor,
-                        maxLines = if (bad) 3 else 1, modifier = Modifier.padding(top = 1.dp),
+    val thumbSize = if (child) 40.dp else 56.dp
+    Row(
+        Modifier
+            .padding(start = if (child) 36.dp else 12.dp, end = 12.dp, top = 2.dp, bottom = 2.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (bad) palette.errBg else Color.Transparent)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        // The file's preview, with the service's logo on the corner.
+        Box(Modifier.size(thumbSize)) {
+            Box(
+                Modifier.fillMaxSize().clip(RoundedCornerShape(15.dp)).background(palette.soft),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (item.thumb != null) {
+                    AsyncImage(model = item.thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    VIconView(
+                        when (item.phase) {
+                            ToastPhase.Ok -> VIcons.Check
+                            ToastPhase.Bad -> VIcons.Error
+                            ToastPhase.Cancelled -> VIcons.CloseSmall
+                            else -> VIcons.Download
+                        },
+                        20.dp,
+                        statusColor,
                     )
                 }
-                when {
-                    item.phase == ToastPhase.Active && item.canCancel ->
-                        QueueIconAction(VIcons.CloseSmall, "Cancel", palette.muted, Color.Transparent) { vm.cancelDownload(item.id) }
-                    bad && item.canRetry ->
-                        QueueIconAction(VIcons.Refresh, "Retry", AccentOn, Accent) { vm.retryFromQueue(item.id) }
-                }
-                val debug = item.debug
-                if (bad && debug != null) {
-                    val context = LocalContext.current
-                    var copied by remember(item.id) { mutableStateOf(false) }
-                    Box(Modifier.padding(start = 6.dp)) {
-                        QueueIconAction(if (copied) VIcons.Check else VIcons.Copy, "Copy debug info", palette.text, palette.card) {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
-                            copied = true
-                        }
-                    }
+            }
+            if (item.platform != null) {
+                PlatformBadge(item.platform, Modifier.align(Alignment.BottomEnd).offset(x = 5.dp, y = 5.dp), size = 20.dp)
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                T(item.name, size = 13.6.sp, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
+                val progress = item.progress
+                if (running && progress != null) {
+                    T(
+                        "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
+                        size = 13.sp, weight = FontWeight.Bold, color = Accent,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
                 }
             }
-            if (item.phase == ToastPhase.Active) {
+            T(
+                item.status.ifBlank { " " }, size = 12.sp, color = statusColor,
+                maxLines = if (bad) 3 else 1, modifier = Modifier.padding(top = 1.dp),
+            )
+            if (running) {
                 Box(
                     Modifier
-                        .padding(top = 10.dp, start = thumbSize + 12.dp, end = 44.dp)
+                        .padding(top = 9.dp)
                         .fillMaxWidth()
-                        .height(5.dp)
+                        .height(6.dp)
                         .clip(RoundedCornerShape(3.dp))
                         .background(palette.line),
                 ) {
@@ -244,6 +235,30 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                         Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(Accent))
                     } else {
                         Box(Modifier.fillMaxWidth(0.3f).fillMaxHeight().background(Accent.copy(alpha = 0.55f)))
+                    }
+                }
+            }
+        }
+        when {
+            running && item.canCancel ->
+                QueueIconAction(VIcons.CloseSmall, "Cancel", palette.text, palette.sep) { vm.cancelDownload(item.id) }
+            item.phase == ToastPhase.Ok ->
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).background(Accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) { VIconView(VIcons.Check, 16.dp, Accent) }
+            bad -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (item.canRetry) QueueIconAction(VIcons.Refresh, "Retry", AccentOn, Accent) { vm.retryFromQueue(item.id) }
+                    val debug = item.debug
+                    if (debug != null) {
+                        val context = LocalContext.current
+                        var copied by remember(item.id) { mutableStateOf(false) }
+                        QueueIconAction(if (copied) VIcons.Check else VIcons.Copy, "Copy debug info", palette.text, palette.card) {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
+                            copied = true
+                        }
                     }
                 }
             }

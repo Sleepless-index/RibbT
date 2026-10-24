@@ -140,13 +140,7 @@ fun HomeScreen(vm: AppViewModel) {
             }
         }
         if (vm.starting && post == null) {
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .widthIn(max = 640.dp)
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 12.dp),
-            ) { ServerStatusCard(vm) }
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 16.dp)) { ServerStatusCard(vm) }
         }
     }
 }
