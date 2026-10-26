@@ -72,10 +72,10 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("pasteAndGo", true)
         set(value) = sp.edit().putBoolean("pasteAndGo", value).apply()
 
-    /** Whether the launcher icon takes the accent colour (off by default: switching it can make the launcher move the icon). */
-    var iconFollowsAccent: Boolean
-        get() = sp.getBoolean("iconFollowsAccent", false)
-        set(value) = sp.edit().putBoolean("iconFollowsAccent", value).apply()
+    /** The launcher logo style, an [AppLogo] key. */
+    var appLogo: String
+        get() = AppLogo.fromKey(sp.getString("appLogo", null)).key
+        set(value) = sp.edit().putString("appLogo", value).apply()
 
     var debugInfo: Boolean
         get() = sp.getBoolean("debugInfo", false)

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Status-bar icon: Android draws these as a flat white silhouette, so only the arrow shape matters. -->
+<!-- Status-bar icon: Android draws these as a flat white silhouette, so only the box shape matters. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <path android:pathData="M6,6 L17,17" android:strokeColor="#FFFFFFFF" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:pathData="M18,9 L18,18 L9,18" android:strokeColor="#FFFFFFFF" android:strokeWidth="3" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M12.00,2.00 L20.39,6.86 L12.00,11.71 L3.61,6.86 Z" android:fillColor="#FFFFFFFF" />
+    <path android:pathData="M3.36,7.29 L11.75,12.14 L11.75,21.86 L3.36,17.00 Z" android:fillColor="#FFFFFFFF" />
+    <path android:pathData="M20.64,7.29 L20.64,17.00 L12.25,21.86 L12.25,12.14 Z" android:fillColor="#FFFFFFFF" />
 </vector>

@@ -451,17 +451,8 @@ private fun OfflineHint(vm: AppViewModel) {
 @Composable
 private fun AppearanceCards(vm: AppViewModel) {
     CardBox(Modifier.fillMaxWidth()) { ThemeSegments(vm.theme) { vm.updateTheme(it) } }
-    CardBox(Modifier.fillMaxWidth()) {
-        Column {
-            AccentPicker(vm)
-            Separator()
-            ToggleRow(
-                "App icon follows accent",
-                "Uses the closest of 7 icon colours. Your launcher may refresh or move the icon when it changes.",
-                vm.iconFollowsAccent,
-            ) { vm.updateIconFollowsAccent(it) }
-        }
-    }
+    CardBox(Modifier.fillMaxWidth()) { AccentPicker(vm) }
+    CardBox(Modifier.fillMaxWidth()) { LogoPicker(vm) }
     CardBox(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
             T("Media layout", size = 14.4.sp, lineHeight = 18.7.sp)

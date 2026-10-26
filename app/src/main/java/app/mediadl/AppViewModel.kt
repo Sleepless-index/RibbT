@@ -130,7 +130,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var ytdlpChecking by mutableStateOf(false)
 
     var debugInfo by mutableStateOf(prefs.debugInfo)
-    var iconFollowsAccent by mutableStateOf(prefs.iconFollowsAccent)
+    var appLogo by mutableStateOf(prefs.appLogo)
     val appVersion: String = AppUpdate.installedVersion(application)
     var appChecking by mutableStateOf(false)
     var appRelease by mutableStateOf<AppRelease?>(null)
@@ -283,10 +283,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refresh()
     }
 
-    fun updateIconFollowsAccent(value: Boolean) {
-        prefs.iconFollowsAccent = value
-        iconFollowsAccent = value
-        AppIcon.apply(getApplication<Application>(), if (value) accent else null)
+    /** Saves the logo style and switches the launcher icon to it. */
+    fun updateAppLogo(key: String) {
+        val logo = AppLogo.fromKey(key)
+        prefs.appLogo = logo.key
+        appLogo = logo.key
+        AppIcon.apply(getApplication<Application>(), logo)
         savedPulse++
     }
 
@@ -302,7 +304,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 prefs.customAccent = color.toArgb()
                 customAccent = color
             }
-            if (iconFollowsAccent) AppIcon.apply(getApplication<Application>(), color)
             savedPulse++
         }
     }

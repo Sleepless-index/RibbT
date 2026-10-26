@@ -43,9 +43,9 @@
             </intent-filter>
         </activity>
 
-        <!-- The launcher icon. One alias per icon colour; AppIcon switches between them when the accent changes. -->
+        <!-- The launcher icon. One alias per logo style; AppIcon switches between them when the logo setting changes. -->
         <activity-alias
-            android:name=".IconRed"
+            android:name=".IconLight"
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
@@ -59,11 +59,11 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".IconOrange"
+            android:name=".IconDark"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher_orange"
-            android:roundIcon="@mipmap/ic_launcher_orange"
+            android:icon="@mipmap/ic_launcher_dark"
+            android:roundIcon="@mipmap/ic_launcher_dark"
             android:label="@string/app_name"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -73,11 +73,11 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".IconGreen"
+            android:name=".IconGradient"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher_green"
-            android:roundIcon="@mipmap/ic_launcher_green"
+            android:icon="@mipmap/ic_launcher_gradient"
+            android:roundIcon="@mipmap/ic_launcher_gradient"
             android:label="@string/app_name"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -87,53 +87,11 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".IconTeal"
+            android:name=".IconInk"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher_teal"
-            android:roundIcon="@mipmap/ic_launcher_teal"
-            android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconBlue"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_blue"
-            android:roundIcon="@mipmap/ic_launcher_blue"
-            android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconViolet"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_violet"
-            android:roundIcon="@mipmap/ic_launcher_violet"
-            android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconPink"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_pink"
-            android:roundIcon="@mipmap/ic_launcher_pink"
+            android:icon="@mipmap/ic_launcher_ink"
+            android:roundIcon="@mipmap/ic_launcher_ink"
             android:label="@string/app_name"
             android:targetActivity=".MainActivity">
             <intent-filter>

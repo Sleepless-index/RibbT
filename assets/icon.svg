@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512"><rect width="108" height="108" rx="24" fill="#FF2442"/><g transform="translate(3 4)" fill="none" stroke="#C4122B" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M34 34l36 36M72 42v30H42"/></g><g fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"><path d="M34 34l36 36M72 42v30H42"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M256 256L135 186M256 256L377 186M256 256V396" stroke="#000" stroke-width="7" fill="none"/></mask></defs>
+  <rect width="512" height="512" rx="116" fill="#EAF1FF"/>
+  <g mask="url(#m)">
+    <polygon points="256,116 377,186 256,256 135,186" fill="#17308F"/>
+    <polygon points="135,186 256,256 256,396 135,326" fill="#2F6BFF"/>
+    <polygon points="377,186 377,326 256,396 256,256" fill="#5A9BFF"/>
+  </g>
+</svg>

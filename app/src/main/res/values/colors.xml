@@ -1,10 +1,6 @@
 <resources>
     <color name="window_bg">#0E0D10</color>
-    <color name="ic_bg_red">#FF2442</color>
-    <color name="ic_bg_orange">#F26B21</color>
-    <color name="ic_bg_green">#2FA66A</color>
-    <color name="ic_bg_teal">#0E9AA7</color>
-    <color name="ic_bg_blue">#5577E6</color>
-    <color name="ic_bg_violet">#8452E6</color>
-    <color name="ic_bg_pink">#E8467F</color>
+    <!-- Launcher icon backgrounds that are a single colour; the dark and gradient logos use drawables. -->
+    <color name="ic_bg_light">#EAF1FF</color>
+    <color name="ic_bg_ink">#15142E</color>
 </resources>
