@@ -1,5 +1,9 @@
 package app.mediadl
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.animation.core.animateDpAsState
@@ -229,7 +233,7 @@ private fun LinkRow(vm: AppViewModel) {
                 keyboardActions = KeyboardActions(onGo = { vm.parse() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 46.dp, end = if (filled) 48.dp else 104.dp)
+                    .padding(start = 46.dp, end = 52.dp)
                     .onFocusChanged { focused = it.isFocused },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
@@ -240,38 +244,11 @@ private fun LinkRow(vm: AppViewModel) {
                     }
                 },
             )
-            if (filled) {
-                Box(
-                    Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 4.dp)
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .clickable(onClickLabel = "Clear link", role = Role.Button) { vm.reset() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    VIconView(VIcons.Clear, 18.dp, palette.muted)
-                }
-            } else {
-                // Paste, while the field is empty.
-                Row(
-                    Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 6.dp)
-                        .height(36.dp)
-                        .clip(CircleShape)
-                        .background(palette.soft)
-                        .clickable(onClickLabel = "Paste link", role = Role.Button) {
-                            vm.pasteFromClipboard(readClipboard(context))
-                        }
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    VIconView(VIcons.Paste, 16.dp, palette.text)
-                    T("Paste", size = 13.sp, color = palette.text, weight = FontWeight.SemiBold, maxLines = 1)
-                }
-            }
+            PasteClearButton(
+                filled = filled,
+                onClick = { if (filled) vm.reset() else vm.pasteFromClipboard(readClipboard(context)) },
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 5.dp),
+            )
         }
         if (filled) {
             PillButton(
@@ -284,6 +261,60 @@ private fun LinkRow(vm: AppViewModel) {
                 spinner = vm.loading,
             )
         }
+    }
+}
+
+/**
+ * One 38dp button that is "paste" while the field is empty and "clear" once it has text. Both icons sit in the same
+ * spot and cross-fade: the outgoing one spins +90° and shrinks, the incoming one spins in from -90° with a slight
+ * overshoot, so it reads as a single icon flipping. Pressing only scales the button, so nothing shifts.
+ */
+@Composable
+private fun PasteClearButton(filled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val palette = LocalPalette.current
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val press by animateFloatAsState(if (pressed) 0.92f else 1f, tween(120, easing = FastOutSlowInEasing), label = "press")
+    val spring = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
+    val clear by animateFloatAsState(if (filled) 1f else 0f, tween(380, easing = spring), label = "swap")
+    val fade by animateFloatAsState(if (filled) 1f else 0f, tween(220), label = "fade")
+    val shape = RoundedCornerShape(9.dp)
+    Box(
+        modifier
+            .size(38.dp)
+            .graphicsLayer { scaleX = press; scaleY = press }
+            .clip(shape)
+            .background(if (pressed) palette.soft else Color.Transparent)
+            .clickable(
+                interactionSource = source,
+                indication = null,
+                onClickLabel = if (filled) "Clear link" else "Paste link",
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Paste icon: leaves to +90° as the field fills, comes back from +90°.
+        VIconView(
+            VIcons.Paste, 18.dp, palette.muted,
+            Modifier.graphicsLayer {
+                val t = 1f - clear
+                alpha = 1f - fade
+                val k = 0.3f + 0.7f * t
+                scaleX = k; scaleY = k
+                rotationZ = 90f * clear
+            },
+        )
+        // Clear icon: spins in from -90°.
+        VIconView(
+            VIcons.Clear, 18.dp, palette.muted,
+            Modifier.graphicsLayer {
+                alpha = fade
+                val k = 0.3f + 0.7f * clear
+                scaleX = k; scaleY = k
+                rotationZ = -90f * (1f - clear)
+            },
+        )
     }
 }
 
