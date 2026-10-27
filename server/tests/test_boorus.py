@@ -10,7 +10,7 @@ GELBOORU = "https://gelbooru.com/index.php?page=post&s=view&id=9988776&tags=all"
 
 
 def reply(payload=None, ok=True, text=""):
-    response = mock.Mock(ok=ok, text=text)
+    response = mock.Mock(ok=ok, text=text, status_code=200 if ok else 403)
     if payload is None:
         response.json.side_effect = ValueError("not json")
     else:
@@ -86,6 +86,40 @@ class BooruTests(unittest.TestCase):
                 mock.patch.object(adapter, "fetch_page", return_value=(GELBOORU, page)):
             post = adapter.extract(GELBOORU)
         self.assertEqual(post["_images"][0][0], "https://img3.gelbooru.com/images/aa/bb/aabb.png")
+
+    def test_danbooru_banned_and_deleted_posts_get_their_own_messages(self):
+        from mediadl.adapters import pick_adapter
+        adapter = pick_adapter(DANBOORU)
+        for flag, word in (("is_banned", "banned"), ("is_deleted", "deleted")):
+            session = mock.Mock()
+            session.get.return_value = reply({"id": 7654321, "file_ext": "jpg", flag: True})
+            with mock.patch("mediadl.adapters.danbooru.get_session", return_value=session):
+                with self.assertRaises(ValueError) as ctx:
+                    adapter.extract(DANBOORU)
+            self.assertIn(word, str(ctx.exception))
+
+    def test_danbooru_falls_back_to_the_page_when_the_api_is_blocked(self):
+        from mediadl.adapters import pick_adapter
+        adapter = pick_adapter(DANBOORU)
+        page = ('<section id="image-container" data-file-url="https://cdn.donmai.us/original/ab/cd/abcd.jpg" '
+                'data-large-file-url="https://cdn.donmai.us/sample/ab/cd/sample-abcd.jpg"></section>')
+        session = mock.Mock()
+        session.get.side_effect = [reply(None, ok=False), reply(None, ok=False), reply(None, text=page)]
+        with mock.patch("mediadl.adapters.danbooru.get_session", return_value=session):
+            post = adapter.extract(DANBOORU)
+        self.assertEqual(post["_images"][0][0], "https://cdn.donmai.us/original/ab/cd/abcd.jpg")
+        # The first request says who is asking, as Danbooru requests of API clients.
+        self.assertTrue(session.get.call_args_list[0].kwargs["headers"]["User-Agent"].startswith("RibbT/"))
+
+    def test_danbooru_reports_the_http_status(self):
+        from mediadl.adapters import pick_adapter
+        adapter = pick_adapter(DANBOORU)
+        session = mock.Mock()
+        session.get.return_value = reply(None, ok=False)
+        with mock.patch("mediadl.adapters.danbooru.get_session", return_value=session):
+            with self.assertRaises(ValueError) as ctx:
+                adapter.extract(DANBOORU)
+        self.assertIn("HTTP 403", str(ctx.exception))
 
 
 if __name__ == "__main__":

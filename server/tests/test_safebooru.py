@@ -11,7 +11,7 @@ RECORD = {"id": 4567890, "directory": "3841", "image": "abc123.png", "hash": "ab
 
 
 def reply(payload=None, text="", ok=True):
-    response = mock.Mock(ok=ok, text=text)
+    response = mock.Mock(ok=ok, text=text, status_code=200 if ok else 403)
     if payload is None:
         response.json.side_effect = ValueError("not json")
     else:
