@@ -86,11 +86,14 @@ def header_sets(url, extra):
     host = hostname(url)
     source = next((s for s in MEDIA_SOURCES if host_in(host, s.hosts)), DEFAULT_SOURCE)
     sets = []
-    for referer in source.referers:
-        headers = dict(MEDIA_BASE_HEADERS)
-        if referer:
-            headers["Referer"] = referer
-        sets.append({**headers, **extra})
+    for agent in source.agents or (None,):
+        for referer in source.referers:
+            headers = dict(MEDIA_BASE_HEADERS)
+            if agent:
+                headers["User-Agent"] = agent
+            if referer:
+                headers["Referer"] = referer
+            sets.append({**headers, **extra})
     return sets
 
 

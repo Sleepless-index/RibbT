@@ -63,9 +63,8 @@ fun LogoMark(logo: AppLogo, modifier: Modifier = Modifier, corner: Float = 116f 
 }
 
 /**
- * "App logo" setting: a preview of the highlighted logo (as a rounded square and as a circle, the two
- * shapes launchers use), the choices underneath, and an Apply button that switches the launcher icon.
- * Tapping a choice only previews it, so nothing moves on the home screen until Apply.
+ * "App logo" setting: the choices, each drawn as the logo itself, and an Apply button that switches the
+ * launcher icon. Tapping a choice only highlights it, so nothing moves on the home screen until Apply.
  */
 @Composable
 fun LogoPicker(vm: AppViewModel) {
@@ -76,35 +75,6 @@ fun LogoPicker(vm: AppViewModel) {
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
         T("App logo", size = 14.4.sp, lineHeight = 18.7.sp)
-        T(
-            "Pick the icon shown on your home screen. Your launcher may refresh or move the icon when it changes.",
-            size = 12.16.sp,
-            color = palette.muted,
-            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
-            lineHeight = 15.8.sp,
-        )
-
-        // Preview.
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(palette.bg).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LogoMark(shown, Modifier.size(72.dp))
-            Spacer(Modifier.width(12.dp))
-            LogoMark(shown, Modifier.size(48.dp), corner = 0.5f)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                T(shown.label, size = 14.4.sp, weight = FontWeight.SemiBold, lineHeight = 18.7.sp)
-                T(
-                    if (changed) "Preview" else "In use",
-                    size = 12.16.sp,
-                    color = if (changed) Accent else palette.muted,
-                    modifier = Modifier.padding(top = 2.dp),
-                    lineHeight = 15.8.sp,
-                )
-            }
-        }
-
         // Choices.
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             AppLogo.entries.forEach { logo ->

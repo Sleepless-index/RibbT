@@ -89,19 +89,6 @@ private fun ServiceRow(platform: Platform) {
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             T(platform.label, size = 15.2.sp, weight = FontWeight.SemiBold, lineHeight = 21.3.sp)
             T(platform.display.joinToString(", "), size = 12.16.sp, color = palette.muted, lineHeight = 16.4.sp)
-            if (platform.features.isNotEmpty()) {
-                T(
-                    platform.features.let { features ->
-                        // A service that only gives audio is a music service.
-                        if (features.all { it == "Audio" }) listOf("Music") else features
-                    }.joinToString(" • "),
-                    modifier = Modifier.padding(top = 4.dp),
-                    size = 12.16.sp,
-                    color = Accent,
-                    weight = FontWeight.SemiBold,
-                    lineHeight = 16.4.sp,
-                )
-            }
             if (platform.note.isNotBlank()) {
                 T(
                     platform.note,

@@ -71,6 +71,9 @@ MEDIA_BASE_HEADERS = {
 class MediaSource:
     hosts: tuple
     referers: tuple = ("",)
+    # User-Agents to try in order, for hosts that block a browser User-Agent sent by a non-browser client.
+    # Empty: the default browser one.
+    agents: tuple = ()
 
 
 MEDIA_SOURCES = (
@@ -115,7 +118,11 @@ MEDIA_SOURCES = (
     ),
     MediaSource(hosts=("scdn.co",), referers=("https://open.spotify.com/",)),
     MediaSource(hosts=("safebooru.org",), referers=("https://safebooru.org/",)),
-    MediaSource(hosts=("donmai.us",), referers=("https://danbooru.donmai.us/",)),
+    MediaSource(
+        hosts=("donmai.us",),
+        referers=("https://danbooru.donmai.us/",),
+        agents=("RibbT/1.0 (+https://github.com/Sleepless-Index/RibbT)", DESKTOP_UA),
+    ),
     MediaSource(hosts=("gelbooru.com",), referers=("https://gelbooru.com/",)),
     MediaSource(hosts=("pinimg.com",), referers=("https://www.pinterest.com/",)),
     MediaSource(

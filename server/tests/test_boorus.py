@@ -121,6 +121,13 @@ class BooruTests(unittest.TestCase):
                 adapter.extract(DANBOORU)
         self.assertIn("HTTP 403", str(ctx.exception))
 
+    def test_danbooru_media_asks_as_the_app_first(self):
+        from mediadl.services.net import header_sets
+        sets = header_sets("https://cdn.donmai.us/original/ab/cd/abcd.jpg", {})
+        self.assertTrue(sets[0]["User-Agent"].startswith("RibbT/"))
+        self.assertTrue(sets[-1]["User-Agent"].startswith("Mozilla/"))
+        self.assertEqual(sets[0]["Referer"], "https://danbooru.donmai.us/")
+
 
 if __name__ == "__main__":
     unittest.main()

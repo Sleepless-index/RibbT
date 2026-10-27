@@ -264,10 +264,8 @@ private fun StatusCard(vm: AppViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Box(
-                    Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(Accent),
-                    contentAlignment = Alignment.Center,
-                ) { VIconView(VIcons.Download, 22.dp, AccentOn) }
+                // The logo the user picked, so this row looks like the app on their home screen.
+                LogoMark(AppLogo.fromKey(vm.appLogo), Modifier.size(48.dp), corner = 15f / 48f)
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         T("RibbT", size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
