@@ -164,6 +164,9 @@ fun PillButton(
     pulse: Float? = null,
     /** Overrides the text and icon color (for a red "Delete", say). */
     contentColor: Color? = null,
+    /** When set, the icon flips to this one (with the SwapIcon animation) while [swapped] is true. */
+    swapIcon: VIcon? = null,
+    swapped: Boolean = false,
 ) {
     val palette = LocalPalette.current
     val source = remember { MutableInteractionSource() }
@@ -212,10 +215,45 @@ fun PillButton(
             )
             Spacer(Modifier.width(6.dp))
         } else if (icon != null) {
-            VIconView(icon, 16.dp, foreground)
+            if (swapIcon != null) SwapIcon(icon, swapIcon, swapped, 16.dp, foreground) else VIconView(icon, 16.dp, foreground)
             Spacer(Modifier.width(6.dp))
         }
         T(text, size = if (height > 36.dp) 14.sp else 12.8.sp, color = foreground, weight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+/**
+ * Two icons in the same spot that flip into each other: the outgoing one spins +90° while shrinking and fading,
+ * the incoming one spins in from -90° with a slight overshoot, so it reads as one icon turning into another.
+ */
+@Composable
+fun SwapIcon(first: VIcon, second: VIcon, swapped: Boolean, size: Dp, tint: Color, modifier: Modifier = Modifier) {
+    val spring = androidx.compose.animation.core.CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
+    val turn by androidx.compose.animation.core.animateFloatAsState(
+        if (swapped) 1f else 0f, androidx.compose.animation.core.tween(380, easing = spring), label = "swap",
+    )
+    val fade by androidx.compose.animation.core.animateFloatAsState(
+        if (swapped) 1f else 0f, androidx.compose.animation.core.tween(220), label = "fade",
+    )
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        VIconView(
+            first, size, tint,
+            Modifier.graphicsLayer {
+                alpha = 1f - fade
+                val k = 0.3f + 0.7f * (1f - turn)
+                scaleX = k; scaleY = k
+                rotationZ = 90f * turn
+            },
+        )
+        VIconView(
+            second, size, tint,
+            Modifier.graphicsLayer {
+                alpha = fade
+                val k = 0.3f + 0.7f * turn
+                scaleX = k; scaleY = k
+                rotationZ = -90f * (1f - turn)
+            },
+        )
     }
 }
 

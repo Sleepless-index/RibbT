@@ -551,7 +551,7 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
 
             val actions = buildList {
                 add(
-                    DetailAction(if (copied) "Copied" else "Copy link", if (copied) VIcons.Check else VIcons.Link) {
+                    DetailAction(if (copied) "Copied" else "Copy link", VIcons.Link, swapIcon = VIcons.Check, swapped = copied) {
                         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                         manager?.setPrimaryClip(ClipData.newPlainText("RibbT link", entry.link))
                         copied = true
@@ -572,6 +572,8 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                                 style = PillStyle.Tonal,
                                 height = 42.dp,
                                 contentColor = if (action.destructive) palette.err else null,
+                                swapIcon = action.swapIcon,
+                                swapped = action.swapped,
                             )
                         }
                     }
@@ -581,7 +583,14 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
     }
 }
 
-private class DetailAction(val label: String, val icon: VIcon, val destructive: Boolean = false, val onClick: () -> Unit)
+private class DetailAction(
+    val label: String,
+    val icon: VIcon,
+    val destructive: Boolean = false,
+    val swapIcon: VIcon? = null,
+    val swapped: Boolean = false,
+    val onClick: () -> Unit,
+)
 
 @Composable
 private fun InfoChip(text: String) {

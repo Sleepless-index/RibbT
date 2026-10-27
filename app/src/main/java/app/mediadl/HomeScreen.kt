@@ -233,7 +233,7 @@ private fun LinkRow(vm: AppViewModel) {
                 keyboardActions = KeyboardActions(onGo = { vm.parse() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 46.dp, end = 52.dp)
+                    .padding(start = 46.dp, end = 58.dp)
                     .onFocusChanged { focused = it.isFocused },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
@@ -247,7 +247,7 @@ private fun LinkRow(vm: AppViewModel) {
             PasteClearButton(
                 filled = filled,
                 onClick = { if (filled) vm.reset() else vm.pasteFromClipboard(readClipboard(context)) },
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 5.dp),
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 10.dp),
             )
         }
         if (filled) {
@@ -264,20 +264,13 @@ private fun LinkRow(vm: AppViewModel) {
     }
 }
 
-/**
- * One 38dp button that is "paste" while the field is empty and "clear" once it has text. Both icons sit in the same
- * spot and cross-fade: the outgoing one spins +90° and shrinks, the incoming one spins in from -90° with a slight
- * overshoot, so it reads as a single icon flipping. Pressing only scales the button, so nothing shifts.
- */
+/** One 38dp button that is "paste" while the field is empty and "clear" once it has text. Pressing only scales it. */
 @Composable
 private fun PasteClearButton(filled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val press by animateFloatAsState(if (pressed) 0.92f else 1f, tween(120, easing = FastOutSlowInEasing), label = "press")
-    val spring = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
-    val clear by animateFloatAsState(if (filled) 1f else 0f, tween(380, easing = spring), label = "swap")
-    val fade by animateFloatAsState(if (filled) 1f else 0f, tween(220), label = "fade")
     val shape = RoundedCornerShape(9.dp)
     Box(
         modifier
@@ -294,27 +287,7 @@ private fun PasteClearButton(filled: Boolean, onClick: () -> Unit, modifier: Mod
             ),
         contentAlignment = Alignment.Center,
     ) {
-        // Paste icon: leaves to +90° as the field fills, comes back from +90°.
-        VIconView(
-            VIcons.Paste, 18.dp, palette.muted,
-            Modifier.graphicsLayer {
-                val t = 1f - clear
-                alpha = 1f - fade
-                val k = 0.3f + 0.7f * t
-                scaleX = k; scaleY = k
-                rotationZ = 90f * clear
-            },
-        )
-        // Clear icon: spins in from -90°.
-        VIconView(
-            VIcons.Clear, 18.dp, palette.muted,
-            Modifier.graphicsLayer {
-                alpha = fade
-                val k = 0.3f + 0.7f * clear
-                scaleX = k; scaleY = k
-                rotationZ = -90f * (1f - clear)
-            },
-        )
+        SwapIcon(VIcons.Paste, VIcons.Clear, filled, 18.dp, palette.muted)
     }
 }
 
