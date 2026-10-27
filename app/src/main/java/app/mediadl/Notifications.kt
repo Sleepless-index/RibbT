@@ -52,7 +52,6 @@ object Notifier {
         val notification = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_ribbt)
             .setLargeIcon(largeIcon(context))
-            .setColor(0xFFFF2442.toInt())
             .setContentTitle(if (ok) "Download complete" else "Download failed")
             .setContentText(if (name.isBlank()) status else "$name · $status")
             .setStyle(NotificationCompat.BigTextStyle().bigText("$name\n$status"))

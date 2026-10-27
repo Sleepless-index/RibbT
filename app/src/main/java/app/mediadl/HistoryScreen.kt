@@ -34,6 +34,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -426,6 +430,7 @@ private fun SearchField(vm: AppViewModel) {
 }
 
 /** What opens when a history row is tapped: the whole picture, the details, and what you can do with it. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -> Unit) {
     val palette = LocalPalette.current
@@ -443,14 +448,25 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
         entry.time * 1000, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
     ).toString()
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = palette.card,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = 10.dp, bottom = 4.dp)
+                    .size(width = 40.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(palette.line),
+            )
+        },
+    ) {
         Column(
             Modifier
-                .padding(horizontal = 20.dp)
-                .widthIn(max = 440.dp)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(palette.card)
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState()),
         ) {
             // The picture is shown whole (never cropped); what it doesn't fill stays the dark backdrop.
@@ -475,30 +491,29 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                     }
                 }
                 if (platformLabel.isNotBlank()) {
-                    T(
-                        platformLabel,
-                        size = 11.5.sp,
-                        color = Color.White,
-                        weight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        modifier = Modifier
+                    val logo = remember(entry.platform) {
+                        context.resources.getIdentifier("logo_${entry.platform}", "drawable", context.packageName)
+                    }
+                    Row(
+                        Modifier
                             .align(Alignment.BottomStart)
                             .padding(8.dp)
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.55f))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
+                            .padding(start = if (logo != 0) 4.dp else 10.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (logo != 0) {
+                            Image(
+                                painter = painterResource(logo),
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.padding(end = 6.dp).size(20.dp).clip(RoundedCornerShape(6.dp)),
+                            )
+                        }
+                        T(platformLabel, size = 11.5.sp, color = Color.White, weight = FontWeight.SemiBold, maxLines = 1)
+                    }
                 }
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .clickable(onClickLabel = "Close", role = Role.Button, onClick = onDismiss),
-                    contentAlignment = Alignment.Center,
-                ) { VIconView(VIcons.CloseSmall, 14.dp, Color.White) }
             }
 
             Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp)) {

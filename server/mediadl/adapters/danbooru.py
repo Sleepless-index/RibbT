@@ -110,8 +110,10 @@ class DanbooruAdapter(PlatformAdapter):
         artists = _names(post.get("tag_string_artist"), 2)
         characters = _names(post.get("tag_string_character"), 2)
         title = ", ".join(characters) or ", ".join(_names(post.get("tag_string_copyright"), 1)) or f"Danbooru #{pid}"
-        preview = clean_url(post.get("preview_file_url")) if post.get("preview_file_url") else None
-        return self._build(pid, urls, title, ", ".join(artists), preview)
+        # Preview order: the ~850px sample, then the original, and the 150px thumbnail only as a last resort.
+        pictures = [post.get("large_file_url"), post.get("file_url"), post.get("preview_file_url")]
+        cover = dedupe([clean_url(u) for u in pictures if u])
+        return self._build(pid, urls, title, ", ".join(artists), cover)
 
     # -- Post page ----------------------------------------------------------------------------
 
@@ -148,12 +150,12 @@ class DanbooruAdapter(PlatformAdapter):
         return None, status
 
     @staticmethod
-    def _build(pid, urls, title, author, preview):
+    def _build(pid, urls, title, author, cover):
         is_video = urls[0].lower().split("?")[0].endswith(tuple("." + e for e in VIDEO_EXTENSIONS))
         result = new_post(id=pid, title=title[:TITLE_LIMIT], author=author, kind="video" if is_video else "images")
         if is_video:
             result["_videos"] = [video_group([candidate(urls[0])])]
         else:
             result["_images"] = [urls]
-            result["_cover"] = dedupe([preview] + urls) if preview else urls
+            result["_cover"] = dedupe(list(cover or []) + urls)
         return result

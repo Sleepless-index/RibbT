@@ -132,7 +132,6 @@ class ServerService : Service() {
         val notification: Notification = NotificationCompat.Builder(this, Notifier.SERVER_CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_ribbt)
             .setLargeIcon(Notifier.largeIcon(this))
-            .setColor(0xFFFF2442.toInt())
             .setContentTitle("RibbT is ready")
             .setContentText("The built-in downloader is running.")
             .setContentIntent(open)
