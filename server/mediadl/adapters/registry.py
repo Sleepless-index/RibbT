@@ -1,8 +1,10 @@
 import re
 
 from .bilibili import BilibiliAdapter
+from .catbox import CatboxAdapter
 from .danbooru import DanbooruAdapter
 from .gelbooru import GelbooruAdapter
+from .imgur import ImgurAdapter
 from .instagram import InstagramAdapter
 from .pinterest import PinterestAdapter
 from .rednote import RedNoteAdapter
@@ -12,6 +14,7 @@ from .soundcloud import SoundCloudAdapter
 from .spotify import SpotifyAdapter
 from .tiktok import TikTokAdapter
 from .twitter import TwitterAdapter
+from .yandere import YandereAdapter
 from .youtube import YouTubeAdapter
 
 ADAPTERS = (
@@ -28,6 +31,9 @@ ADAPTERS = (
     SafebooruAdapter(),
     DanbooruAdapter(),
     GelbooruAdapter(),
+    YandereAdapter(),
+    ImgurAdapter(),
+    CatboxAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"

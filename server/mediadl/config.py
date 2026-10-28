@@ -124,6 +124,9 @@ MEDIA_SOURCES = (
         agents=("RibbT/1.0 (+https://github.com/Sleepless-Index/RibbT)", DESKTOP_UA),
     ),
     MediaSource(hosts=("gelbooru.com",), referers=("https://gelbooru.com/",)),
+    MediaSource(hosts=("yande.re",), referers=("https://yande.re/",)),
+    MediaSource(hosts=("imgur.com",), referers=("https://imgur.com/",)),
+    MediaSource(hosts=("catbox.moe",)),
     MediaSource(hosts=("pinimg.com",), referers=("https://www.pinterest.com/",)),
     MediaSource(
         hosts=("xhscdn.com", "xhscdn.net", "xiaohongshu.com"),
