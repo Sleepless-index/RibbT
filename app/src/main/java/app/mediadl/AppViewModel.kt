@@ -308,6 +308,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Forgets the saved custom accent; if it is the one in use, goes back to the default. */
+    fun removeCustomAccent() {
+        val inUse = customAccent != null && hexOf(accent) != hexOf(DefaultAccent)
+        prefs.customAccent = 0
+        customAccent = null
+        if (inUse) updateAccent(DefaultAccent, save = true) else savedPulse++
+    }
+
     fun updatePlaylistAudio(value: Boolean) { prefs.playlistAudio = value; playlistAudio = value }
     fun updateSaveTo(value: String) { prefs.saveTo = value; saveTo = value; savedPulse++ }
     fun updateSortByType(value: Boolean) { prefs.sortByType = value; sortByType = value; savedPulse++ }

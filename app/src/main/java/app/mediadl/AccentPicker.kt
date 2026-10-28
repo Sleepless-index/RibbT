@@ -90,7 +90,7 @@ fun AccentPicker(vm: AppViewModel) {
                 lineHeight = 15.8.sp,
             )
             Row(
-                Modifier.padding(top = 12.dp),
+                Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -113,6 +113,16 @@ fun AccentPicker(vm: AppViewModel) {
                         .clickable(onClickLabel = "Pick a custom accent color", role = Role.Button) { open = !open },
                     contentAlignment = Alignment.Center,
                 ) { VIconView(VIcons.Plus, 15.dp, palette.muted) }
+                if (custom != null) {
+                    Spacer(Modifier.weight(1f))
+                    SmallButton(
+                        text = "Remove",
+                        enabled = true,
+                        onClick = { vm.removeCustomAccent(); open = false },
+                        tonal = true,
+                        minWidth = 76.dp,
+                    )
+                }
             }
         }
         if (open) PickerBody(vm)

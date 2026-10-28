@@ -24,7 +24,7 @@ Download videos, photos and audio from social media.
 
 ## Supported sites
 
-YouTube, TikTok, X (Twitter), Reddit, Pinterest, Bilibili, RedNote, Instagram, SoundCloud, Spotify (tracks), Safebooru, Danbooru, Gelbooru, Yande.re, Imgur and Catbox.
+YouTube, TikTok, X (Twitter), Reddit, Pinterest, Bilibili, RedNote, Instagram, SoundCloud, Spotify (tracks), Safebooru, Danbooru, Gelbooru, Yande.re and Imgur.
 
 ## Install
 

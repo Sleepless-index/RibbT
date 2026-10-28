@@ -14,7 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 
-val DefaultAccent = Color(0xFFFF2442)
+/** The blue of the app logo's cube. */
+val DefaultAccent = Color(0xFF2F6BFF)
 
 /**
  * The accent colour the user picked. It lives in snapshot state, so everything that reads [Accent]

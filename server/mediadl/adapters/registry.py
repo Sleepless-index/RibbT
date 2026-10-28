@@ -1,7 +1,6 @@
 import re
 
 from .bilibili import BilibiliAdapter
-from .catbox import CatboxAdapter
 from .danbooru import DanbooruAdapter
 from .gelbooru import GelbooruAdapter
 from .imgur import ImgurAdapter
@@ -33,7 +32,6 @@ ADAPTERS = (
     GelbooruAdapter(),
     YandereAdapter(),
     ImgurAdapter(),
-    CatboxAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"

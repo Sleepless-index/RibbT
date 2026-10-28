@@ -27,7 +27,7 @@ class Prefs(context: Context) {
 
     /** The accent colour as ARGB. */
     var accent: Int
-        get() = sp.getInt("accent", DEFAULT_ACCENT)
+        get() = sp.getInt("accent", DEFAULT_ACCENT).let { if (it == OLD_DEFAULT_ACCENT) DEFAULT_ACCENT else it }
         set(value) = sp.edit().putInt("accent", value).apply()
 
     /** The last custom accent (ARGB), kept so switching back to the default doesn't lose it; 0 when none. */
@@ -156,7 +156,9 @@ class Prefs(context: Context) {
 
     companion object {
         const val DEFAULT_URL = "http://127.0.0.1:5000"
-        const val DEFAULT_ACCENT = 0xFFFF2442.toInt()
+        const val DEFAULT_ACCENT = 0xFF2F6BFF.toInt()
+        /** The default before the accent followed the logo; saved as-is by older builds. */
+        private const val OLD_DEFAULT_ACCENT = 0xFFFF2442.toInt()
         private const val PENDING_MAX_AGE_MS = 6L * 60 * 60 * 1000
     }
 }

@@ -39,7 +39,6 @@ class ImgurAdapter(PlatformAdapter):
     label = "Imgur"
     features = ("Photos", "Video")
     hosts = ("imgur.com",)
-    note = "Pictures, GIFs and albums."
 
     def extract(self, url):
         path = urlparse(url).path.rstrip("/") or "/"

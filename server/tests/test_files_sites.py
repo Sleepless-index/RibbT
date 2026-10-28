@@ -10,7 +10,6 @@ IMGUR_ALBUM = "https://imgur.com/a/AbCdE12"
 IMGUR_PIC = "https://imgur.com/AbCdE12"
 IMGUR_DIRECT = "https://i.imgur.com/AbCdE12.jpg"
 IMGUR_GIFV = "https://i.imgur.com/AbCdE12.gifv"
-CATBOX = "https://files.catbox.moe/abc123.png"
 
 
 def reply(payload=None, ok=True, text=""):
@@ -29,10 +28,7 @@ class FileSiteTests(unittest.TestCase):
         self.assertEqual(pick_adapter(YANDERE).name, "yandere")
         self.assertEqual(pick_adapter(IMGUR_ALBUM).name, "imgur")
         self.assertEqual(pick_adapter(IMGUR_DIRECT).name, "imgur")
-        self.assertEqual(pick_adapter(CATBOX).name, "catbox")
-        self.assertEqual(pick_adapter("https://litter.catbox.moe/xyz789.mp4").name, "catbox")
         self.assertEqual(find_link(f"look {YANDERE} wow"), YANDERE)
-        self.assertEqual(find_link(f"look {CATBOX}"), CATBOX)
 
     def test_yandere_image(self):
         from mediadl.adapters import pick_adapter
@@ -113,26 +109,9 @@ class FileSiteTests(unittest.TestCase):
                 adapter.extract(IMGUR_ALBUM)
         self.assertIn("Imgur", str(ctx.exception))
 
-    def test_catbox_kinds(self):
-        from mediadl.adapters import pick_adapter
-        adapter = pick_adapter(CATBOX)
-        image = adapter.extract(CATBOX)
-        self.assertEqual((image["kind"], image["_images"]), ("images", [[CATBOX]]))
-        video = adapter.extract("https://files.catbox.moe/clip01.mp4")
-        self.assertEqual(video["kind"], "video")
-        self.assertEqual(video["_videos"][0]["cands"][0]["url"], "https://files.catbox.moe/clip01.mp4")
-        audio = adapter.extract("https://files.catbox.moe/song01.mp3")
-        self.assertEqual((audio["kind"], audio["audio_track"]["url"]), ("audio", "https://files.catbox.moe/song01.mp3"))
-
-    def test_catbox_needs_a_file_link(self):
-        from mediadl.adapters import pick_adapter
-        for bad in ("https://catbox.moe/", "https://files.catbox.moe/archive.zip"):
-            with self.assertRaises(ValueError):
-                pick_adapter(bad).extract(bad)
-
     def test_new_sites_are_allowed_as_media_hosts(self):
         from mediadl.config import MEDIA_HOSTS
-        for host in ("yande.re", "imgur.com", "catbox.moe"):
+        for host in ("yande.re", "imgur.com"):
             self.assertIn(host, MEDIA_HOSTS)
 
 
