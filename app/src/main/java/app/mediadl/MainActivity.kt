@@ -1,5 +1,8 @@
 package app.mediadl
 
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -165,12 +168,24 @@ fun AppRoot(vm: AppViewModel) {
     }
 }
 
-/** A floating pill with Home, Queue, History and Settings. Queue opens the download list instead of a screen. */
+/** The same overshoot curve everywhere in the bar: the pill and the icon both settle with a slight spring. */
+private val NavSpring = CubicBezierEasing(0.34f, 1.35f, 0.64f, 1f)
+
+/**
+ * A floating pill with Home, Queue, History and Settings. A highlight pill slides behind the current tab; Queue opens
+ * the download list instead of a screen, so the pill never lands on it.
+ */
 @Composable
 private fun NavBar(vm: AppViewModel, running: Int, unread: Boolean, onQueue: () -> Unit, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
     val shape = RoundedCornerShape(30.dp)
-    Row(
+    val gap = 4.dp
+    val index by animateFloatAsState(
+        when (vm.tab) { Tab.Home -> 0f; Tab.History -> 2f; Tab.Settings -> 3f },
+        tween(420, easing = NavSpring),
+        label = "nav-pill",
+    )
+    Box(
         modifier
             .navigationBarsPadding()
             .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
@@ -181,13 +196,30 @@ private fun NavBar(vm: AppViewModel, running: Int, unread: Boolean, onQueue: () 
             .border(1.dp, palette.line, shape)
             .height(60.dp)
             .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        NavItem(Tab.Home, VIcons.Home, vm, Modifier.weight(1f))
-        NavSlot("Queue", VIcons.Queue, false, Modifier.weight(1f), badge = running, dot = unread && running == 0, onClick = onQueue)
-        NavItem(Tab.History, VIcons.History, vm, Modifier.weight(1f))
-        NavItem(Tab.Settings, VIcons.Settings, vm, Modifier.weight(1f))
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val slot = (maxWidth - gap * 3) / 4
+            // Position is layout (left + width = one slot); motion is only the translation.
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .width(slot)
+                    .height(46.dp)
+                    .graphicsLayer { translationX = index * (slot + gap).toPx() }
+                    .clip(RoundedCornerShape(23.dp))
+                    .background(Accent.copy(alpha = 0.14f)),
+            )
+            Row(
+                Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(gap),
+            ) {
+                NavItem(Tab.Home, VIcons.Home, vm, Modifier.weight(1f))
+                NavSlot("Queue", VIcons.Queue, false, Modifier.weight(1f), badge = running, dot = unread && running == 0, onClick = onQueue)
+                NavItem(Tab.History, VIcons.History, vm, Modifier.weight(1f))
+                NavItem(Tab.Settings, VIcons.Settings, vm, Modifier.weight(1f))
+            }
+        }
     }
 }
 
@@ -214,33 +246,23 @@ private fun NavSlot(
     onClick: () -> Unit,
 ) {
     val palette = LocalPalette.current
-    val tint by animateColorAsState(if (selected) Accent else palette.muted, tween(200), label = "nav-tint")
-    val highlight by animateFloatAsState(if (selected) 1f else 0f, tween(200), label = "nav-highlight")
-    // A small pop when the tab is chosen: the icon starts a touch smaller and springs back with a slight overshoot.
-    val pop = remember { Animatable(1f) }
-    var settled by remember { mutableStateOf(false) }
-    LaunchedEffect(selected) {
-        if (selected && settled) {
-            pop.snapTo(0.84f)
-            pop.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = 520f))
-        }
-        settled = true
-    }
+    val tint by animateColorAsState(if (selected) Accent else palette.muted, tween(220), label = "nav-tint")
+    // Two owners, two elements: the slot scales a little while pressed, the icon scales up while selected.
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val press by animateFloatAsState(if (pressed) 0.94f else 1f, tween(120), label = "nav-press")
+    val arrive by animateFloatAsState(if (selected) 1.12f else 1f, tween(380, easing = NavSpring), label = "nav-icon")
     Box(
         modifier
             .height(46.dp)
+            .graphicsLayer { scaleX = press; scaleY = press }
             .clip(RoundedCornerShape(23.dp))
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = source, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Accent.copy(alpha = 0.12f * highlight)),
-        )
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(contentAlignment = Alignment.Center) {
-                VIconView(icon, 20.dp, tint, Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value })
+                VIconView(icon, 20.dp, tint, Modifier.graphicsLayer { scaleX = arrive; scaleY = arrive })
                 if (badge > 0) {
                     Box(
                         Modifier
