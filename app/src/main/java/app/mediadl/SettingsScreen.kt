@@ -105,7 +105,7 @@ private const val PAGE_DOWNLOADING = "Downloads"
 
 /** What the server calls this section; older servers still send it, so it is mapped to [PAGE_DOWNLOADING]. */
 private const val SERVER_SAVING_SECTION = "Saving"
-private const val PAGE_SERVICES = "Supported services"
+private const val PAGE_SERVICES = "Supported sites"
 
 // ---------------------------------------------------------------------------------------------
 // Settings: a list of sections; each opens as its own subpage (state lives in AppViewModel.settingsPage).
