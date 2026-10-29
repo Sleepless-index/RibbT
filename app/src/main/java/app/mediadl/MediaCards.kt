@@ -339,9 +339,9 @@ private fun DownloadButton(
     val lower = spec.label.lowercase()
     val icon = if (lower.contains("sound") || lower.contains("audio")) VIcons.Audio else VIcons.Download
     when (vm.downloads[spec.url]) {
-        is DlState.Busy -> PillButton(spec.label, icon, {}, modifier, busy = true, spinner = true)
-        is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, modifier, style = PillStyle.Done)
-        else -> PillButton(spec.label, icon, { vm.download(post, spec, pending) }, modifier)
+        is DlState.Busy -> PillButton(spec.label, icon, {}, modifier, busy = true, spinner = true, height = 46.dp)
+        is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, modifier, style = PillStyle.Done, height = 46.dp)
+        else -> PillButton(spec.label, icon, { vm.download(post, spec, pending) }, modifier, height = 46.dp)
     }
 }
 
@@ -481,9 +481,9 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
                 val allKey = "all:" + post.link
                 val label = "Download all (${photos.size})"
                 when (vm.downloads[allKey]) {
-                    is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.weight(1f), busy = true, spinner = true)
-                    is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, Modifier.weight(1f), style = PillStyle.Done)
-                    else -> PillButton(label, VIcons.Download, { vm.downloadAll(post, photos) }, Modifier.weight(1f))
+                    is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.weight(1f), busy = true, spinner = true, height = 46.dp)
+                    is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, Modifier.weight(1f), style = PillStyle.Done, height = 46.dp)
+                    else -> PillButton(label, VIcons.Download, { vm.downloadAll(post, photos) }, Modifier.weight(1f), height = 46.dp)
                 }
             }
         },
@@ -643,29 +643,19 @@ private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover:
             }
         }
         if (current == "video" && media.variants.size > 1) {
-            // Each resolution says what it will cost, when the site says (two lines), else just the label.
-            val sized = media.variants.any { it.size > 0 }
             val chips: @Composable (Modifier) -> Unit = { m ->
                 media.variants.forEach { option ->
                     val on = option.height == (picked?.height ?: quality)
                     Box(
                         m
-                            .height(if (sized) 54.dp else 40.dp)
+                            .height(40.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (on) Accent.copy(alpha = 0.12f) else Color.Transparent)
                             .border(1.5.dp, if (on) Accent else palette.line, RoundedCornerShape(14.dp))
                             .clickable(role = Role.RadioButton) { quality = option.height },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            T(option.label, size = 13.5.sp, color = if (on) Accent else palette.text, weight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, lineHeight = 18.sp)
-                            if (sized) {
-                                T(
-                                    if (option.size > 0) formatBytes(option.size) else " ",
-                                    size = 11.8.sp, color = palette.muted, maxLines = 1, lineHeight = 15.sp,
-                                )
-                            }
-                        }
+                        T(option.label, size = 13.5.sp, color = if (on) Accent else palette.text, weight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
                     }
                 }
             }
@@ -696,12 +686,7 @@ private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover:
             }
             else -> if (videoSpec != null) {
                 val spec = picked?.spec ?: videoSpec
-                val bytes = picked?.size?.takeIf { it > 0 } ?: media.size
-                ActionButton(
-                    vm, post, spec,
-                    if (bytes > 0 && !narrow) "Download · ${formatBytes(bytes)}" else "Download",
-                    VIcons.Download, "Encoding…",
-                )
+                ActionButton(vm, post, spec, "Download", VIcons.Download, "Encoding…")
             }
         }
     }
