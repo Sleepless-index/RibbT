@@ -643,19 +643,29 @@ private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover:
             }
         }
         if (current == "video" && media.variants.size > 1) {
+            // Each resolution says what it will cost, when the site says (two lines), else just the label.
+            val sized = media.variants.any { it.size > 0 }
             val chips: @Composable (Modifier) -> Unit = { m ->
                 media.variants.forEach { option ->
                     val on = option.height == (picked?.height ?: quality)
                     Box(
                         m
-                            .height(40.dp)
+                            .height(if (sized) 54.dp else 40.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(if (on) Accent.copy(alpha = 0.12f) else Color.Transparent)
                             .border(1.5.dp, if (on) Accent else palette.line, RoundedCornerShape(14.dp))
                             .clickable(role = Role.RadioButton) { quality = option.height },
                         contentAlignment = Alignment.Center,
                     ) {
-                        T(option.label, size = 13.5.sp, color = if (on) Accent else palette.text, weight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            T(option.label, size = 13.5.sp, color = if (on) Accent else palette.text, weight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1, lineHeight = 18.sp)
+                            if (sized) {
+                                T(
+                                    if (option.size > 0) formatBytes(option.size) else " ",
+                                    size = 11.8.sp, color = palette.muted, maxLines = 1, lineHeight = 15.sp,
+                                )
+                            }
+                        }
                     }
                 }
             }
