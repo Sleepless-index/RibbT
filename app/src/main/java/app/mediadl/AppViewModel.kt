@@ -815,13 +815,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** The preview of the picture or video [spec] belongs to, so a post with many photos shows the one you saved. */
+    private fun withOwnThumb(post: Post, spec: DownloadSpec): Post {
+        val item = post.items.firstOrNull { item ->
+            item.downloads.any { it.url == spec.url } || item.variants.any { it.spec.url == spec.url }
+        }
+        val own = item?.preview?.takeIf { it.isNotBlank() } ?: return post
+        return post.copy(thumb = own)
+    }
+
     fun download(post: Post, spec: DownloadSpec, pending: String = "Preparing…", record: Boolean = true) {
         if (downloads[spec.url] is DlState.Busy) return
         downloads[spec.url] = DlState.Busy(null)
-        val toast = addToast(spec.name, pending, cancellable = true, thumb = absolute(post.thumb), platform = post.platform)
+        val shown = withOwnThumb(post, spec)
+        val toast = addToast(spec.name, pending, cancellable = true, thumb = absolute(shown.thumb), platform = post.platform)
         val job = viewModelScope.launch {
             val (target, note) = resolveSaveTarget(saveTo)
-            val folder = saveOne(post, spec, toast, 1, 1, true, target, record = record)
+            val folder = saveOne(shown, spec, toast, 1, 1, true, target, record = record)
             if (folder != null) {
                 finishToast(toast, ToastPhase.Ok, savedText("Saved to", folder, note))
                 delay(1800)

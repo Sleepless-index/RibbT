@@ -175,12 +175,12 @@ private fun ServiceRow(platform: Platform, expanded: Boolean, onToggle: () -> Un
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                T("Links it reads", size = 11.5.sp, color = palette.muted, weight = FontWeight.Bold)
+                T("Supported links", size = 11.5.sp, color = palette.muted, weight = FontWeight.Bold)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     platform.display.forEach { Tag(it) }
                 }
                 if (platform.features.isNotEmpty()) {
-                    T("What you get", size = 11.5.sp, color = palette.muted, weight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                    T("Features", size = 11.5.sp, color = palette.muted, weight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         platform.features.forEach { Tag(it) }
                     }

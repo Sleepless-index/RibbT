@@ -1,5 +1,7 @@
 package app.mediadl
 
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -335,6 +337,7 @@ private fun ErrorBox(info: ErrorInfo) {
 @Composable
 private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
     val palette = LocalPalette.current
+    val context = LocalContext.current
     val hasAuthor = post.author.isNotBlank()
     val avatar = vm.absolute(post.avatar)
     var avatarFailed by remember(avatar) { mutableStateOf(false) }
@@ -367,12 +370,24 @@ private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
                 Column(Modifier.padding(start = 10.dp)) {
                     if (hasAuthor) T(post.author, size = 14.4.sp, weight = FontWeight.SemiBold, maxLines = 1)
                     val service = vm.platforms.firstOrNull { it.name == post.platform }?.label
-                    T(
-                        listOfNotNull(service, when (post.kind) { "video" -> "Video"; "audio" -> "Audio"; else -> "Photos" }).joinToString(" · "),
-                        size = 11.52.sp,
-                        color = palette.muted,
-                        modifier = Modifier.padding(top = 1.dp),
-                    )
+                    val logo = remember(post.platform) {
+                        context.resources.getIdentifier("logo_${post.platform}", "drawable", context.packageName)
+                    }
+                    Row(Modifier.padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (logo != 0) {
+                            Image(
+                                painter = painterResource(logo),
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.padding(end = 6.dp).size(16.dp).clip(RoundedCornerShape(5.dp)),
+                            )
+                        }
+                        T(
+                            listOfNotNull(service, when (post.kind) { "video" -> "Video"; "audio" -> "Audio"; else -> "Photos" }).joinToString(" · "),
+                            size = 11.52.sp,
+                            color = palette.muted,
+                        )
+                    }
                 }
             }
         }
