@@ -114,7 +114,8 @@ class UgoiraConvertTests(unittest.TestCase):
 
         captured = {}
 
-        def fake_encode(paths, name, transform, network_urls=None):
+        def fake_encode(paths, name, transform, network_urls=None, total_seconds=None):
+            captured["seconds"] = total_seconds
             out = str(zip_path) + ".mp4"
             subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",
                             "-i", paths[0], *transform.args, out], check=True)
@@ -128,6 +129,7 @@ class UgoiraConvertTests(unittest.TestCase):
         probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                                 captured["out"]], capture_output=True, text=True).stdout.strip()
         self.assertAlmostEqual(float(probe), 2.0, delta=0.2)  # 0.5 + 1.0 + 0.5 seconds
+        self.assertAlmostEqual(captured["seconds"], 2.0)
 
 
 if __name__ == "__main__":

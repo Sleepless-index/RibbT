@@ -67,7 +67,7 @@ _COVER_EXTS = ("mp3", "m4a")
 
 _VIDEO_ENCODE_ARGS = (
     "-c:v", "libx264",
-    "-preset", "fast",
+    "-preset", "veryfast",
     "-pix_fmt", "yuv420p",
     "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
     "-c:a", "aac", "-b:a", "192k",

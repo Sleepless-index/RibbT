@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -175,6 +176,32 @@ def probe_file_bitrate(path):
     except (KeyError, ValueError):
         pass
     return None
+
+
+def probe_file_duration(path):
+    """Length in seconds of a local media file, or None."""
+    if not FFPROBE:
+        return None
+    command = [FFPROBE, "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=25, env=child_env())
+        seconds = float(result.stdout.strip().splitlines()[0])
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        return None
+    return seconds if seconds > 0 else None
+
+
+def read_progress_seconds(path):
+    """How many seconds of output ffmpeg has written so far, from its ``-progress`` file (None if unknown)."""
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - 4096))
+            tail = handle.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    found = re.findall(r"^out_time_us=(\d+)\s*$", tail, re.M)
+    return int(found[-1]) / 1_000_000 if found else None
 
 
 class StderrTail:

@@ -47,3 +47,10 @@ def attach(process):
     job = _current.get()
     if job is not None:
         job.attach(process)
+
+
+def set_fraction(fraction):
+    """Report how far the current conversion is (0..1) once the work itself can be measured."""
+    job = _current.get()
+    if job is not None:
+        job.set_fraction(fraction)

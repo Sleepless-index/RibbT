@@ -2,6 +2,7 @@ import contextlib
 import logging
 import os
 import subprocess
+import time
 
 from flask import Response, send_file, stream_with_context
 from urllib3.exceptions import HTTPError
@@ -101,10 +102,32 @@ def fetch_sources(urls):
         raise
 
 
-def encode_local(paths, name, transform, network_urls=None):
+def _wait(process, stderr, progress_path, total_seconds):
+    """Wait for ffmpeg, passing its progress on to the job. Raises MediaError on the time limit."""
+    deadline = time.monotonic() + TRANSCODE_TIMEOUT_SECONDS
+    while True:
+        try:
+            process.wait(timeout=1.0)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        if progress_path and total_seconds:
+            done = ffmpeg.read_progress_seconds(progress_path)
+            if done is not None:
+                progress.set_fraction(done / total_seconds)
+        if time.monotonic() > deadline:
+            ffmpeg.stop(process)
+            raise MediaError(
+                f"Conversion timed out after {TRANSCODE_TIMEOUT_SECONDS // 60} minutes.\n" + stderr.text(),
+                504,
+            )
+
+
+def encode_local(paths, name, transform, network_urls=None, total_seconds=None):
     """Run ffmpeg over local input files (or, with ``network_urls``, over URLs it reads itself) into a
     temp file and send that. Always cleans ``paths``."""
     out_path = None
+    progress_path = None
     slot = None
     process = None
     try:
@@ -113,22 +136,20 @@ def encode_local(paths, name, transform, network_urls=None):
         # The output is about as big as the inputs (a straight copy) or smaller (a re-encode).
         storage.require_space(sum(os.path.getsize(path) for path in paths))
         out_path = _temp_path("." + transform.ext)
+        # ffmpeg writes how far it has got to this file; the job turns that into a percentage.
+        progress_path = _temp_path(".progress") if total_seconds else None
+        extra = ["-progress", progress_path, "-nostats"] if progress_path else []
         if network_urls:
             process = ffmpeg.spawn(
-                network_urls, [*transform.args, out_path], transform.rw_timeout, stdout=subprocess.DEVNULL, local=paths,
+                network_urls, [*extra, *transform.args, out_path], transform.rw_timeout, stdout=subprocess.DEVNULL, local=paths,
             )
         else:
-            process = ffmpeg.spawn_local(paths, [*transform.args, out_path], stdout=subprocess.DEVNULL)
+            process = ffmpeg.spawn_local(paths, [*extra, *transform.args, out_path], stdout=subprocess.DEVNULL)
         progress.attach(process)
         stderr = ffmpeg.StderrTail(process)
-        try:
-            process.wait(timeout=TRANSCODE_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            ffmpeg.stop(process)
-            raise MediaError(
-                f"Conversion timed out after {TRANSCODE_TIMEOUT_SECONDS // 60} minutes.\n" + stderr.text(),
-                504,
-            )
+        _wait(process, stderr, progress_path, total_seconds)
+        if progress_path:
+            _remove(progress_path)
         stderr.join()
         ffmpeg.stop(process)
         slot.release()
@@ -165,13 +186,16 @@ def encode_local(paths, name, transform, network_urls=None):
             slot.release()
         if out_path:
             _remove(out_path)
+        if progress_path:
+            _remove(progress_path)
         for path in paths:
             _remove(path)
         raise
 
 
 def transcode_to_file(url, name, transform, audio_url=None):
-    return encode_local(fetch_sources(_sources(url, audio_url)), name, transform)
+    paths = fetch_sources(_sources(url, audio_url))
+    return encode_local(paths, name, transform, total_seconds=ffmpeg.probe_file_duration(paths[0]))
 
 
 def _fetch_cover(url):
@@ -199,7 +223,8 @@ def transcode_audio(url, name, make_transform, cover_url=None, hls=False):
         raise
     if cover:
         paths.append(cover)
-    return encode_local(paths, name, make_transform(bool(cover)), network_urls=[url] if hls else None)
+    seconds = None if hls else ffmpeg.probe_file_duration(paths[0])
+    return encode_local(paths, name, make_transform(bool(cover)), network_urls=[url] if hls else None, total_seconds=seconds)
 
 
 def mux_to_file(url, audio_url, name, container, cap_bps):
@@ -212,7 +237,7 @@ def mux_to_file(url, audio_url, name, container, cap_bps):
         transform = video_transform(container, cap_bps, mux=True)
     else:
         transform = mux_transform(container)
-    return encode_local(paths, name, transform)
+    return encode_local(paths, name, transform, total_seconds=ffmpeg.probe_file_duration(paths[0]))
 
 
 def passthrough(url, name, inline, range_header=None):

@@ -94,8 +94,12 @@ class Job:
             raise progress.JobCancelled()
         with self._lock:
             self.phase = name
-            # Converting has no measurable progress; the app shows an indeterminate bar.
-            self._progress = None if name == "converting" else self._progress
+            # Conversion progress starts from zero again, once ffmpeg reports how far it is.
+            self._progress = None if name == "converting" else self._progress  # unknown until the first report
+
+    def set_fraction(self, fraction):
+        with self._lock:
+            self._progress = max(self._progress or 0.0, min(0.99, max(0.0, float(fraction))))
 
     def attach(self, process):
         self._process = process
