@@ -6,6 +6,7 @@ from .gelbooru import GelbooruAdapter
 from .imgur import ImgurAdapter
 from .instagram import InstagramAdapter
 from .pinterest import PinterestAdapter
+from .pixiv import PixivAdapter
 from .rednote import RedNoteAdapter
 from .reddit import RedditAdapter
 from .safebooru import SafebooruAdapter
@@ -32,6 +33,7 @@ ADAPTERS = (
     GelbooruAdapter(),
     YandereAdapter(),
     ImgurAdapter(),
+    PixivAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"

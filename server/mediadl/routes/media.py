@@ -8,6 +8,7 @@ from ..config import TWITTER_MEDIA_HOSTS
 from ..errors import MediaError, blocked_media_url
 from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_audio, transcode_to_file
 from ..services import subtitles as subtitle_service
+from ..services import ugoira
 from ..services.ffmpeg import probe_bitrate
 from ..services.mediatypes import content_disposition
 from ..services.net import content_type_of, host_ok, resolve_media
@@ -76,6 +77,8 @@ def video():
 
     settings = prefs["video"]
     container = settings["container"]
+    if ugoira.is_ugoira_url(url):
+        return ugoira.convert(url, name, container)
     cap = bitrate_to_bps(settings["bitrate"])
     audio_url = audio_url_arg()
     if audio_url:

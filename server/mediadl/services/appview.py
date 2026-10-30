@@ -75,7 +75,10 @@ def build_app_post(post, platform, prefs, link):
             "url": video_path(video["url"], video_name, loop, video.get("audio_url")),
             "name": video_name,
         }]
-        if original_sound and platform == "tiktok" and video.get("sound_url"):
+        is_ugoira = bool(video.get("ugoira"))
+        if is_ugoira:
+            pass  # an animation has no sound: one Download, no Audio
+        elif original_sound and platform == "tiktok" and video.get("sound_url"):
             sound_name = sanitize_name(video.get("sound_name")) or video_name
             downloads.append({"label": "Original sound", "url": media_path(video["sound_url"], sound_name), "name": sound_name})
         else:
@@ -113,11 +116,12 @@ def build_app_post(post, platform, prefs, link):
             "preview": media_path(cover, f"{post_id}_poster", True) if cover else None,
             # The app plays the picture and the sound as two streams and joins them itself, so the
             # preview needs no ffmpeg (and still has sound when ffmpeg isn't available).
-            "play": media_path(video["url"], f"{post_id}_video{suffix}", True),
+            # An ugoira is a zip of frames: the card shows its still until it is saved as a video.
+            "play": None if is_ugoira else media_path(video["url"], f"{post_id}_video{suffix}", True),
             "play_audio": media_path(video["audio_url"], f"{post_id}_audio{suffix}", True)
             if video.get("audio_url") else None,
             "play_alt": media_path(video["preview"], f"{post_id}_video{suffix}", True)
-            if video.get("preview") and video["preview"] != video["url"] else None,
+            if not is_ugoira and video.get("preview") and video["preview"] != video["url"] else None,
             "downloads": downloads,
         })
 

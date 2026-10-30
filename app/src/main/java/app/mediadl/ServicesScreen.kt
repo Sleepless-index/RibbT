@@ -38,13 +38,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val MUSIC_SITES = setOf("spotify", "soundcloud")
-private val IMAGE_SITES = setOf("danbooru", "gelbooru", "safebooru", "yandere", "imgur")
+private val IMAGE_SITES = setOf("danbooru", "gelbooru", "safebooru", "yandere", "imgur", "pixiv")
 
 /** The order sites are listed in, within their group; a service that isn't here goes last. */
 private val SITE_ORDER = listOf(
     "youtube", "tiktok", "x", "instagram", "reddit", "pinterest", "bilibili", "rednote",
     "spotify", "soundcloud",
-    "danbooru", "gelbooru", "safebooru", "yandere", "imgur",
+    "danbooru", "gelbooru", "safebooru", "yandere", "imgur", "pixiv",
 )
 
 /** The "Supported sites" subpage of Settings: what each site gives you, grouped by kind. */

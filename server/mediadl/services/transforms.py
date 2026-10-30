@@ -163,6 +163,23 @@ def video_transform(container, cap_bps, mux=False):
     return Transform(args=args, ext=ext, mime=mime, rw_timeout=VIDEO_RW_TIMEOUT)
 
 
+def ugoira_transform(container, timing_flag):
+    """Frames with their own delays (read from an ffconcat list) into a video that keeps every delay."""
+    tail, ext, mime = _VIDEO_CONTAINERS.get(container) or _VIDEO_CONTAINERS["mp4"]
+    args = (
+        "-an",
+        *timing_flag,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-pix_fmt", "yuv420p",
+        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-crf", "18",
+        "-threads", "0",
+        *tail,
+    )
+    return Transform(args=args, ext=ext, mime=mime, rw_timeout=VIDEO_RW_TIMEOUT)
+
+
 def bitrate_to_bps(value):
     match = re.fullmatch(r"(\d+)m", value or "")
     return int(match.group(1)) * 1_000_000 if match else None
