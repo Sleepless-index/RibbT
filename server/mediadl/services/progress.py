@@ -36,10 +36,10 @@ def report(key, done, total=None):
         job.report(key, done, total)
 
 
-def set_phase(name):
+def set_phase(name, detail=""):
     job = _current.get()
     if job is not None:
-        job.set_phase(name)
+        job.set_phase(name, detail)
 
 
 def attach(process):

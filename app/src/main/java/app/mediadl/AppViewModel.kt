@@ -812,6 +812,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val speed = if (measurable) meter.update(progress.bytes) else 0L
         return buildString {
             append(if (total > 1) "$verb $position of $total" else verb)
+            if (progress.phase == "converting" && progress.detail.isNotBlank()) append(" · ${progress.detail}")
             if (measurable && progress.bytes > 0L) append(" · ${formatBytesOf(progress.bytes, progress.total)}")
             if (speed > 0L) append(" · ${formatBytes(speed)}/s")
         }

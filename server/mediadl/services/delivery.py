@@ -123,7 +123,7 @@ def _wait(process, stderr, progress_path, total_seconds):
             )
 
 
-def encode_local(paths, name, transform, network_urls=None, total_seconds=None):
+def encode_local(paths, name, transform, network_urls=None, total_seconds=None, reason=""):
     """Run ffmpeg over local input files (or, with ``network_urls``, over URLs it reads itself) into a
     temp file and send that. Always cleans ``paths``."""
     out_path = None
@@ -132,7 +132,7 @@ def encode_local(paths, name, transform, network_urls=None, total_seconds=None):
     process = None
     try:
         slot = ffmpeg.acquire_slot()
-        progress.set_phase("converting")
+        progress.set_phase("converting", reason)
         # The output is about as big as the inputs (a straight copy) or smaller (a re-encode).
         storage.require_space(sum(os.path.getsize(path) for path in paths))
         out_path = _temp_path("." + transform.ext)
@@ -193,9 +193,12 @@ def encode_local(paths, name, transform, network_urls=None, total_seconds=None):
         raise
 
 
-def transcode_to_file(url, name, transform, audio_url=None):
+def transcode_to_file(url, name, transform, audio_url=None, reason=""):
     paths = fetch_sources(_sources(url, audio_url))
-    return encode_local(paths, name, transform, total_seconds=ffmpeg.probe_file_duration(paths[0]))
+    return encode_local(
+        paths, name, transform, total_seconds=ffmpeg.probe_file_duration(paths[0]),
+        reason=reason or "Re-encoding the video",
+    )
 
 
 def _fetch_cover(url):
@@ -224,7 +227,10 @@ def transcode_audio(url, name, make_transform, cover_url=None, hls=False):
     if cover:
         paths.append(cover)
     seconds = None if hls else ffmpeg.probe_file_duration(paths[0])
-    return encode_local(paths, name, make_transform(bool(cover)), network_urls=[url] if hls else None, total_seconds=seconds)
+    return encode_local(
+        paths, name, make_transform(bool(cover)), network_urls=[url] if hls else None, total_seconds=seconds,
+        reason="Extracting the audio",
+    )
 
 
 def mux_to_file(url, audio_url, name, container, cap_bps):
@@ -233,11 +239,15 @@ def mux_to_file(url, audio_url, name, container, cap_bps):
 
     paths = fetch_sources([url, audio_url])
     bps = ffmpeg.probe_file_bitrate(paths[0]) if cap_bps is not None else None
-    if cap_bps is not None and bps is not None and bps > cap_bps:
+    reencode = cap_bps is not None and bps is not None and bps > cap_bps
+    if reencode:
         transform = video_transform(container, cap_bps, mux=True)
     else:
         transform = mux_transform(container)
-    return encode_local(paths, name, transform, total_seconds=ffmpeg.probe_file_duration(paths[0]))
+    return encode_local(
+        paths, name, transform, total_seconds=ffmpeg.probe_file_duration(paths[0]),
+        reason=f"Re-encoding to fit {cap_bps // 1_000_000} Mbps" if reencode else "Joining the video and sound",
+    )
 
 
 def passthrough(url, name, inline, range_header=None):

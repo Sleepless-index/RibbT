@@ -321,7 +321,7 @@ class Api(private val context: Context, private val prefs: Prefs) {
                         info.phase == "converting" -> "converting"
                         else -> "downloading"
                     }
-                    onProgress(DlProgress(phase, info.fraction, info.bytes, info.total))
+                    onProgress(DlProgress(phase, info.fraction, info.bytes, info.total, info.detail))
                 }
             }
             delay(500)

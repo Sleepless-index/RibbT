@@ -17,7 +17,7 @@
     "filename_style": "classic"
   },
   "video": {
-    "bitrate": "8m",
+    "bitrate": "auto",
     "container": "auto",
     "quality": "1080"
   },

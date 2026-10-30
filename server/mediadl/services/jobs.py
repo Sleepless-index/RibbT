@@ -49,6 +49,7 @@ class Job:
         self.cookie = cookie
         self.state = "queued"  # queued, running, ready, error, cancelled
         self.phase = "queued"  # queued, downloading, converting
+        self.detail = ""  # what the conversion is doing, in words for the queue
         self.error = None
         self.status = 0
         self.created = time.time()
@@ -89,11 +90,12 @@ class Job:
                 # Never move backwards when a second source (the audio track) turns up.
                 self._progress = max(self._progress or 0.0, fraction)
 
-    def set_phase(self, name):
+    def set_phase(self, name, detail=""):
         if self.cancelled.is_set():
             raise progress.JobCancelled()
         with self._lock:
             self.phase = name
+            self.detail = detail if name == "converting" else ""
             # Conversion progress starts from zero again, once ffmpeg reports how far it is.
             self._progress = None if name == "converting" else self._progress  # unknown until the first report
 
@@ -127,6 +129,7 @@ class Job:
                 "id": self.id,
                 "state": self.state,
                 "phase": self.phase,
+                "detail": self.detail,
                 "progress": fraction,
                 "bytes": done,
                 "total": total,

@@ -428,15 +428,6 @@ private fun LinkPill(vm: AppViewModel) {
             Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .clickable(onClickLabel = "Parse this link again", role = Role.Button) {
-                    vm.parse(vm.input.ifBlank { vm.post?.link.orEmpty() })
-                },
-            contentAlignment = Alignment.Center,
-        ) { VIconView(VIcons.Refresh, 18.dp, palette.muted) }
-        Box(
-            Modifier
-                .size(40.dp)
-                .clip(CircleShape)
                 .clickable(onClickLabel = "Clear link", role = Role.Button) { vm.reset() },
             contentAlignment = Alignment.Center,
         ) { VIconView(VIcons.Clear, 18.dp, palette.muted) }

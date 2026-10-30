@@ -97,7 +97,11 @@ def video():
             return stream_ffmpeg(final_url, name, STREAM_TRANSFORMS["mkv"])
         return passthrough(url, name, False, request.headers.get("Range"))
 
-    return transcode_to_file(final_url, name, video_transform(container, cap))
+    return transcode_to_file(
+        final_url, name, video_transform(container, cap),
+        reason=f"Re-encoding to fit {cap // 1_000_000} Mbps (source is {round(source_bps / 1_000_000, 1)} Mbps)"
+        if source_bps else f"Re-encoding to fit {cap // 1_000_000} Mbps",
+    )
 
 
 @bp.get("/api/audio")

@@ -125,12 +125,14 @@ data class ServerSettings(
 data class YtdlpResult(val before: String?, val after: String?, val updated: Boolean)
 
 /** What a running download is doing. [phase] is waiting, downloading (on the server), converting or saving. */
-data class DlProgress(val phase: String, val fraction: Float?, val bytes: Long, val total: Long = 0L)
+data class DlProgress(val phase: String, val fraction: Float?, val bytes: Long, val total: Long = 0L, val detail: String = "")
 
 /** A background download on the server. [state] is queued, running, ready, error or cancelled. */
 data class JobInfo(
     val state: String,
     val phase: String,
+    /** What a conversion is doing, in the server's words (empty otherwise). */
+    val detail: String = "",
     val fraction: Float?,
     val bytes: Long,
     /** Bytes the server expects to fetch in all; 0 while that is not known. */
@@ -291,6 +293,7 @@ fun JSONObject.toPost(): Post = Post(
 fun JSONObject.toJobInfo(): JobInfo = JobInfo(
     state = optString("state"),
     phase = optString("phase"),
+    detail = optString("detail"),
     fraction = if (isNull("progress")) null else optDouble("progress").toFloat(),
     bytes = optLong("bytes", 0L),
     total = if (isNull("total")) 0L else optLong("total", 0L),

@@ -115,7 +115,7 @@ def convert(url, name, container):
         _concat_list(list_path, ordered)
         return encode_local(
             [list_path], name, ugoira_transform(container, _timing_flag()),
-            total_seconds=sum(seconds for _, seconds in ordered),
+            total_seconds=sum(seconds for _, seconds in ordered), reason="Turning the frames into a video",
         )
     finally:
         shutil.rmtree(folder, ignore_errors=True)

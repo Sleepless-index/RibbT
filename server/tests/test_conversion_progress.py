@@ -61,6 +61,19 @@ class ConversionProgressTests(unittest.TestCase):
         job.set_fraction(5)
         self.assertEqual(job._progress, 0.99)
 
+    def test_job_says_what_the_conversion_is_for(self):
+        from mediadl.services.jobs import Job
+        job = Job("abc", Path(tempfile.gettempdir()) / "x", "n", "")
+        job.set_phase("converting", "Extracting the audio")
+        self.assertEqual(job.snapshot()["detail"], "Extracting the audio")
+        job.set_phase("downloading")
+        self.assertEqual(job.snapshot()["detail"], "")
+
+    def test_shipped_defaults_have_no_bitrate_cap(self):
+        import json
+        shipped = json.loads((Path(__file__).resolve().parents[1] / "config" / "settings.json").read_text())
+        self.assertEqual(shipped["video"]["bitrate"], "auto")
+
 
 if __name__ == "__main__":
     unittest.main()

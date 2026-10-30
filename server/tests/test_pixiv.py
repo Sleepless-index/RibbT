@@ -114,7 +114,7 @@ class UgoiraConvertTests(unittest.TestCase):
 
         captured = {}
 
-        def fake_encode(paths, name, transform, network_urls=None, total_seconds=None):
+        def fake_encode(paths, name, transform, network_urls=None, total_seconds=None, reason=""):
             captured["seconds"] = total_seconds
             out = str(zip_path) + ".mp4"
             subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0",
