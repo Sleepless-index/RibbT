@@ -797,7 +797,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun mergedFraction(progress: DlProgress): Float? = when (progress.phase) {
         "downloading" -> progress.fraction?.let { it * 0.85f }
         "saving" -> 0.85f + (progress.fraction ?: 0f) * 0.15f
-        else -> null // waiting or converting: nothing to measure, the bar sweeps instead
+        // The server measures the conversion once ffmpeg is running; until its first report the bar sweeps.
+        "converting" -> progress.fraction?.let { it * 0.85f }
+        else -> null // waiting: nothing to measure, the bar sweeps instead
     }
 
     private fun progressText(position: Int, total: Int, progress: DlProgress, meter: SpeedMeter): String {
