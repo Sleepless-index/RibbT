@@ -115,5 +115,44 @@ class FileSiteTests(unittest.TestCase):
             self.assertIn(host, MEDIA_HOSTS)
 
 
+class InstagramPhotoTests(unittest.TestCase):
+    LINK = "https://www.instagram.com/p/DegFbL0oQFM/?utm_source=ig_web_button_share_sheet"
+    PAGE = (
+        '<meta property="og:title" content="𝕂𝔸ℕ𝕆ℕ かのん on Instagram: &quot;#イラスト #drawing&quot;" />'
+        '<meta property="og:description" content="25K likes, 41 comments - kanon_25ji on October 14, 2026: &quot;#イラスト&quot;." />'
+        '<meta property="og:image" content="https://scontent.cdninstagram.com/v/t51/a_n.jpg?stp=c115.0.345.345a_dst-jpg_e35_s640x640_tt6&amp;_nc_cat=106&amp;oh=abc" />'
+    )
+
+    def test_photo_post_falls_back_to_the_preview_page(self):
+        from mediadl.adapters import pick_adapter
+        adapter = pick_adapter(self.LINK)
+        failure = ValueError("Could not parse that Instagram link. ([Instagram] DegFbL0oQFM: There is no video in this post)")
+        with mock.patch("mediadl.adapters.instagram.dump_infos", side_effect=failure), \
+                mock.patch.object(adapter, "fetch_page", return_value=(self.LINK, self.PAGE)) as fetched:
+            post = adapter.extract(self.LINK)
+        self.assertEqual(post["_images"], [["https://scontent.cdninstagram.com/v/t51/a_n.jpg?stp=c115.0.345.345a_dst-jpg_e35_s640x640_tt6&_nc_cat=106&oh=abc"]])
+        self.assertEqual((post["id"], post["author"], post["kind"]), ("DegFbL0oQFM", "kanon_25ji", "images"))
+        self.assertEqual(post["title"], "#イラスト #drawing")
+        self.assertIn("facebookexternalhit", fetched.call_args.args[1]["User-Agent"])
+
+    def test_other_failures_are_not_turned_into_a_photo(self):
+        from mediadl.adapters import pick_adapter
+        adapter = pick_adapter(self.LINK)
+        with mock.patch("mediadl.adapters.instagram.dump_infos", side_effect=ValueError("login required")), \
+                mock.patch.object(adapter, "fetch_page") as fetched:
+            with self.assertRaises(ValueError):
+                adapter.extract(self.LINK)
+        fetched.assert_not_called()
+
+    def test_unreadable_photo_points_to_cookies(self):
+        from mediadl.adapters import pick_adapter
+        adapter = pick_adapter(self.LINK)
+        with mock.patch("mediadl.adapters.instagram.dump_infos", side_effect=ValueError("There is no video in this post")), \
+                mock.patch.object(adapter, "fetch_page", return_value=(self.LINK, "<html></html>")):
+            with self.assertRaises(ValueError) as caught:
+                adapter.extract(self.LINK)
+        self.assertIn("cookies", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

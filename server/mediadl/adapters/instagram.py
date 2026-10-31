@@ -1,5 +1,8 @@
+import html
 import re
 from urllib.parse import urlparse
+
+import requests
 
 from ..services.candidates import clean_url
 from .base import PlatformAdapter, new_post, video_group
@@ -8,6 +11,14 @@ from .ytdlp import best_audio_url, clock_text, dump_infos, video_candidates
 TITLE_LIMIT = 80
 POST_PATH_RE = re.compile(r"^/(?:[\w.]+/)?(?:p|reel|reels|tv)/([\w-]+)")
 IMAGE_EXTS = ("jpg", "jpeg", "png", "webp")
+# yt-dlp's wording when a post has only photos and Instagram wasn't asked as a signed-in user.
+NO_VIDEO = "no video in this post"
+# The page Instagram serves to link-preview bots carries the post's picture and caption without a login.
+PREVIEW_HEADERS = {
+    "User-Agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+    "Accept": "text/html",
+}
+OG = r'<meta[^>]+property="og:%s"[^>]+content="([^"]*)"'
 
 
 def _by_short_side(formats):
@@ -41,14 +52,19 @@ class InstagramAdapter(PlatformAdapter):
     name = "instagram"
     label = "Instagram"
     features = ('Video', 'Photos')
-    note = 'Usually needs sign-in cookies.'
+    note = 'Photos are small previews without sign-in cookies.'
     hosts = ("instagram.com", "instagr.am")
 
     def matches(self, url):
         return super().matches(url) and bool(POST_PATH_RE.match(urlparse(url).path))
 
     def extract(self, url):
-        entries = dump_infos(url, "Instagram", ("--no-playlist",))
+        try:
+            entries = dump_infos(url, "Instagram", ("--no-playlist",))
+        except ValueError as error:
+            if NO_VIDEO in str(error).lower():
+                return self._photo_preview(url, error)
+            raise
         first = entries[0]
         post = new_post(
             id=str(first.get("display_id") or first.get("id") or ""),
@@ -71,4 +87,38 @@ class InstagramAdapter(PlatformAdapter):
             post["duration"] = clock_text(first.get("duration"))
             cover = clean_url(first.get("thumbnail"))
             post["_cover"] = [cover] if cover else None
+        return post
+
+    def _photo_preview(self, url, original):
+        """A photo post, which yt-dlp can't read without a sign-in. The preview page gives the first
+        picture only, as a 640 px square crop: Instagram signs the larger sizes, so they can't be asked for."""
+        try:
+            page = self.fetch_page(url, PREVIEW_HEADERS)[1]
+        except (ValueError, requests.RequestException):
+            page = ""
+
+        def meta(name):
+            found = re.search(OG % name, page or "", re.I)
+            return html.unescape(found.group(1)).strip() if found else ""
+
+        image = clean_url(meta("image"))
+        if not image:
+            raise ValueError(
+                "Could not read that Instagram photo. Instagram only shows photos to signed-in visitors: "
+                "import your cookies.txt in Settings → Server to download it."
+            ) from original
+
+        shortcode = POST_PATH_RE.match(urlparse(url).path).group(1)
+        handle = re.search(r"-\s*([\w.]+) on ", meta("description"))
+        display = re.match(r"(.+?) on Instagram", meta("title"))
+        caption = re.search(r':\s*"(.*)"\s*$', meta("title"), re.S)
+        lines = [line.strip() for line in (caption.group(1) if caption else "").splitlines() if line.strip()]
+
+        post = new_post(
+            id=shortcode,
+            title=lines[0][:TITLE_LIMIT] if lines else f"Instagram {shortcode}",
+            author=(handle.group(1) if handle else display.group(1) if display else ""),
+        )
+        post["_images"] = [[image]]
+        post["_cover"] = [image]
         return post
