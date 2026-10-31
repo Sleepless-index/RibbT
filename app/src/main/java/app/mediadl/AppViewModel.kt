@@ -802,7 +802,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         else -> null // waiting: nothing to measure, the bar sweeps instead
     }
 
-    private fun progressText(position: Int, total: Int, progress: DlProgress, meter: SpeedMeter): String {
+    /** One progress update in parts: the queue lays them out, [text] is the one-line form for the toast. */
+    private class ProgressLine(val verb: String, val step: String, val note: String, val speed: String) {
+        val text: String
+            get() = buildString {
+                append(verb)
+                if (step.isNotEmpty()) append(" $step")
+                if (note.isNotEmpty()) append(" · $note")
+                if (speed.isNotEmpty()) append(" · $speed")
+            }
+    }
+
+    private fun progressLine(position: Int, total: Int, progress: DlProgress, meter: SpeedMeter): ProgressLine {
         val verb = when (progress.phase) {
             "waiting" -> "Waiting"
             "converting" -> "Converting"
@@ -810,13 +821,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         val measurable = progress.phase == "downloading" || progress.phase == "saving"
         val speed = if (measurable) meter.update(progress.bytes) else 0L
-        return buildString {
-            append(if (total > 1) "$verb $position of $total" else verb)
-            if (progress.phase == "converting" && progress.detail.isNotBlank()) append(" · ${progress.detail}")
-            if (measurable && progress.bytes > 0L) append(" · ${formatBytesOf(progress.bytes, progress.total)}")
-            if (speed > 0L) append(" · ${formatBytes(speed)}/s")
+        val note = when {
+            progress.phase == "converting" -> progress.detail
+            measurable && progress.bytes > 0L -> formatBytesOf(progress.bytes, progress.total)
+            else -> ""
         }
+        return ProgressLine(
+            verb,
+            if (total > 1) "$position of $total" else "",
+            note,
+            if (speed > 0L) "${formatBytes(speed)}/s" else "",
+        )
     }
+
+    private fun DlToast.withProgress(fraction: Float?, line: ProgressLine) =
+        copy(progress = fraction, status = line.text, label = line.verb, step = line.step, note = line.note, speed = line.speed)
 
     /** The preview of the picture or video [spec] belongs to, so a post with many photos shows the one you saved. */
     private fun withOwnThumb(post: Post, spec: DownloadSpec): Post {
@@ -1038,9 +1057,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 onFileName = { name -> if (total == 1) updateToast(toast) { it.copy(name = name) } },
                 onProgress = { progress ->
                     val overall = mergedFraction(progress)?.let { (position - 1 + it) / total }
-                    updateToast(toast) {
-                        it.copy(progress = overall, status = progressText(position, total, progress, meter))
-                    }
+                    val line = progressLine(position, total, progress, meter)
+                    updateToast(toast) { it.withProgress(overall, line) }
                 },
             )
             jobId?.let { prefs.removePendingJob(it) }
@@ -1085,9 +1103,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         job.id, job.name, target,
                         onFileName = { name -> updateToast(toast) { it.copy(name = name) } },
                         onProgress = { progress ->
-                            updateToast(toast) {
-                                it.copy(progress = mergedFraction(progress), status = progressText(1, 1, progress, meter))
-                            }
+                            val line = progressLine(1, 1, progress, meter)
+                            updateToast(toast) { it.withProgress(mergedFraction(progress), line) }
                         },
                     )
                     prefs.removePendingJob(job.id)

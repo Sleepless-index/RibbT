@@ -188,6 +188,13 @@ data class DlToast(
     /** Preview image and service name, for the thumbnail and logo badge in the download list. */
     val thumb: String? = null,
     val platform: String? = null,
+    /** The running status in parts, so the queue can lay it out instead of squeezing [status] into one line. */
+    val label: String = "",
+    /** "1 of 3" when several files are downloading together. */
+    val step: String = "",
+    /** Under the bar: "12.3 of 45.2 MB" while downloading, what the conversion is doing while converting. */
+    val note: String = "",
+    val speed: String = "",
 )
 
 /** A file RibbT saved on this phone, remembered so History can open or share it later. */

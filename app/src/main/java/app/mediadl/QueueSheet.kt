@@ -165,6 +165,7 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
     val child = item.parent != null
     val bad = item.phase == ToastPhase.Bad
     val running = item.phase == ToastPhase.Active
+    val parts = running && item.label.isNotBlank()
     val statusColor = when (item.phase) {
         ToastPhase.Bad -> palette.err
         ToastPhase.Ok -> Accent
@@ -177,7 +178,7 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(if (bad) palette.errBg else Color.Transparent)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp, vertical = if (child) 8.dp else 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
         // The file's preview, with the service's logo on the corner.
@@ -205,22 +206,30 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                 PlatformBadge(item.platform, Modifier.align(Alignment.BottomEnd).offset(x = 5.dp, y = 5.dp), size = 20.dp)
             }
         }
-        Column(Modifier.weight(1f).padding(start = 12.dp, end = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                T(item.name, size = 13.6.sp, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
-                val progress = item.progress
-                if (running && progress != null) {
-                    T(
-                        "${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
-                        size = 13.sp, weight = FontWeight.Bold, color = Accent,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
-            }
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 4.dp)) {
+            // The whole width goes to the name: the percentage sits with the status, not beside the title.
             T(
-                item.status.ifBlank { " " }, size = 12.sp, color = statusColor,
-                maxLines = if (bad) 3 else 1, modifier = Modifier.padding(top = 1.dp),
+                item.name, size = 14.sp, weight = FontWeight.SemiBold, lineHeight = 19.sp,
+                maxLines = if (running && !child) 2 else 1,
             )
+            if (parts) {
+                Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    T(item.label, size = 12.5.sp, weight = FontWeight.Bold, color = if (item.label == "Waiting") palette.muted else Accent, maxLines = 1, lineHeight = 17.sp)
+                    if (item.step.isNotEmpty()) {
+                        T(item.step, size = 12.5.sp, color = palette.muted, maxLines = 1, lineHeight = 17.sp, modifier = Modifier.padding(start = 6.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    val progress = item.progress
+                    if (progress != null) {
+                        T("${(progress.coerceIn(0f, 1f) * 100).toInt()}%", size = 12.5.sp, weight = FontWeight.Bold, maxLines = 1, lineHeight = 17.sp)
+                    }
+                }
+            } else {
+                T(
+                    item.status.ifBlank { " " }, size = 12.5.sp, color = statusColor, lineHeight = 17.sp,
+                    maxLines = if (bad) 4 else 2, modifier = Modifier.padding(top = 3.dp),
+                )
+            }
             if (running) {
                 Box(
                     Modifier
@@ -237,24 +246,26 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                         Box(Modifier.fillMaxWidth(0.3f).fillMaxHeight().background(Accent.copy(alpha = 0.55f)))
                     }
                 }
+                if (item.note.isNotEmpty() || item.speed.isNotEmpty()) {
+                    // Sizes and speed under the bar; a conversion's reason wraps here instead of being cut off.
+                    Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.Top) {
+                        T(item.note, size = 12.sp, color = palette.muted, lineHeight = 16.sp, maxLines = 2, modifier = Modifier.weight(1f))
+                        if (item.speed.isNotEmpty()) {
+                            T(item.speed, size = 12.sp, color = palette.muted, lineHeight = 16.sp, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
+                        }
+                    }
+                }
             }
-        }
-        when {
-            running && item.canCancel ->
-                QueueIconAction(VIcons.CloseSmall, "Cancel", palette.text, palette.sep) { vm.cancelDownload(item.id) }
-            item.phase == ToastPhase.Ok ->
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).background(Accent.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center,
-                ) { VIconView(VIcons.Check, 16.dp, Accent) }
-            bad -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (item.canRetry) QueueIconAction(VIcons.Refresh, "Retry", AccentOn, Accent) { vm.retryFromQueue(item.id) }
+            if (bad && (item.canRetry || item.debug != null)) {
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (item.canRetry) {
+                        QueueTextAction("Retry", VIcons.Refresh, AccentOn, Accent) { vm.retryFromQueue(item.id) }
+                    }
                     val debug = item.debug
                     if (debug != null) {
                         val context = LocalContext.current
                         var copied by remember(item.id) { mutableStateOf(false) }
-                        QueueIconAction(if (copied) VIcons.Check else VIcons.Copy, "Copy debug info", palette.text, palette.card) {
+                        QueueTextAction(if (copied) "Copied" else "Copy details", if (copied) VIcons.Check else VIcons.Copy, palette.text, palette.soft) {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText("RibbT debug info", debug))
                             copied = true
@@ -263,24 +274,43 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                 }
             }
         }
+        when {
+            running && item.canCancel ->
+                // A 44 dp touch target around the 32 dp button, lifted so it lines up with the first line of the name.
+                Box(
+                    Modifier
+                        .offset(x = 6.dp, y = (-6).dp)
+                        .size(44.dp)
+                        .clickable(onClickLabel = "Cancel", role = Role.Button) { vm.cancelDownload(item.id) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(palette.soft), contentAlignment = Alignment.Center) {
+                        VIconView(VIcons.CloseSmall, 16.dp, palette.text)
+                    }
+                }
+            item.phase == ToastPhase.Ok ->
+                Box(
+                    Modifier.padding(end = 4.dp).size(32.dp).clip(CircleShape).background(Accent.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) { VIconView(VIcons.Check, 16.dp, Accent) }
+        }
     }
 }
 
-/** A small icon-only button (Retry, Copy debug info). The label is only for screen readers. */
+/** A labelled button under a failed download (Retry, Copy details). */
 @Composable
-private fun QueueIconAction(
-    icon: VIcon,
-    label: String,
-    tint: androidx.compose.ui.graphics.Color,
-    background: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-) {
-    Box(
+private fun QueueTextAction(label: String, icon: VIcon, tint: Color, background: Color, onClick: () -> Unit) {
+    Row(
         Modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(11.dp))
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(background)
-            .clickable(onClickLabel = label, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { VIconView(icon, 17.dp, tint) }
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        VIconView(icon, 16.dp, tint)
+        T(label, size = 13.5.sp, weight = FontWeight.SemiBold, color = tint, maxLines = 1)
+    }
 }
