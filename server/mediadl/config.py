@@ -112,10 +112,6 @@ MEDIA_SOURCES = (
         referers=("https://www.reddit.com/",),
     ),
     MediaSource(hosts=("sndcdn.com", "soundcloud.cloud"), referers=("https://soundcloud.com/",)),
-    MediaSource(
-        hosts=("cdninstagram.com", "fbcdn.net"),
-        referers=("https://www.instagram.com/",),
-    ),
     MediaSource(hosts=("scdn.co",), referers=("https://open.spotify.com/",)),
     MediaSource(hosts=("safebooru.org",), referers=("https://safebooru.org/",)),
     MediaSource(

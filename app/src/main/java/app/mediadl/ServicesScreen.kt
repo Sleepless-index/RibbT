@@ -42,7 +42,7 @@ private val IMAGE_SITES = setOf("danbooru", "gelbooru", "safebooru", "yandere", 
 
 /** The order sites are listed in, within their group; a service that isn't here goes last. */
 private val SITE_ORDER = listOf(
-    "youtube", "tiktok", "x", "instagram", "reddit", "pinterest", "bilibili", "rednote",
+    "youtube", "tiktok", "x", "reddit", "pinterest", "bilibili", "rednote",
     "spotify", "soundcloud",
     "danbooru", "gelbooru", "safebooru", "yandere", "imgur", "pixiv",
 )

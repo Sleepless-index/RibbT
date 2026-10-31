@@ -1185,7 +1185,7 @@ private fun CookiesRow(vm: AppViewModel) {
         info == null -> if (vm.online == true) "Checking…" else "Start the server to set this up."
         info.present -> "${info.count} cookies for ${info.domains.take(3).joinToString(", ")}" +
             if (info.domains.size > 3) " and more" else ""
-        else -> "For sites that ask you to log in, like Instagram, and age-restricted YouTube videos."
+        else -> "For age-restricted YouTube videos and other sites that ask you to sign in."
     }
     RowShell("Sign-in cookies", status, icon = VIcons.Lock) {
         val enabled = !vm.cookiesBusy && vm.online == true && info != null

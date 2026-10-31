@@ -107,7 +107,7 @@ class AudioCoverTests(unittest.TestCase):
         self.assertTrue(item["play_audio"].startswith("/api/audio-preview"))
 
 
-class SoundCloudInstagramTests(unittest.TestCase):
+class SoundCloudTests(unittest.TestCase):
     def test_soundcloud_audio_post_and_app_item(self):
         from mediadl.services.appview import build_app_post
 
@@ -138,25 +138,6 @@ class SoundCloudInstagramTests(unittest.TestCase):
         post = audio_post(info)
         self.assertTrue(post["audio_track"]["hls"])
         self.assertTrue(post["audio_track"]["url"].endswith("p.m3u8"))
-
-    def test_instagram_links_and_carousel(self):
-        adapter = pick_adapter("https://www.instagram.com/reel/Cabc123/?igsh=x")
-        self.assertEqual(adapter.name, "instagram")
-        self.assertIsNone(pick_adapter("https://www.instagram.com/someone/"))
-        entries = [
-            {"id": "1", "display_id": "Cabc", "title": "Hello", "uploader": "someone", "ext": "jpg", "url": "https://scontent.cdninstagram.com/a.jpg"},
-            {"id": "2", "ext": "jpg", "url": "https://scontent.cdninstagram.com/b.jpg"},
-        ]
-        with mock.patch("mediadl.adapters.instagram.dump_infos", return_value=entries):
-            post = adapter.extract("https://www.instagram.com/p/Cabc/")
-        self.assertEqual(len(post["_images"]), 2)
-        self.assertEqual((post["author"], post["title"]), ("someone", "Hello"))
-
-    def test_instagram_vertical_video_labelled_by_short_side(self):
-        from mediadl.adapters.instagram import _by_short_side
-
-        fixed = _by_short_side([{"width": 720, "height": 1280, "url": "u"}, {"url": "v"}])
-        self.assertEqual((fixed[0]["height"], fixed[1].get("height")), (720, None))
 
 
 if __name__ == "__main__":

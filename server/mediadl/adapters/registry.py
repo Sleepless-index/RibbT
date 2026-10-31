@@ -4,7 +4,6 @@ from .bilibili import BilibiliAdapter
 from .danbooru import DanbooruAdapter
 from .gelbooru import GelbooruAdapter
 from .imgur import ImgurAdapter
-from .instagram import InstagramAdapter
 from .pinterest import PinterestAdapter
 from .pixiv import PixivAdapter
 from .rednote import RedNoteAdapter
@@ -27,7 +26,6 @@ ADAPTERS = (
     PinterestAdapter(),
     SpotifyAdapter(),
     SoundCloudAdapter(),
-    InstagramAdapter(),
     SafebooruAdapter(),
     DanbooruAdapter(),
     GelbooruAdapter(),
