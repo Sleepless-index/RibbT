@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -94,6 +95,9 @@ import kotlinx.coroutines.delay
 
 fun isPhoto(item: MediaItem): Boolean = item.type == "image" && item.label.startsWith("Photo")
 
+/** Narrowest stage the cards use (9:16 is 0.5625); anything taller is shown whole over a blurred copy of itself. */
+private const val MIN_STAGE_RATIO = 0.56f
+
 @Composable
 private fun CardFrame(
     ratio: Float,
@@ -105,7 +109,7 @@ private fun CardFrame(
     val palette = LocalPalette.current
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val limit = minOf(screenHeight * 0.65f, 540f).dp
-    val clamped = ratio.coerceIn(0.5f, 2.4f)
+    val clamped = ratio.coerceIn(MIN_STAGE_RATIO, 2.4f)
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         val cardWidth = if (wide) maxWidth else minOf(maxWidth, limit * clamped)
         Column(
@@ -123,12 +127,25 @@ private fun CardFrame(
 @Composable
 private fun ImageStage(url: String?, description: String, onRatio: (Float) -> Unit) {
     var loading by remember(url) { mutableStateOf(url != null) }
+    var imageRatio by remember(url) { mutableFloatStateOf(0f) }
     val fade by animateFloatAsState(if (loading) 0f else 1f, tween(300), label = "image-fade")
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         if (loading) Box(Modifier.fillMaxSize().shimmer())
         val context = LocalContext.current
         val request = remember(url) {
             ImageRequest.Builder(context).data(url).size(Size.ORIGINAL).build()
+        }
+        // The image is always shown whole. When its shape differs from the stage, the leftover bands are
+        // filled with a blurred, dimmed copy of the same picture instead of flat bars.
+        val stageRatio = maxWidth / maxHeight
+        val mismatched = imageRatio > 0f && kotlin.math.abs(imageRatio - stageRatio) / stageRatio > 0.03f
+        if (mismatched) {
+            AsyncImage(
+                model = request,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().blur(28.dp).alpha(0.5f * fade),
+            )
         }
         AsyncImage(
             model = request,
@@ -138,7 +155,10 @@ private fun ImageStage(url: String?, description: String, onRatio: (Float) -> Un
             onSuccess = { state ->
                 loading = false
                 val size = state.painter.intrinsicSize
-                if (size.width > 0f && size.height > 0f) onRatio(size.width / size.height)
+                if (size.width > 0f && size.height > 0f) {
+                    imageRatio = size.width / size.height
+                    onRatio(imageRatio)
+                }
             },
             onError = { loading = false },
         )
@@ -476,14 +496,23 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (spec != null) DownloadButton(vm, post, spec, "Preparing…", Modifier.weight(1f))
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                // On a narrow card two half-width buttons cut their labels, so they stack instead.
+                val stacked = maxWidth < 340.dp
                 val allKey = "all:" + post.link
                 val label = "Download all (${photos.size})"
-                when (vm.downloads[allKey]) {
-                    is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.weight(1f), busy = true, spinner = true, height = 46.dp)
-                    is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, Modifier.weight(1f), style = PillStyle.Done, height = 46.dp)
-                    else -> PillButton(label, VIcons.Download, { vm.downloadAll(post, photos) }, Modifier.weight(1f), height = 46.dp)
+                val buttons: @Composable (Modifier) -> Unit = { each ->
+                    if (spec != null) DownloadButton(vm, post, spec, "Preparing…", each)
+                    when (vm.downloads[allKey]) {
+                        is DlState.Busy -> PillButton(label, VIcons.Download, {}, each, busy = true, spinner = true, height = 46.dp)
+                        is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, each, style = PillStyle.Done, height = 46.dp)
+                        else -> PillButton(label, VIcons.Download, { vm.downloadAll(post, photos) }, each, height = 46.dp)
+                    }
+                }
+                if (stacked) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) { buttons(Modifier.fillMaxWidth()) }
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) { buttons(Modifier.weight(1f)) }
                 }
             }
         },
