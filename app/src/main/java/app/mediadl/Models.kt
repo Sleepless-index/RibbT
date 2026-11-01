@@ -203,7 +203,8 @@ class SavedRef(val uri: String, val mime: String, val name: String)
 enum class MediaLayout(val key: String, val label: String) {
     Carousel("carousel", "Carousel"),
     Stacked("stacked", "Stacked"),
-    Masonry("masonry", "Masonry");
+    Masonry("masonry", "Masonry"),
+    Grid("grid", "Grid");
 
     companion object {
         fun from(key: String): MediaLayout = entries.firstOrNull { it.key == key } ?: Carousel

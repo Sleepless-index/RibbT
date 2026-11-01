@@ -156,10 +156,11 @@ private fun Results(vm: AppViewModel, post: Post) {
     val layout = MediaLayout.from(vm.layout)
     val photos = post.items.filter { isPhoto(it) }
     val useCarousel = layout == MediaLayout.Carousel && photos.size >= 2
+    val useGrid = layout == MediaLayout.Grid && photos.isNotEmpty()
     // On a video post the thumbnail is the "Cover" tab under the first video, not a card of its own.
     val cover = post.items.firstOrNull { it.type == "image" && it.label == "Thumbnail" }
         ?.takeIf { post.items.any { item -> item.type == "video" } }
-    val base = if (useCarousel) post.items.filter { !isPhoto(it) } else post.items
+    val base = if (useCarousel || useGrid) post.items.filter { !isPhoto(it) } else post.items
     val singles = base.filter { it !== cover }
     val firstVideo = singles.firstOrNull { it.type == "video" }
     val hasInfo = post.author.isNotBlank() || post.title.isNotBlank() || !post.avatar.isNullOrBlank()
@@ -187,6 +188,9 @@ private fun Results(vm: AppViewModel, post: Post) {
             }
             if (useCarousel) {
                 CarouselCard(vm, post, photos, Modifier.appear(minOf(step, 8) * 35))
+            }
+            if (useGrid) {
+                PhotoGrid(vm, post, photos, Modifier.appear(minOf(step, 8) * 35))
             }
         }
         if (post.subtitles.isNotEmpty()) {

@@ -111,13 +111,14 @@ import kotlinx.coroutines.delay
 
 fun isPhoto(item: MediaItem): Boolean = item.type == "image" && item.label.startsWith("Photo")
 
-/** Narrowest stage the cards use (9:16 is 0.5625); anything taller is shown whole over a blurred copy of itself. */
-private const val MIN_STAGE_RATIO = 0.56f
-
+/**
+ * A card always spans the full width it is given. The picture area follows the media's shape, but never
+ * gets taller than about two thirds of the screen: a taller picture is shown whole over a blurred copy of
+ * itself rather than making the card shrink or scroll forever.
+ */
 @Composable
 private fun CardFrame(
     ratio: Float,
-    wide: Boolean,
     modifier: Modifier = Modifier,
     stage: @Composable BoxScope.() -> Unit,
     below: @Composable ColumnScope.() -> Unit,
@@ -125,16 +126,16 @@ private fun CardFrame(
     val palette = LocalPalette.current
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val limit = minOf(screenHeight * 0.65f, 540f).dp
-    val clamped = ratio.coerceIn(MIN_STAGE_RATIO, 2.4f)
-    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        val cardWidth = if (wide) maxWidth else minOf(maxWidth, limit * clamped)
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val floor = (maxWidth / limit).coerceIn(0.3f, 1f)
+        val stageRatio = ratio.coerceIn(floor, 2.4f)
         Column(
             Modifier
-                .width(cardWidth)
+                .fillMaxWidth()
                 .clip(RoundedCornerShape(26.dp))
                 .background(palette.card),
         ) {
-            Box(Modifier.fillMaxWidth().aspectRatio(clamped), content = stage)
+            Box(Modifier.fillMaxWidth().aspectRatio(stageRatio), content = stage)
             Column(Modifier.fillMaxWidth().padding(12.dp)) { below() }
         }
     }
@@ -419,7 +420,6 @@ fun MediaCard(
     }
     CardFrame(
         ratio = ratio,
-        wide = wide,
         modifier = modifier,
         stage = {
             if (isVideo) {
@@ -641,7 +641,6 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
     val spec = current.downloads.firstOrNull()
     CardFrame(
         ratio = ratio,
-        wide = false,
         modifier = modifier,
         stage = {
             HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
@@ -707,6 +706,67 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
         },
     )
     viewing?.let { start -> PhotoViewer(vm, photos, start) { viewing = null } }
+}
+
+/**
+ * Photos in a tidy grid: two equal tiles per row, every tile the same shape. Tap a tile to open it full
+ * screen; each tile has its own Download button and a single "Download all" sits under the grid.
+ */
+@Composable
+fun PhotoGrid(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier: Modifier = Modifier) {
+    var viewing by remember { mutableStateOf<Int?>(null) }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        photos.chunked(2).forEachIndexed { row, pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                pair.forEachIndexed { column, media ->
+                    GridTile(vm, post, media, Modifier.weight(1f)) { viewing = row * 2 + column }
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        if (photos.size > 1) {
+            val allKey = "all:" + post.link
+            val label = "Download all (${photos.size})"
+            when (vm.downloads[allKey]) {
+                is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.fillMaxWidth(), busy = true, spinner = true, height = 46.dp)
+                is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, Modifier.fillMaxWidth(), style = PillStyle.Done, height = 46.dp)
+                else -> PillButton(label, VIcons.Download, { vm.downloadAll(post, photos) }, Modifier.fillMaxWidth(), height = 46.dp)
+            }
+        }
+    }
+    viewing?.let { start -> PhotoViewer(vm, photos, start) { viewing = null } }
+}
+
+@Composable
+private fun GridTile(vm: AppViewModel, post: Post, media: MediaItem, modifier: Modifier, onOpen: () -> Unit) {
+    val palette = LocalPalette.current
+    val tap = remember { MutableInteractionSource() }
+    var loading by remember(media.preview) { mutableStateOf(true) }
+    val fade by animateFloatAsState(if (loading) 0f else 1f, tween(300), label = "tile-fade")
+    val spec = media.downloads.firstOrNull()
+    Column(modifier.clip(RoundedCornerShape(22.dp)).background(palette.card)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.75f)
+                .clickable(interactionSource = tap, indication = null, onClick = onOpen),
+        ) {
+            if (loading) Box(Modifier.fillMaxSize().shimmer())
+            AsyncImage(
+                model = vm.absolute(media.preview),
+                contentDescription = media.label,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().alpha(fade),
+                onSuccess = { loading = false },
+                onError = { loading = false },
+            )
+        }
+        if (spec != null) {
+            Box(Modifier.fillMaxWidth().padding(8.dp)) {
+                DownloadButton(vm, post, spec, "Preparing…", Modifier.fillMaxWidth())
+            }
+        }
+    }
 }
 
 /**

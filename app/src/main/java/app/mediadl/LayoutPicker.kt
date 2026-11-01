@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -36,17 +37,23 @@ fun LayoutPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifie
     val hints = mapOf(
         MediaLayout.Carousel to "Swipe through photos",
         MediaLayout.Stacked to "One after another",
-        MediaLayout.Masonry to "Tiles side by side",
+        MediaLayout.Masonry to "Staggered tiles",
+        MediaLayout.Grid to "Even tiles, two across",
     )
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MediaLayout.entries.forEach { layout ->
-            LayoutTile(
-                layout = layout,
-                hint = hints[layout].orEmpty(),
-                isSelected = layout.key == selected,
-                onClick = { if (layout.key != selected) onSelect(layout.key) },
-                modifier = Modifier.weight(1f),
-            )
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        MediaLayout.entries.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { layout ->
+                    LayoutTile(
+                        layout = layout,
+                        hint = hints[layout].orEmpty(),
+                        isSelected = layout.key == selected,
+                        onClick = { if (layout.key != selected) onSelect(layout.key) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }
@@ -78,6 +85,7 @@ private fun LayoutTile(
                 MediaLayout.Carousel -> drawCarousel(block, ink)
                 MediaLayout.Stacked -> drawStacked(block)
                 MediaLayout.Masonry -> drawMasonry(block)
+                MediaLayout.Grid -> drawGrid(block)
             }
         }
         T(
@@ -103,15 +111,11 @@ private fun DrawScope.rounded(color: Color, x: Float, y: Float, w: Float, h: Flo
     drawRoundRect(color, Offset(x, y), Size(w, h), CornerRadius(r))
 }
 
-/** One big card in the middle with the neighbours peeking in, and page dots under it. */
+/** One full-width card with page dots under it. */
 private fun DrawScope.drawCarousel(block: Color, ink: Color) {
     val dots = 8.dp.toPx()
     val h = size.height - dots - 4.dp.toPx()
-    val side = size.width * 0.13f
-    val gap = 4.dp.toPx()
-    rounded(block.copy(alpha = block.alpha * 0.6f), -side + 2.dp.toPx(), 4.dp.toPx(), side + 2.dp.toPx(), h - 8.dp.toPx())
-    rounded(block.copy(alpha = block.alpha * 0.6f), size.width - 4.dp.toPx(), 4.dp.toPx(), side + 2.dp.toPx(), h - 8.dp.toPx())
-    rounded(block, side + gap, 0f, size.width - 2 * (side + gap), h)
+    rounded(block, 0f, 0f, size.width, h)
     val r = 2.dp.toPx()
     val cx = size.width / 2
     val y = size.height - r
@@ -143,4 +147,12 @@ private fun DrawScope.drawMasonry(block: Color) {
         val h = (size.height - gap) * f
         rounded(block, w + gap, y, w, h); y += h + gap
     }
+}
+
+/** Two columns of equal tiles in aligned rows. */
+private fun DrawScope.drawGrid(block: Color) {
+    val gap = 5.dp.toPx()
+    val w = (size.width - gap) / 2
+    val h = (size.height - gap) / 2
+    for (row in 0..1) for (col in 0..1) rounded(block, col * (w + gap), row * (h + gap), w, h)
 }

@@ -13,6 +13,7 @@ CHOICES = {
         "carousel": "Carousel",
         "stacked": "Stacked",
         "masonry": "Masonry",
+        "grid": "Grid",
     },
     "video.quality": {
         "best": "Best available",
