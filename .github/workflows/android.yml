@@ -101,7 +101,7 @@ jobs:
           (cd "$RUNNER_TEMP/extra" && zip -qr "$GITHUB_WORKSPACE/app/src/main/assets/ffmpeg-extra.zip" .)
           unzip -l app/src/main/assets/ffmpeg-extra.zip
 
-      # With a RIBBT_KEYSTORE_BASE64 secret the APK is signed with that key instead of the one in the repository.
+      # The APK is signed with the key from the repository secrets; without it the build stops.
       - name: Prepare the signing key
         shell: bash
         env:
@@ -112,7 +112,8 @@ jobs:
             echo "RIBBT_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "Signing with the key from the repository secrets."
           else
-            echo "::warning::No RIBBT_KEYSTORE_BASE64 secret: signing with the key committed to the repository, which is public."
+            echo "::error::The RIBBT_KEYSTORE_BASE64 secret is missing, so the APK can't be signed."
+            exit 1
           fi
 
       - name: Build release APK

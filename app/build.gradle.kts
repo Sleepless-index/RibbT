@@ -20,21 +20,16 @@ android {
         }
     }
 
+    // The release key is never in the repository: CI decodes it from GitHub secrets and points these variables at it.
+    // Without them the release build is simply unsigned.
+    val releaseKey = System.getenv("RIBBT_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
     signingConfigs {
-        create("release") {
-            // A key kept outside the repository wins: CI decodes it from GitHub secrets and points these at it.
-            val external = System.getenv("RIBBT_KEYSTORE_FILE")
-            if (!external.isNullOrBlank()) {
-                storeFile = file(external)
+        if (releaseKey != null) {
+            create("release") {
+                storeFile = file(releaseKey)
                 storePassword = System.getenv("RIBBT_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("RIBBT_KEY_ALIAS").takeUnless { it.isNullOrBlank() } ?: "ribbt"
                 keyPassword = System.getenv("RIBBT_KEY_PASSWORD").takeUnless { it.isNullOrBlank() } ?: System.getenv("RIBBT_KEYSTORE_PASSWORD")
-            } else {
-                // Fallback so builds keep working until the secrets exist. This key is public: see the README.
-                storeFile = file("../keystore/release.jks")
-                storePassword = "mediadl-local"
-                keyAlias = "mediadl"
-                keyPassword = "mediadl-local"
             }
         }
     }
@@ -44,7 +39,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

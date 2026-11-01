@@ -66,7 +66,9 @@ cd server && python -m unittest discover -s tests -v
 
 ## Release signing
 
-CI signs the APK with the key in the repository's secrets when they exist: `RIBBT_KEYSTORE_BASE64` (the keystore, base64), `RIBBT_KEYSTORE_PASSWORD`, and optionally `RIBBT_KEY_ALIAS` and `RIBBT_KEY_PASSWORD`. Without them it falls back to `keystore/release.jks`, whose password is in `app/build.gradle.kts`, so anyone could sign an APK with it. An app can only be updated by an APK signed with the same key, so switching keys means uninstalling once and installing the new build.
+CI signs the APK with a key kept in the repository's secrets: `RIBBT_KEYSTORE_BASE64` (the keystore, base64), `RIBBT_KEYSTORE_PASSWORD`, and optionally `RIBBT_KEY_ALIAS` (default `ribbt`) and `RIBBT_KEY_PASSWORD`. Without them the build stops. A local `gradle assembleRelease` gives an unsigned APK unless you export `RIBBT_KEYSTORE_FILE`, `RIBBT_KEYSTORE_PASSWORD` and the others yourself.
+
+An app can only be updated by an APK signed with the same key, so keep a private backup of the keystore and its password.
 
 ## Credits
 
