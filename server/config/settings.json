@@ -19,7 +19,7 @@
   "video": {
     "bitrate": "auto",
     "container": "auto",
-    "quality": "1080"
+    "quality": "best"
   },
   "x": {
     "loop_as_gif": false

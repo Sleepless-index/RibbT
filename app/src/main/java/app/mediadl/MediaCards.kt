@@ -64,6 +64,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -125,11 +136,16 @@ private fun CardFrame(
 }
 
 @Composable
-private fun ImageStage(url: String?, description: String, onRatio: (Float) -> Unit) {
+private fun ImageStage(url: String?, description: String, onClick: (() -> Unit)? = null, onRatio: (Float) -> Unit) {
     var loading by remember(url) { mutableStateOf(url != null) }
     var imageRatio by remember(url) { mutableFloatStateOf(0f) }
     val fade by animateFloatAsState(if (loading) 0f else 1f, tween(300), label = "image-fade")
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val tap = remember { MutableInteractionSource() }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .then(if (onClick != null) Modifier.clickable(interactionSource = tap, indication = null, onClick = onClick) else Modifier),
+    ) {
         if (loading) Box(Modifier.fillMaxSize().shimmer())
         val context = LocalContext.current
         val request = remember(url) {
@@ -233,7 +249,7 @@ private fun VideoStage(
 ) {
     if (play == null) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            if (poster != null) ImageStage(poster, "Video preview", onRatio)
+            if (poster != null) ImageStage(poster, "Video preview", onRatio = onRatio)
             overlay()
         }
         return
@@ -305,7 +321,7 @@ private fun VideoStage(
         }
         if (!started) {
             Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-                if (poster != null) ImageStage(poster, "Video preview", onRatio)
+                if (poster != null) ImageStage(poster, "Video preview", onRatio = onRatio)
                 Box(
                     Modifier
                         .size(54.dp)
@@ -378,6 +394,7 @@ fun MediaCard(
     cover: MediaItem? = null,
 ) {
     var ratio by remember { mutableFloatStateOf(0.75f) }
+    var viewing by remember { mutableStateOf(false) }
     var reported by remember { mutableStateOf(false) }
     val report: (Float) -> Unit = { value ->
         ratio = value
@@ -421,7 +438,7 @@ fun MediaCard(
                     },
                 )
             } else {
-                ImageStage(preview, media.label, report)
+                ImageStage(preview, media.label, onClick = { viewing = true }, onRatio = report)
             }
         },
         below = {
@@ -441,6 +458,130 @@ fun MediaCard(
             }
         },
     )
+    if (viewing && !isVideo) PhotoViewer(vm, listOf(media), 0) { viewing = false }
+}
+
+/** Full-screen photo viewer: swipe between photos, pinch or double-tap to zoom, drag to pan when zoomed. */
+@Composable
+private fun PhotoViewer(vm: AppViewModel, photos: List<MediaItem>, start: Int, onClose: () -> Unit) {
+    val pager = rememberPagerState(initialPage = start.coerceIn(0, photos.size - 1)) { photos.size }
+    var zoomed by remember { mutableStateOf(false) }
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        val window = (LocalView.current.parent as? DialogWindowProvider)?.window
+        SideEffect {
+            window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = !zoomed) { page ->
+                ZoomableImage(
+                    url = vm.absolute(photos[page].preview),
+                    description = photos[page].label,
+                    active = page == pager.currentPage,
+                    onZoomChange = { zoomed = it },
+                )
+            }
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .padding(8.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x99000000))
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) {
+                VIconView(VIcons.CloseSmall, 20.dp, Color.White)
+            }
+            if (photos.size > 1) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(16.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0x99000000))
+                        .padding(horizontal = 12.dp, vertical = 5.dp),
+                ) {
+                    T("${pager.currentPage + 1} / ${photos.size}", size = 12.8.sp, color = Color.White, weight = FontWeight.SemiBold, lineHeight = 17.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZoomableImage(url: String?, description: String, active: Boolean, onZoomChange: (Boolean) -> Unit) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var loading by remember(url) { mutableStateOf(url != null) }
+    val fade by animateFloatAsState(if (loading) 0f else 1f, tween(250), label = "viewer-fade")
+    val context = LocalContext.current
+    val request = remember(url) { ImageRequest.Builder(context).data(url).size(Size.ORIGINAL).build() }
+    LaunchedEffect(active) {
+        if (!active) {
+            scale = 1f
+            offset = Offset.Zero
+        }
+    }
+    LaunchedEffect(scale, active) { if (active) onZoomChange(scale > 1.01f) }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = {
+                    if (scale > 1.01f) {
+                        scale = 1f
+                        offset = Offset.Zero
+                    } else {
+                        scale = 2.5f
+                    }
+                })
+            }
+            .pointerInput(Unit) {
+                // One finger only pans while zoomed in, so swiping between photos still works at 1x.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val zoom = event.calculateZoom()
+                        val pan = event.calculatePan()
+                        if (event.changes.size > 1 || scale > 1.01f) {
+                            val next = (scale * zoom).coerceIn(1f, 6f)
+                            val maxX = size.width * (next - 1f) / 2f
+                            val maxY = size.height * (next - 1f) / 2f
+                            offset = Offset(
+                                (offset.x + pan.x).coerceIn(-maxX, maxX),
+                                (offset.y + pan.y).coerceIn(-maxY, maxY),
+                            )
+                            scale = next
+                            if (scale <= 1.01f) offset = Offset.Zero
+                            event.changes.forEach { if (it.positionChanged()) it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            },
+    ) {
+        AsyncImage(
+            model = request,
+            contentDescription = description,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(fade)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                },
+            onSuccess = { loading = false },
+            onError = { loading = false },
+        )
+    }
 }
 
 @Composable
@@ -448,6 +589,7 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
     val palette = LocalPalette.current
     val pager = rememberPagerState { photos.size }
     var ratio by remember { mutableFloatStateOf(0.75f) }
+    var viewing by remember { mutableStateOf<Int?>(null) }
     val current = photos[pager.currentPage.coerceIn(0, photos.size - 1)]
     val spec = current.downloads.firstOrNull()
     CardFrame(
@@ -456,7 +598,7 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
         modifier = modifier,
         stage = {
             HorizontalPager(pager, Modifier.fillMaxSize()) { page ->
-                ImageStage(vm.absolute(photos[page].preview), photos[page].label) { value ->
+                ImageStage(vm.absolute(photos[page].preview), photos[page].label, onClick = { viewing = page }) { value ->
                     if (page == 0) ratio = value
                 }
             }
@@ -517,6 +659,7 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
             }
         },
     )
+    viewing?.let { start -> PhotoViewer(vm, photos, start) { viewing = null } }
 }
 
 /**
