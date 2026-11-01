@@ -47,7 +47,7 @@ def _bind(app, preferred):
     raise last_error
 
 
-def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port, qjs=None):
+def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port, qjs=None, token=None):
     """Start the server once. Returns the port it actually listens on."""
     global _server
     with _lock:
@@ -61,6 +61,8 @@ def start(data_dir, ffmpeg, ffprobe, ffmpeg_libs, ready_marker, port, qjs=None):
         # Temp files and unfinished downloads live in one folder that is cleaned at every start.
         env["RIBBT_TMP_DIR"] = os.path.join(data_dir, "tmp")
         env["RIBBT_COOKIES_PATH"] = os.path.join(data_dir, "cookies.txt")
+        if token:
+            env["RIBBT_TOKEN"] = token  # the app and the server share it; no other app on the phone knows it
         if ffmpeg:
             env["RIBBT_FFMPEG"] = ffmpeg
         if ffprobe:

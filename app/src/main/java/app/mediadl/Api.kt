@@ -45,13 +45,17 @@ class Api(private val context: Context, private val prefs: Prefs) {
         connection.requestMethod = method
         connection.connectTimeout = 3_000
         connection.readTimeout = readTimeoutMs
-        val settings = prefs.settingsJson
-        if (!settings.isNullOrBlank()) {
-
-            connection.setRequestProperty(
-                "Cookie",
-                "mdl_settings=" + URLEncoder.encode(settings, "UTF-8").replace("+", "%20"),
-            )
+        // The settings and the token belong to the downloader only, never to another site.
+        if (!path.startsWith("http") || target.startsWith(prefs.serverUrl)) {
+            val settings = prefs.settingsJson
+            if (!settings.isNullOrBlank()) {
+                connection.setRequestProperty(
+                    "Cookie",
+                    "mdl_settings=" + URLEncoder.encode(settings, "UTF-8").replace("+", "%20"),
+                )
+            }
+            val token = prefs.serverToken
+            if (token.isNotEmpty()) connection.setRequestProperty("X-RibbT-Token", token)
         }
         return connection
     }

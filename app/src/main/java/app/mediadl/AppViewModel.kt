@@ -187,7 +187,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refresh()
     }
 
-    fun absolute(path: String?): String? = if (path.isNullOrBlank()) null else prefs.serverUrl + path
+    /** A server path as a full address. Previews and players can't set headers, so the access token rides in the link. */
+    fun absolute(path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        val url = prefs.serverUrl + path
+        val token = prefs.serverToken
+        if (token.isEmpty()) return url
+        return url + (if ('?' in path) "&" else "?") + "k=" + android.net.Uri.encode(token)
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -279,6 +286,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveBaseUrl(value: String) {
         prefs.baseUrl = value
         baseUrl = prefs.baseUrl
+        online = null
+        refresh()
+    }
+
+    var serverToken by mutableStateOf(prefs.customToken)
+
+    fun saveServerToken(value: String) {
+        prefs.customToken = value
+        serverToken = prefs.customToken
         online = null
         refresh()
     }

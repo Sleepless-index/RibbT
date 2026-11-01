@@ -31,6 +31,15 @@ object BuiltInServer {
     /** Until the server has started this points at a port nothing listens on, so requests fail fast. */
     val url: String get() = "http://127.0.0.1:${if (port > 0) port else 1}"
 
+    /**
+     * Shared by the app and the server, new every time the app starts. The server refuses any request
+     * without it, so another app on the phone can't talk to the downloader through the local port.
+     */
+    val token: String = run {
+        val bytes = ByteArray(24).also { java.security.SecureRandom().nextBytes(it) }
+        android.util.Base64.encodeToString(bytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP)
+    }
+
     @Volatile var ready = false
         internal set
 
@@ -164,7 +173,7 @@ class ServerService : Service() {
             // asks for a retry if a conversion is requested before they are ready.
             // 0 = "any free port"; Python reports the one it got.
             val port = Python.getInstance().getModule("ribbt_server")
-                .callAttr("start", data, tools.ffmpeg, tools.ffprobe, tools.libs, tools.readyMarker, 0, tools.qjs)
+                .callAttr("start", data, tools.ffmpeg, tools.ffprobe, tools.libs, tools.readyMarker, 0, tools.qjs, BuiltInServer.token)
                 .toInt()
             BuiltInServer.port = port
             BuiltInServer.ready = true

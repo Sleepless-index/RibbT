@@ -78,6 +78,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
@@ -1003,7 +1004,7 @@ private fun AddressRow(vm: AppViewModel) {
     var text by remember(vm.baseUrl) { mutableStateOf(vm.baseUrl) }
     val status = when (vm.online) {
         true -> "Connected."
-        false -> "Offline. Start the server on that device."
+        false -> "Can’t connect. Check the address, that the server is running, and the access token."
         null -> "Checking…"
     }
     RowShell("Server address", status) {
@@ -1022,6 +1023,29 @@ private fun AddressRow(vm: AppViewModel) {
                 cursorBrush = SolidColor(Accent),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { vm.saveBaseUrl(text) }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+    Separator()
+    var token by remember(vm.serverToken) { mutableStateOf(vm.serverToken) }
+    RowShell("Access token", "Only if the server was started with one.") {
+        Box(
+            Modifier
+                .widthIn(min = 150.dp, max = 190.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(palette.bg)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        ) {
+            BasicTextField(
+                value = token,
+                onValueChange = { token = it },
+                singleLine = true,
+                textStyle = TextStyle(color = palette.text, fontSize = 13.6.sp, fontFamily = AppFont),
+                cursorBrush = SolidColor(Accent),
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { vm.saveServerToken(token) }),
                 modifier = Modifier.fillMaxWidth(),
             )
         }

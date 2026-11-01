@@ -22,10 +22,20 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../keystore/release.jks")
-            storePassword = "mediadl-local"
-            keyAlias = "mediadl"
-            keyPassword = "mediadl-local"
+            // A key kept outside the repository wins: CI decodes it from GitHub secrets and points these at it.
+            val external = System.getenv("RIBBT_KEYSTORE_FILE")
+            if (!external.isNullOrBlank()) {
+                storeFile = file(external)
+                storePassword = System.getenv("RIBBT_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RIBBT_KEY_ALIAS").takeUnless { it.isNullOrBlank() } ?: "ribbt"
+                keyPassword = System.getenv("RIBBT_KEY_PASSWORD").takeUnless { it.isNullOrBlank() } ?: System.getenv("RIBBT_KEYSTORE_PASSWORD")
+            } else {
+                // Fallback so builds keep working until the secrets exist. This key is public: see the README.
+                storeFile = file("../keystore/release.jks")
+                storePassword = "mediadl-local"
+                keyAlias = "mediadl"
+                keyPassword = "mediadl-local"
+            }
         }
     }
 
@@ -69,6 +79,7 @@ chaquopy {
             install("certifi")
             install("websockets")
             install("mutagen")
+            install("defusedxml")
         }
     }
 }

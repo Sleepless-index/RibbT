@@ -21,6 +21,14 @@ class Prefs(context: Context) {
     /** The address every request goes to. */
     val serverUrl: String get() = if (builtIn) BuiltInServer.url else baseUrl
 
+    /** The access token for a custom server (blank when that server doesn't ask for one). */
+    var customToken: String
+        get() = sp.getString("customToken", "") ?: ""
+        set(value) = sp.edit().putString("customToken", value.trim()).apply()
+
+    /** What the server expects with every request: the built-in server's own token, or the one typed for a custom server. */
+    val serverToken: String get() = if (builtIn) BuiltInServer.token else customToken
+
     var theme: String
         get() = sp.getString("theme", "system") ?: "system"
         set(value) = sp.edit().putString("theme", value).apply()

@@ -40,11 +40,13 @@ Termux (a PC is the same, with its own package manager):
 pkg install python ffmpeg git
 git clone https://github.com/Sleepless-index/RibbT
 cd RibbT/server
-pip install "flask>=3.0" "requests>=2.31" yt-dlp yt-dlp-ejs certifi websockets mutagen
-python -m flask --app mediadl run --host 0.0.0.0 --port 8000
+pip install "flask>=3.0" "requests>=2.31" yt-dlp yt-dlp-ejs certifi websockets mutagen defusedxml
+RIBBT_TOKEN="a-long-random-string" python -m flask --app mediadl run --host 0.0.0.0 --port 8000
 ```
 
-Then enter the server address in the app: `http://127.0.0.1:8000` for Termux on the same phone, or `http://<the PC's address>:8000` for a PC. Keep Termux open while you download. The server has no sign-in, so only run it on a network you trust.
+Then, in the app, enter the server address and the same string as the Access token: `http://127.0.0.1:8000` for Termux on the same phone, or `http://<the PC's address>:8000` for a PC. Keep Termux open while you download.
+
+The token is what keeps other apps and other devices on the network from using your server, so always set one when you use `--host 0.0.0.0`. For Termux on the same phone you can listen on `127.0.0.1` instead, but a token still stops other apps on the phone from using it.
 
 ## Build
 
@@ -61,6 +63,10 @@ Server tests:
 ```
 cd server && python -m unittest discover -s tests -v
 ```
+
+## Release signing
+
+CI signs the APK with the key in the repository's secrets when they exist: `RIBBT_KEYSTORE_BASE64` (the keystore, base64), `RIBBT_KEYSTORE_PASSWORD`, and optionally `RIBBT_KEY_ALIAS` and `RIBBT_KEY_PASSWORD`. Without them it falls back to `keystore/release.jks`, whose password is in `app/build.gradle.kts`, so anyone could sign an APK with it. An app can only be updated by an APK signed with the same key, so switching keys means uninstalling once and installing the new build.
 
 ## Credits
 

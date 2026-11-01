@@ -186,9 +186,18 @@ def _copy_response(job, response):
     return written
 
 
+def internal_headers(job):
+    """What the server's own request for a job carries: the caller's settings, and the access token when one is set."""
+    headers = {"Cookie": job.cookie} if job.cookie else {}
+    token = os.environ.get("RIBBT_TOKEN", "").strip()
+    if token:
+        headers["X-RibbT-Token"] = token
+    return headers
+
+
 def _produce(job):
     job.dir.mkdir(parents=True, exist_ok=True)
-    headers = {"Cookie": job.cookie} if job.cookie else {}
+    headers = internal_headers(job)
     with progress.bind(job):
         response = _app.test_client().get(job.path, headers=headers, buffered=False)
         try:

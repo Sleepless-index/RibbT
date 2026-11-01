@@ -1,9 +1,9 @@
 import html
 import re
 from urllib.parse import parse_qs, urlparse
-import xml.etree.ElementTree as ET
 
 import requests
+from defusedxml.ElementTree import ParseError, fromstring
 
 from ..config import DESKTOP_PAGE_HEADERS, DESKTOP_UA
 from ..services.candidates import candidate, clean_url, dedupe
@@ -62,8 +62,8 @@ def _records(response):
     if isinstance(data, list):
         return [item for item in data if isinstance(item, dict)]
     try:
-        root = ET.fromstring(response.text)
-    except ET.ParseError:
+        root = fromstring(response.text)
+    except (ParseError, ValueError):  # ValueError: defusedxml refuses entity tricks
         return []
     return [dict(node.attrib) for node in root.iter("post")]
 
