@@ -66,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -75,6 +76,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.animation.core.animate
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
@@ -517,12 +522,16 @@ private fun PhotoViewer(vm: AppViewModel, photos: List<MediaItem>, start: Int, o
 private fun ZoomableImage(url: String?, description: String, active: Boolean, onZoomChange: (Boolean) -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var imageRatio by remember(url) { mutableFloatStateOf(0f) }
     var loading by remember(url) { mutableStateOf(url != null) }
     val fade by animateFloatAsState(if (loading) 0f else 1f, tween(250), label = "viewer-fade")
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var animation by remember { mutableStateOf<Job?>(null) }
     val request = remember(url) { ImageRequest.Builder(context).data(url).size(Size.ORIGINAL).build() }
     LaunchedEffect(active) {
         if (!active) {
+            animation?.cancel()
             scale = 1f
             offset = Offset.Zero
         }
@@ -532,36 +541,70 @@ private fun ZoomableImage(url: String?, description: String, active: Boolean, on
         Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = {
-                    if (scale > 1.01f) {
-                        scale = 1f
-                        offset = Offset.Zero
-                    } else {
-                        scale = 2.5f
+                // How far the picture may be dragged at a given zoom: its own displayed size, not the whole screen,
+                // so a narrow photo never slides off into the black.
+                fun limit(zoom: Float, offset: Offset): Offset {
+                    val w = size.width.toFloat()
+                    val h = size.height.toFloat()
+                    val shownW = if (imageRatio <= 0f) w else minOf(w, h * imageRatio)
+                    val shownH = if (imageRatio <= 0f) h else minOf(h, w / imageRatio)
+                    val maxX = maxOf(0f, (shownW * zoom - w) / 2f)
+                    val maxY = maxOf(0f, (shownH * zoom - h) / 2f)
+                    return Offset(offset.x.coerceIn(-maxX, maxX), offset.y.coerceIn(-maxY, maxY))
+                }
+                detectTapGestures(onDoubleTap = { tap ->
+                    animation?.cancel()
+                    val from = scale
+                    val fromOffset = offset
+                    val w = size.width.toFloat()
+                    val h = size.height.toFloat()
+                    val shownW = if (imageRatio <= 0f) w else minOf(w, h * imageRatio)
+                    val target = if (from > 1.01f) 1f else maxOf(2.5f, w / shownW).coerceAtMost(5f)
+                    // Zoom about the tapped point: the spot under the finger stays under the finger.
+                    val focus = tap - Offset(w / 2f, h / 2f)
+                    val toOffset = if (target == 1f) Offset.Zero else limit(target, (fromOffset - focus) * (target / from) + focus)
+                    animation = scope.launch {
+                        animate(0f, 1f, animationSpec = tween(240)) { t, _ ->
+                            scale = from + (target - from) * t
+                            offset = fromOffset + (toOffset - fromOffset) * t
+                        }
                     }
                 })
             }
             .pointerInput(Unit) {
-                // One finger only pans while zoomed in, so swiping between photos still works at 1x.
+                fun limit(zoom: Float, offset: Offset): Offset {
+                    val w = size.width.toFloat()
+                    val h = size.height.toFloat()
+                    val shownW = if (imageRatio <= 0f) w else minOf(w, h * imageRatio)
+                    val shownH = if (imageRatio <= 0f) h else minOf(h, w / imageRatio)
+                    val maxX = maxOf(0f, (shownW * zoom - w) / 2f)
+                    val maxY = maxOf(0f, (shownH * zoom - h) / 2f)
+                    return Offset(offset.x.coerceIn(-maxX, maxX), offset.y.coerceIn(-maxY, maxY))
+                }
+                // Any two fingers pinch (thumb and finger, or two thumbs); one finger only pans while zoomed in,
+                // so swiping between photos still works at 1x.
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     do {
                         val event = awaitPointerEvent()
-                        val zoom = event.calculateZoom()
-                        val pan = event.calculatePan()
                         if (event.changes.size > 1 || scale > 1.01f) {
+                            animation?.cancel()
+                            val zoom = event.calculateZoom()
+                            val pan = event.calculatePan()
+                            val centroid = event.calculateCentroid(useCurrent = true)
                             val next = (scale * zoom).coerceIn(1f, 6f)
-                            val maxX = size.width * (next - 1f) / 2f
-                            val maxY = size.height * (next - 1f) / 2f
-                            offset = Offset(
-                                (offset.x + pan.x).coerceIn(-maxX, maxX),
-                                (offset.y + pan.y).coerceIn(-maxY, maxY),
-                            )
+                            // Keep the point between the fingers fixed while scaling, then follow the fingers.
+                            val focus = centroid - pan - Offset(size.width / 2f, size.height / 2f)
+                            val moved = (offset - focus) * (next / scale) + focus + pan
                             scale = next
-                            if (scale <= 1.01f) offset = Offset.Zero
+                            offset = if (next <= 1.01f) Offset.Zero else limit(next, moved)
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
+                    if (scale < 1.01f) {
+                        scale = 1f
+                        offset = Offset.Zero
+                    }
                 }
             },
     ) {
@@ -578,7 +621,11 @@ private fun ZoomableImage(url: String?, description: String, active: Boolean, on
                     translationX = offset.x
                     translationY = offset.y
                 },
-            onSuccess = { loading = false },
+            onSuccess = { state ->
+                loading = false
+                val size = state.painter.intrinsicSize
+                if (size.width > 0f && size.height > 0f) imageRatio = size.width / size.height
+            },
             onError = { loading = false },
         )
     }
