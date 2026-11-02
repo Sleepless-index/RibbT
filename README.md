@@ -16,10 +16,7 @@ Download videos, photos and audio from social media.
 ## Features
 
 - Save videos, photos, thumbnails and audio
-- Pixiv illustrations, multi-page works and animated ugoira (saved as video)
 - YouTube playlists and mixes, with subtitles from YouTube and Bilibili
-- Four ways to view photos: carousel, stacked, masonry and grid
-- Full-screen photo viewer with pinch and double-tap zoom
 - Download queue with live progress, cancel and retry
 - Choose quality, format and where files are saved
 - No ads, no accounts, no tracking

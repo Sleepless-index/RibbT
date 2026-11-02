@@ -8,7 +8,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -34,26 +33,14 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 fun LayoutPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
-    val hints = mapOf(
-        MediaLayout.Carousel to "Swipe through photos",
-        MediaLayout.Stacked to "One after another",
-        MediaLayout.Masonry to "Staggered tiles",
-        MediaLayout.Grid to "Even tiles, two across",
-    )
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        MediaLayout.entries.chunked(2).forEach { pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { layout ->
-                    LayoutTile(
-                        layout = layout,
-                        hint = hints[layout].orEmpty(),
-                        isSelected = layout.key == selected,
-                        onClick = { if (layout.key != selected) onSelect(layout.key) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        MediaLayout.entries.forEach { layout ->
+            LayoutTile(
+                layout = layout,
+                isSelected = layout.key == selected,
+                onClick = { if (layout.key != selected) onSelect(layout.key) },
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -61,7 +48,6 @@ fun LayoutPicker(selected: String, onSelect: (String) -> Unit, modifier: Modifie
 @Composable
 private fun LayoutTile(
     layout: MediaLayout,
-    hint: String,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
@@ -75,7 +61,7 @@ private fun LayoutTile(
             .background(if (isSelected) Accent.copy(alpha = 0.08f) else palette.bg)
             .border(1.5.dp, if (isSelected) Accent else Color.Transparent, shape)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(horizontal = 6.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Canvas(Modifier.fillMaxWidth().height(64.dp)) {
@@ -91,18 +77,10 @@ private fun LayoutTile(
         T(
             layout.label,
             modifier = Modifier.padding(top = 8.dp),
-            size = 13.sp,
+            size = 12.sp,
             weight = FontWeight.SemiBold,
             color = if (isSelected) Accent else palette.text,
             maxLines = 1,
-        )
-        T(
-            hint,
-            modifier = Modifier.padding(top = 2.dp),
-            size = 11.sp,
-            color = palette.muted,
-            lineHeight = 14.sp,
-            maxLines = 2,
         )
     }
 }
