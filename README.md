@@ -16,10 +16,12 @@ Download videos, photos and audio from social media.
 ## Features
 
 - Save videos, photos, thumbnails and audio
-- YouTube playlists and mixes
-- Save subtitles from YouTube and Bilibili videos
-- Download queue with progress, cancel and retry
-- Choose where files are saved
+- Pixiv illustrations, multi-page works and animated ugoira (saved as video)
+- YouTube playlists and mixes, with subtitles from YouTube and Bilibili
+- Four ways to view photos: carousel, stacked, masonry and grid
+- Full-screen photo viewer with pinch and double-tap zoom
+- Download queue with live progress, cancel and retry
+- Choose quality, format and where files are saved
 - No ads, no accounts, no tracking
 
 ## Supported sites
@@ -47,28 +49,6 @@ RIBBT_TOKEN="a-long-random-string" python -m flask --app mediadl run --host 0.0.
 Then, in the app, enter the server address and the same string as the Access token: `http://127.0.0.1:8000` for Termux on the same phone, or `http://<the PC's address>:8000` for a PC. Keep Termux open while you download.
 
 The token is what keeps other apps and other devices on the network from using your server, so always set one when you use `--host 0.0.0.0`. For Termux on the same phone you can listen on `127.0.0.1` instead, but a token still stops other apps on the phone from using it.
-
-## Build
-
-GitHub Actions builds the APK on every push and publishes it to the `latest` release.
-
-To build locally you need JDK 17, Gradle 8.9 and the Android SDK:
-
-```
-gradle assembleRelease
-```
-
-Server tests:
-
-```
-cd server && python -m unittest discover -s tests -v
-```
-
-## Release signing
-
-CI signs the APK with a key kept in the repository's secrets: `RIBBT_KEYSTORE_BASE64` (the keystore, base64), `RIBBT_KEYSTORE_PASSWORD`, and optionally `RIBBT_KEY_ALIAS` (default `ribbt`) and `RIBBT_KEY_PASSWORD`. Without them the build stops. A local `gradle assembleRelease` gives an unsigned APK unless you export `RIBBT_KEYSTORE_FILE`, `RIBBT_KEYSTORE_PASSWORD` and the others yourself.
-
-An app can only be updated by an APK signed with the same key, so keep a private backup of the keystore and its password.
 
 ## Credits
 
