@@ -49,7 +49,7 @@ def build_app_post(post, platform, prefs, link):
     post_id = post.get("id") or "media"
     style = prefs["metadata"]["filename_style"]
     original_sound = prefs["audio"]["tiktok_original"]
-    loop_as_gif = prefs["x"]["loop_as_gif"]
+    gif_as_gif = prefs["images"]["gif_as_gif"]
     cover = post.get("cover")
     videos = post.get("videos") or []
     images = post.get("images") or []
@@ -69,14 +69,14 @@ def build_app_post(post, platform, prefs, link):
             "codec": video.get("codec"),
         }
         video_name = name_for("live" if is_live else "video", **extra)
-        loop = bool(loop_as_gif and (video.get("loop") or _is_twitter_loop(video.get("url"))))
+        loop = bool(gif_as_gif and (video.get("loop") or _is_twitter_loop(video.get("url"))))
         downloads = [{
-            "label": "Download",
+            "label": "Download GIF" if loop else "Download",
             "url": video_path(video["url"], video_name, loop, video.get("audio_url")),
             "name": video_name,
         }]
         is_ugoira = bool(video.get("ugoira"))
-        if is_ugoira:
+        if is_ugoira or loop:
             pass  # an animation has no sound: one Download, no Audio
         elif original_sound and platform == "tiktok" and video.get("sound_url"):
             sound_name = sanitize_name(video.get("sound_name")) or video_name

@@ -36,7 +36,7 @@ def setUpModule():
 PREFS = {
     "metadata": {"filename_style": "classic"},
     "audio": {"tiktok_original": False},
-    "x": {"loop_as_gif": False},
+    "images": {"gif_as_gif": False},
 }
 
 FLAT = {

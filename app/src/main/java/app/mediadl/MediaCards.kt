@@ -970,7 +970,7 @@ private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover:
             }
             else -> if (videoSpec != null) {
                 val spec = picked?.spec ?: videoSpec
-                ActionButton(vm, post, spec, "Download", VIcons.Download, "Encoding…")
+                ActionButton(vm, post, spec, if (spec.label.contains("GIF")) "Download GIF" else "Download", VIcons.Download, "Making GIF…".takeIf { spec.label.contains("GIF") } ?: "Encoding…")
             }
         }
     }

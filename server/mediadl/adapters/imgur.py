@@ -31,7 +31,9 @@ def _media(entry):
     link = clean_url(entry.get("mp4") or entry.get("link") or "")
     if not link:
         return None
-    return link, _is_video(link, entry.get("type") or "")
+    kind = str(entry.get("type") or "")
+    # An animated GIF is served as an mp4; remember it was a GIF so it can be saved as one.
+    return link, _is_video(link, kind), bool(entry.get("mp4")) and "gif" in kind
 
 
 class ImgurAdapter(PlatformAdapter):
@@ -47,7 +49,7 @@ class ImgurAdapter(PlatformAdapter):
         if direct:
             ident, extension = direct.group(1), direct.group(2).lower()
             if extension in ("gifv", "mp4", "webm"):
-                return self._single(ident, [(f"https://i.imgur.com/{ident}.mp4", True)])
+                return self._single(ident, [(f"https://i.imgur.com/{ident}.mp4", True, extension == "gifv")])
             return self._single(ident, [(f"https://i.imgur.com/{ident}.{extension}", False)])
 
         album = ALBUM_RE.match(path)
@@ -125,13 +127,14 @@ class ImgurAdapter(PlatformAdapter):
 
     @staticmethod
     def _compose(ident, title, author, media):
-        videos = [url for url, is_video in media if is_video]
-        images = [url for url, is_video in media if not is_video]
+        videos = [m[0] for m in media if m[1]]
+        images = [m[0] for m in media if not m[1]]
+        loops = {m[0] for m in media if m[1] and len(m) > 2 and m[2]}
         post = new_post(
             id=ident, title=(title or f"Imgur {ident}")[:TITLE_LIMIT], author=author,
             kind="images" if images else "video",
         )
-        post["_videos"] = [video_group([candidate(url)]) for url in videos]
+        post["_videos"] = [video_group([candidate(url)], loop=url in loops) for url in videos]
         post["_images"] = [[url] for url in images]
         if images:
             post["_cover"] = [images[0]]

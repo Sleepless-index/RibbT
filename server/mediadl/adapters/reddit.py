@@ -161,7 +161,7 @@ class RedditAdapter(PlatformAdapter):
             if audio_url:
                 entry["audio"] = audio_url
             candidates.append(entry)
-        return video_group(candidates)
+        return video_group(candidates, loop=bool(reddit_video.get("is_gif")))
 
     def _from_ytdlp(self, url):
         info = dump_info(url, "Reddit", ("--no-playlist",))

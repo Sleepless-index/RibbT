@@ -11,7 +11,8 @@
     "layout": "carousel"
   },
   "images": {
-    "container": "auto"
+    "container": "auto",
+    "gif_as_gif": true
   },
   "metadata": {
     "filename_style": "classic"
@@ -20,8 +21,5 @@
     "bitrate": "auto",
     "container": "auto",
     "quality": "best"
-  },
-  "x": {
-    "loop_as_gif": false
   }
 }

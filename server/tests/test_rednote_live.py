@@ -13,7 +13,7 @@ CLIP_TWO = "http://sns-video-bd.xhscdn.com/stream/1/two.mp4"
 PREFS = {
     "metadata": {"filename_style": "classic"},
     "audio": {"tiktok_original": False},
-    "x": {"loop_as_gif": False},
+    "images": {"gif_as_gif": False},
 }
 
 

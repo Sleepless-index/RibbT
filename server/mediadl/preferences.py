@@ -79,19 +79,18 @@ SCHEMA = [
     {"section": "Audio", "path": "audio.format", "label": "Format", "hint": "File format for extracted audio.", "type": "choice"},
     {"section": "Audio", "path": "audio.bitrate", "label": "Bitrate", "hint": "Encoding quality for extracted audio.", "type": "choice"},
     {"section": "Audio", "path": "audio.tiktok_original", "label": "TikTok original sound", "hint": "Download the post’s original sound track when available.", "type": "toggle"},
-    {"section": "X / Twitter", "path": "x.loop_as_gif", "label": "Loop videos as GIF", "hint": "Save looping X videos as animated GIFs.", "type": "toggle"},
+    {"section": "Images", "path": "images.gif_as_gif", "label": "Save GIFs as .gif", "hint": "Animated GIFs from X, Reddit, Imgur and similar sites are saved as real .gif files instead of videos.", "type": "toggle"},
     {"section": "Saving", "path": "metadata.filename_style", "label": "Filename style", "hint": "Naming convention applied to saved files.", "type": "choice"},
 ]
 
-TOGGLES = ("audio.tiktok_original", "x.loop_as_gif", "paste.auto_go")
+TOGGLES = ("audio.tiktok_original", "images.gif_as_gif", "paste.auto_go")
 
 DEFAULTS = {
     "appearance": {"theme": "auto"},
     "display": {"layout": "carousel"},
     "video": {"quality": "best", "container": "auto", "bitrate": "auto"},
-    "images": {"container": "auto"},
+    "images": {"container": "auto", "gif_as_gif": True},
     "audio": {"format": "mp3", "bitrate": "192", "tiktok_original": False},
-    "x": {"loop_as_gif": False},
     "metadata": {"filename_style": "classic"},
     "save": {"location": "browser"},
     "paste": {"auto_go": True},

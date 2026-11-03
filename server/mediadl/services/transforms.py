@@ -25,7 +25,7 @@ STREAM_TRANSFORMS = {
         args=(
             "-an",
             "-vf",
-            "fps=15,scale=480:-1:flags=lanczos,"
+            "fps=20,scale='min(720,iw)':-2:flags=lanczos,"
             "split[a][b];[a]palettegen=stats_mode=diff[p];"
             "[b][p]paletteuse=dither=bayer:bayer_scale=5",
             "-loop", "0",

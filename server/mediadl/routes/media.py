@@ -48,7 +48,7 @@ def media():
     if audio_url and inline:
         return stream_ffmpeg(url, name, mux_preview_transform(), audio_url=audio_url, inline=True)
 
-    wants_gif = not inline and prefs["x"]["loop_as_gif"] and is_twitter_media(url)
+    wants_gif = not inline and prefs["images"]["gif_as_gif"] and is_twitter_media(url)
     image_container = prefs["images"]["container"]
     wants_image_convert = not inline and image_container != "auto"
 
@@ -70,10 +70,9 @@ def video():
     name = filename_arg("video")
     prefs = current_preferences()
 
-    if is_twitter_media(url):
-        is_loop = is_twitter_loop(url) or request.args.get("loop") == "1"
-        if is_loop and prefs["x"]["loop_as_gif"]:
-            return stream_ffmpeg(url, name, STREAM_TRANSFORMS["gif"])
+    is_loop = is_twitter_loop(url) or request.args.get("loop") == "1"
+    if is_loop and prefs["images"]["gif_as_gif"]:
+        return stream_ffmpeg(url, name, STREAM_TRANSFORMS["gif"])
 
     settings = prefs["video"]
     container = settings["container"]

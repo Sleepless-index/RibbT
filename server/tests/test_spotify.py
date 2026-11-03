@@ -100,7 +100,7 @@ class AudioCoverTests(unittest.TestCase):
 
         post = {"id": "1", "title": "T", "author": "A", "kind": "audio", "cover": "https://i.scdn.co/image/abc",
                 "audio_track": {"url": "https://cf-hls-media.sndcdn.com/p.m3u8", "hls": True}}
-        prefs = {"metadata": {"filename_style": "classic"}, "audio": {"tiktok_original": False}, "x": {"loop_as_gif": False}}
+        prefs = {"metadata": {"filename_style": "classic"}, "audio": {"tiktok_original": False}, "images": {"gif_as_gif": False}}
         item = build_app_post(post, "soundcloud", prefs, "https://soundcloud.com/a/b")["items"][0]
         self.assertIn("cover=https%3A%2F%2Fi.scdn.co", item["downloads"][0]["url"])
         self.assertIn("hls=1", item["downloads"][0]["url"])
@@ -119,7 +119,7 @@ class SoundCloudTests(unittest.TestCase):
         with mock.patch("mediadl.adapters.soundcloud.dump_info", return_value=info):
             post = adapter.extract("https://soundcloud.com/artist/track")
         post["cover"] = post.pop("_cover")[0]
-        prefs = {"metadata": {"filename_style": "classic"}, "audio": {"tiktok_original": False}, "x": {"loop_as_gif": False}}
+        prefs = {"metadata": {"filename_style": "classic"}, "audio": {"tiktok_original": False}, "images": {"gif_as_gif": False}}
         app = build_app_post(post, "soundcloud", prefs, "https://soundcloud.com/artist/track")
         self.assertEqual(app["kind"], "audio")
         download = app["items"][0]["downloads"][0]
