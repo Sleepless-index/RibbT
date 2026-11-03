@@ -56,6 +56,9 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            // ffmpeg's big library pack ships as an asset instead (see prepareFfmpegAsset): as a native
+            // library Android would copy all 35 MB of it out of the APK a second time.
+            excludes += "**/libffmpeg.zip.so"
         }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1,DEPENDENCIES,LICENSE*,NOTICE*,INDEX.LIST}"
@@ -113,3 +116,23 @@ dependencies {
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     implementation("io.github.junkfood02.youtubedl-android:common:0.18.1")
 }
+
+// The ffmpeg library pack travels inside the APK as an asset and is unpacked once on the phone.
+val ffmpegAar by configurations.creating { isTransitive = false }
+dependencies {
+    ffmpegAar("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1@aar")
+}
+val ffmpegAssetDir = layout.buildDirectory.dir("generated/ffmpeg-assets")
+val prepareFfmpegAsset by tasks.registering(Copy::class) {
+    from(provider { zipTree(ffmpegAar.singleFile) }) {
+        include("**/arm64-v8a/libffmpeg.zip.so")
+        eachFile { path = "ffmpeg-libs.zip" }
+    }
+    includeEmptyDirs = false
+    into(ffmpegAssetDir)
+    doLast {
+        check(ffmpegAssetDir.get().file("ffmpeg-libs.zip").asFile.isFile) { "libffmpeg.zip.so was not found in the ffmpeg AAR" }
+    }
+}
+android.sourceSets.getByName("main").assets.srcDir(ffmpegAssetDir)
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(prepareFfmpegAsset) }

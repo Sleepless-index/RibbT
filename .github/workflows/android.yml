@@ -98,7 +98,24 @@ jobs:
             dpkg-deb -x "$RUNNER_TEMP/$pkg.deb" "$RUNNER_TEMP/extra-root/$pkg"
             cp -L "$RUNNER_TEMP/extra-root/$pkg"/data/data/com.termux/files/usr/lib/lib*.so* "$RUNNER_TEMP/extra/"
           done
-          (cd "$RUNNER_TEMP/extra" && zip -qr "$GITHUB_WORKSPACE/app/src/main/assets/ffmpeg-extra.zip" .)
+          # Several libraries are the same file under two or three names: keep one copy and list the rest in
+          # links.txt ("copy original"), which the app turns back into links when it unpacks.
+          (
+            cd "$RUNNER_TEMP/extra"
+            declare -A seen
+            : > links.txt
+            for f in $(ls lib*.so* | sort); do
+              h=$(md5sum "$f" | cut -d' ' -f1)
+              if [ -n "${seen[$h]:-}" ]; then
+                echo "$f ${seen[$h]}" >> links.txt
+                rm "$f"
+              else
+                seen[$h]="$f"
+              fi
+            done
+            cat links.txt
+            zip -qr "$GITHUB_WORKSPACE/app/src/main/assets/ffmpeg-extra.zip" .
+          )
           unzip -l app/src/main/assets/ffmpeg-extra.zip
 
       # The APK is signed with the key from the repository secrets; without it the build stops.

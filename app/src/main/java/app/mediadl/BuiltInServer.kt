@@ -9,11 +9,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.system.Os
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
-import com.yausername.youtubedl_common.utils.ZipUtils
 import java.io.File
 import java.util.zip.ZipInputStream
 import kotlin.concurrent.thread
@@ -83,18 +83,35 @@ object BundledToolsSetup {
     }
 
     fun unpackIfNeeded(context: Context) {
-        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
-        val zip = File(nativeDir, "libffmpeg.zip.so")
         val tools = locate(context)
         val marker = File(tools.readyMarker)
         val root = marker.parentFile ?: return
-        val version = zip.length().toString() + "-" + installTime(context)
+        val version = "pack2-" + installTime(context)
         if (marker.isFile && marker.readText() == version && File(tools.libs).isDirectory) return
         root.deleteRecursively()
         root.mkdirs()
-        ZipUtils.unzip(zip, root)
+        unpackPack(context, root)
         unpackExtra(context, File(tools.libs))
         marker.writeText(version)
+    }
+
+    /** ffmpeg's shared libraries, shipped as one zip in the APK's assets. */
+    private fun unpackPack(context: Context, root: File) {
+        val base = root.canonicalPath + File.separator
+        ZipInputStream(context.assets.open(FFMPEG_PACK)).use { input ->
+            var entry = input.nextEntry
+            while (entry != null) {
+                val target = File(root, entry.name)
+                require(target.canonicalPath.startsWith(base)) { "Unexpected path in the ffmpeg pack" }
+                if (entry.isDirectory) {
+                    target.mkdirs()
+                } else {
+                    target.parentFile?.mkdirs()
+                    target.outputStream().use { input.copyTo(it) }
+                }
+                entry = input.nextEntry
+            }
+        }
     }
 
     private fun installTime(context: Context): Long =
@@ -103,18 +120,37 @@ object BundledToolsSetup {
     private fun unpackExtra(context: Context, target: File) {
         if (EXTRA_LIBS !in (context.assets.list("") ?: return)) return
         target.mkdirs()
+        val links = mutableListOf<String>()
         ZipInputStream(context.assets.open(EXTRA_LIBS)).use { input ->
             var entry = input.nextEntry
             while (entry != null) {
-                if (!entry.isDirectory) {
-                    File(target, File(entry.name).name).outputStream().use { input.copyTo(it) }
+                val name = File(entry.name).name
+                if (entry.isDirectory) {
+                    // nothing to create
+                } else if (name == LINKS_FILE) {
+                    // "copy original" per line: identical libraries are stored once and linked back.
+                    links.addAll(input.readBytes().decodeToString().lines().filter { it.isNotBlank() })
+                } else {
+                    File(target, name).outputStream().use { input.copyTo(it) }
                 }
                 entry = input.nextEntry
             }
         }
+        for (line in links) {
+            val parts = line.trim().split(' ')
+            if (parts.size != 2 || parts.any { it.contains('/') || it.contains("..") }) continue
+            val copy = File(target, parts[0])
+            val original = File(target, parts[1])
+            if (!original.isFile) continue
+            copy.delete()
+            runCatching { Os.symlink(parts[1], copy.absolutePath) }
+                .onFailure { original.copyTo(copy, overwrite = true) }
+        }
     }
 
     private const val EXTRA_LIBS = "ffmpeg-extra.zip"
+    private const val FFMPEG_PACK = "ffmpeg-libs.zip"
+    private const val LINKS_FILE = "links.txt"
 }
 
 /**
