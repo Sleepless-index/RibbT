@@ -79,7 +79,7 @@ SCHEMA = [
     {"section": "Audio", "path": "audio.format", "label": "Format", "hint": "File format for extracted audio.", "type": "choice"},
     {"section": "Audio", "path": "audio.bitrate", "label": "Bitrate", "hint": "Encoding quality for extracted audio.", "type": "choice"},
     {"section": "Audio", "path": "audio.tiktok_original", "label": "TikTok original sound", "hint": "Download the post’s original sound track when available.", "type": "toggle"},
-    {"section": "Images", "path": "images.gif_as_gif", "label": "Save GIFs as .gif", "hint": "Animated GIFs from X, Reddit, Imgur and similar sites are saved as real .gif files instead of videos.", "type": "toggle"},
+    {"section": "Images", "path": "images.gif_as_gif", "label": "Save GIFs as .gif", "hint": "Save animated GIFs as .gif, not video.", "type": "toggle"},
     {"section": "Saving", "path": "metadata.filename_style", "label": "Filename style", "hint": "Naming convention applied to saved files.", "type": "choice"},
 ]
 

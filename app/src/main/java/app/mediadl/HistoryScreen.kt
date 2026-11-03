@@ -180,6 +180,10 @@ fun HistoryScreen(vm: AppViewModel) {
 private val TYPE_CHOICES = listOf(
     Choice("", "All"), Choice("video", "Video"), Choice("image", "Photos"), Choice("audio", "Audio"),
 )
+private val CHOICE_ICONS = mapOf(
+    "" to VIcons.Grid, "video" to VIcons.Video, "image" to VIcons.Photo, "audio" to VIcons.Audio,
+    "newest" to VIcons.Newest, "oldest" to VIcons.Oldest, "largest" to VIcons.Largest,
+)
 private val SORT_CHOICES = listOf(
     Choice("newest", "Newest"), Choice("oldest", "Oldest"), Choice("largest", "Largest"),
 )
@@ -209,9 +213,9 @@ private fun FilterRow(vm: AppViewModel) {
         Box(
             Modifier
                 .size(44.dp)
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .background(if (active) Accent.copy(alpha = 0.14f) else palette.card)
-                .border(1.dp, if (active) Accent else palette.line, CircleShape)
+                .border(1.dp, if (active) Accent else palette.line, RoundedCornerShape(12.dp))
                 .clickable(onClickLabel = "Filter and sort", role = Role.Button) { showFilters = true },
             contentAlignment = Alignment.Center,
         ) {
@@ -229,7 +233,7 @@ private fun ServiceChip(label: String, platform: String?, selected: Boolean, onC
     val logo = remember(platform) {
         if (platform == null) 0 else context.resources.getIdentifier("logo_$platform", "drawable", context.packageName)
     }
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(12.dp)
     Row(
         Modifier
             .height(44.dp)
@@ -297,7 +301,7 @@ private fun ChipGrid(choices: List<Choice>, selected: String, onSelect: (String)
         choices.chunked(3).forEach { rowChoices ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowChoices.forEach { choice ->
-                    OptionChip(choice.label, selected == choice.value, Modifier.weight(1f), palette.bg) { onSelect(choice.value) }
+                    OptionChip(choice.label, CHOICE_ICONS[choice.value], selected == choice.value, Modifier.weight(1f), palette.bg) { onSelect(choice.value) }
                 }
                 repeat(3 - rowChoices.size) { Spacer(Modifier.weight(1f)) }
             }
@@ -306,19 +310,22 @@ private fun ChipGrid(choices: List<Choice>, selected: String, onSelect: (String)
 }
 
 @Composable
-private fun OptionChip(label: String, selected: Boolean, modifier: Modifier, idle: Color, onClick: () -> Unit) {
+private fun OptionChip(label: String, icon: VIcon?, selected: Boolean, modifier: Modifier, idle: Color, onClick: () -> Unit) {
     val palette = LocalPalette.current
     val background by animateColorAsState(if (selected) Accent.copy(alpha = 0.14f) else idle, tween(160), label = "chip-bg")
     val textColor by animateColorAsState(if (selected) Accent else palette.text, tween(160), label = "chip-text")
     Box(
         modifier
-            .height(36.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .height(40.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(background)
             .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        T(label, size = 12.8.sp, color = textColor, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (icon != null) VIconView(icon, 15.dp, textColor)
+            T(label, size = 12.8.sp, color = textColor, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+        }
     }
 }
 
@@ -397,9 +404,9 @@ private fun SearchField(vm: AppViewModel) {
         Modifier
             .fillMaxWidth()
             .height(44.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(palette.card)
-            .border(1.dp, palette.line, RoundedCornerShape(22.dp))
+            .border(1.dp, palette.line, RoundedCornerShape(14.dp))
             .padding(start = 14.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -601,7 +608,7 @@ private fun InfoChip(text: String) {
         color = palette.muted,
         maxLines = 1,
         modifier = Modifier
-            .clip(CircleShape)
+            .clip(RoundedCornerShape(8.dp))
             .background(palette.bg)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )
