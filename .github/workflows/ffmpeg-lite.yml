@@ -1,0 +1,44 @@
+name: Build lean ffmpeg
+
+# Builds the cut-down ffmpeg the app ships (see ci/ffmpeg) and publishes it as the `ffmpeg-lite` release.
+# Run it by hand when the recipe changes; the app build only downloads the result.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ffmpeg:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space for the builder image
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Get the Termux package builder
+        run: git clone --depth 1 https://github.com/termux/termux-packages "$RUNNER_TEMP/tp"
+
+      - name: Build ffmpeg
+        working-directory: ${{ runner.temp }}/tp
+        run: |
+          cp "$GITHUB_WORKSPACE/ci/ffmpeg/build.sh" packages/ffmpeg/build.sh
+          cp "$GITHUB_WORKSPACE/ci/ffmpeg/collect.py" collect-ribbt.py
+          ./scripts/run-docker.sh bash -c "./build-package.sh -a aarch64 -i -f ffmpeg && python3 collect-ribbt.py"
+          ls -lh ffmpeg-lean.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-lean
+          path: ${{ runner.temp }}/tp/ffmpeg-lean.zip
+
+      - name: Publish as the ffmpeg-lite release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view ffmpeg-lite >/dev/null 2>&1 || gh release create ffmpeg-lite --title "ffmpeg-lite" --notes "Lean ffmpeg for the RibbT app (built by ffmpeg-lite.yml)."
+          gh release upload ffmpeg-lite "$RUNNER_TEMP/tp/ffmpeg-lean.zip" --clobber
