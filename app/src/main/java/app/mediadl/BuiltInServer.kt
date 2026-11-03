@@ -9,14 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
-import android.system.Os
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.yausername.youtubedl_common.utils.ZipUtils
 import java.io.File
-import java.util.zip.ZipInputStream
 import kotlin.concurrent.thread
 
 /** State of the server that runs inside the app (the same Python package that runs on a PC or in Termux). */
@@ -87,12 +85,11 @@ object BundledToolsSetup {
         val tools = locate(context)
         val marker = File(tools.readyMarker)
         val root = marker.parentFile ?: return
-        val version = "pack3-" + installTime(context)
+        val version = "lean1-" + installTime(context)
         if (marker.isFile && marker.readText() == version && File(tools.libs).isDirectory) return
         root.deleteRecursively()
         root.mkdirs()
         unpackPack(context, root)
-        unpackExtra(context, File(tools.libs))
         marker.writeText(version)
     }
 
@@ -114,40 +111,7 @@ object BundledToolsSetup {
     private fun installTime(context: Context): Long =
         context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
 
-    private fun unpackExtra(context: Context, target: File) {
-        if (EXTRA_LIBS !in (context.assets.list("") ?: return)) return
-        target.mkdirs()
-        val links = mutableListOf<String>()
-        ZipInputStream(context.assets.open(EXTRA_LIBS)).use { input ->
-            var entry = input.nextEntry
-            while (entry != null) {
-                val name = File(entry.name).name
-                if (entry.isDirectory) {
-                    // nothing to create
-                } else if (name == LINKS_FILE) {
-                    // "copy original" per line: identical libraries are stored once and linked back.
-                    links.addAll(input.readBytes().decodeToString().lines().filter { it.isNotBlank() })
-                } else {
-                    File(target, name).outputStream().use { input.copyTo(it) }
-                }
-                entry = input.nextEntry
-            }
-        }
-        for (line in links) {
-            val parts = line.trim().split(' ')
-            if (parts.size != 2 || parts.any { it.contains('/') || it.contains("..") }) continue
-            val copy = File(target, parts[0])
-            val original = File(target, parts[1])
-            if (!original.isFile) continue
-            copy.delete()
-            runCatching { Os.symlink(parts[1], copy.absolutePath) }
-                .onFailure { original.copyTo(copy, overwrite = true) }
-        }
-    }
-
-    private const val EXTRA_LIBS = "ffmpeg-extra.zip"
     private const val FFMPEG_PACK = "ffmpeg-libs.zip"
-    private const val LINKS_FILE = "links.txt"
 }
 
 /**

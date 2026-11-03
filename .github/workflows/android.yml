@@ -68,55 +68,24 @@ jobs:
           "$NDK"/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip app/src/main/jniLibs/arm64-v8a/libqjs.so || true
           ls -lh app/src/main/jniLibs/arm64-v8a/libqjs.so
 
-      # The bundled ffmpeg (and the libraries unpacked next to it) need the C++ runtime, which no
-      # other dependency ships. Without it ffmpeg dies with: library "libc++_shared.so" not found.
-      - name: Add the C++ runtime for ffmpeg
+      # The lean ffmpeg (no AV1 / H.265 / VP9 encoders) is built by ffmpeg-lite.yml and published as the
+      # ffmpeg-lite release. The two programs go in as native libraries so Android lets the app run them;
+      # the shared libraries they need travel as one zip in the assets and are unpacked on first run.
+      - name: Fetch the lean ffmpeg
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}"
-          LIB="$NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
-          test -f "$LIB" || { echo "libc++_shared.so not found in the NDK"; exit 1; }
-          mkdir -p app/src/main/jniLibs/arm64-v8a
-          cp "$LIB" app/src/main/jniLibs/arm64-v8a/libc++_shared.so
-          ls -lh app/src/main/jniLibs/arm64-v8a/libc++_shared.so
-
-      - name: Add the libraries the bundled ffmpeg still needs
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE=https://packages.termux.dev/apt/termux-main
-          curl -fsSL "$BASE/dists/stable/main/binary-aarch64/Packages" -o "$RUNNER_TEMP/Packages"
-          rm -rf "$RUNNER_TEMP/extra" "$RUNNER_TEMP/extra-root"
-          mkdir -p "$RUNNER_TEMP/extra" app/src/main/assets
-          rm -f app/src/main/assets/ffmpeg-extra.zip
-          for pkg in libexpat libjpeg-turbo openssl libandroid-support libandroid-execinfo libandroid-posix-semaphore; do
-            FILE=$(awk -v p="$pkg" '$1=="Package:"{hit=($2==p)} hit&&$1=="Filename:"{print $2; exit}' "$RUNNER_TEMP/Packages")
-            test -n "$FILE" || { echo "$pkg not found in the Termux repository"; exit 1; }
-            curl -fsSL "$BASE/$FILE" -o "$RUNNER_TEMP/$pkg.deb"
-            mkdir -p "$RUNNER_TEMP/extra-root/$pkg"
-            dpkg-deb -x "$RUNNER_TEMP/$pkg.deb" "$RUNNER_TEMP/extra-root/$pkg"
-            cp -L "$RUNNER_TEMP/extra-root/$pkg"/data/data/com.termux/files/usr/lib/lib*.so* "$RUNNER_TEMP/extra/"
-          done
-          # Several libraries are the same file under two or three names: keep one copy and list the rest in
-          # links.txt ("copy original"), which the app turns back into links when it unpacks.
-          (
-            cd "$RUNNER_TEMP/extra"
-            declare -A seen
-            : > links.txt
-            for f in $(ls lib*.so* | sort); do
-              h=$(md5sum "$f" | cut -d' ' -f1)
-              if [ -n "${seen[$h]:-}" ]; then
-                echo "$f ${seen[$h]}" >> links.txt
-                rm "$f"
-              else
-                seen[$h]="$f"
-              fi
-            done
-            cat links.txt
-            zip -qr "$GITHUB_WORKSPACE/app/src/main/assets/ffmpeg-extra.zip" .
-          )
-          unzip -l app/src/main/assets/ffmpeg-extra.zip
+          rm -rf "$RUNNER_TEMP/ffmpeg"
+          mkdir -p "$RUNNER_TEMP/ffmpeg" app/src/main/jniLibs/arm64-v8a app/src/main/assets
+          gh release download ffmpeg-lite --pattern ffmpeg-lean.zip --dir "$RUNNER_TEMP/ffmpeg"
+          unzip -q "$RUNNER_TEMP/ffmpeg/ffmpeg-lean.zip" -d "$RUNNER_TEMP/ffmpeg/x"
+          cp "$RUNNER_TEMP/ffmpeg/x/bin/ffmpeg" app/src/main/jniLibs/arm64-v8a/libffmpeg.so
+          cp "$RUNNER_TEMP/ffmpeg/x/bin/ffprobe" app/src/main/jniLibs/arm64-v8a/libffprobe.so
+          rm -f app/src/main/assets/ffmpeg-libs.zip app/src/main/assets/ffmpeg-extra.zip
+          (cd "$RUNNER_TEMP/ffmpeg/x" && zip -qr "$GITHUB_WORKSPACE/app/src/main/assets/ffmpeg-libs.zip" usr)
+          ls -lh app/src/main/jniLibs/arm64-v8a app/src/main/assets
 
       # The APK is signed with the key from the repository secrets; without it the build stops.
       - name: Prepare the signing key
