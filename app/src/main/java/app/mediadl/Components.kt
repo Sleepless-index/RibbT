@@ -76,11 +76,11 @@ fun T(
 }
 
 @Composable
-fun CardBox(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun CardBox(modifier: Modifier = Modifier, color: Color? = null, content: @Composable () -> Unit) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(26.dp))
-            .background(LocalPalette.current.card),
+            .background(color ?: LocalPalette.current.card),
     ) { content() }
 }
 

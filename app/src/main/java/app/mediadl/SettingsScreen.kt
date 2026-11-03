@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -250,92 +251,184 @@ private fun SettingsHome(vm: AppViewModel) {
     if (vm.server == null) OfflineHint(vm)
 }
 
-/** The top card of Settings: RibbT's own update, and the server and yt-dlp at a glance. */
+/** The top card of Settings: RibbT's own update (it changes shape with its state), then the server and yt-dlp. */
 @Composable
 private fun StatusCard(vm: AppViewModel) {
     val palette = LocalPalette.current
+    val uri = LocalUriHandler.current
     val release = vm.appRelease
     val busy = vm.appUpdateBusy
+    val failed = vm.appUpdateError != null && !busy
     val available = release?.available == true
     val good = if (palette.dark) Color(0xFF5BD68A) else Color(0xFF1E8E4E)
-    CardBox(Modifier.fillMaxWidth()) {
+    val logo: @Composable () -> Unit = {
+        // The logo the user picked, so this card looks like the app on their home screen.
+        LogoMark(AppLogo.fromKey(vm.appLogo), Modifier.size(48.dp), corner = 15f / 48f)
+    }
+    CardBox(Modifier.fillMaxWidth(), color = if (failed) palette.errBg else null) {
         Column {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                // The logo the user picked, so this row looks like the app on their home screen.
-                LogoMark(AppLogo.fromKey(vm.appLogo), Modifier.size(48.dp), corner = 15f / 48f)
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        T("RibbT", size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
-                        if (release != null && !busy) {
-                            StatusPill(
-                                if (available) "Update available" else "Up to date",
-                                if (available) PillTone.Accent else PillTone.Good,
+            when {
+                busy -> {
+                    val installing = vm.appUpdateStatus == "Installing…"
+                    Row(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        logo()
+                        Column(Modifier.weight(1f)) {
+                            T(
+                                if (installing) "Installing RibbT ${release?.version.orEmpty()}".trim() else "Downloading RibbT ${release?.version.orEmpty()}".trim(),
+                                size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1,
+                            )
+                            T(
+                                when {
+                                    installing -> "Confirm on the next screen"
+                                    vm.appUpdateTotal > 0 -> "${formatBytes(vm.appUpdateDone)} of ${formatBytes(vm.appUpdateTotal)}"
+                                    vm.appUpdateDone > 0 -> formatBytes(vm.appUpdateDone)
+                                    else -> "Starting…"
+                                },
+                                size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp),
                             )
                         }
+                        vm.appUpdatePercent?.let { T("$it%", size = 15.sp, weight = FontWeight.Bold) }
                     }
-                    T(
-                        buildString {
-                            append("Version ${vm.appVersion}")
-                            if (available && !release?.version.isNullOrBlank()) append(" · ${release?.version} is ready")
-                        },
-                        size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
-                SmallButton(
-                    text = when {
-                        busy -> vm.appUpdatePercent?.let { "$it%" } ?: vm.appUpdateStatus ?: "Updating…"
-                        vm.appChecking -> "Checking…"
-                        available -> "Update"
-                        else -> "Check"
-                    },
-                    enabled = !busy && !vm.appChecking,
-                    tonal = !available && !busy,
-                    minWidth = 76.dp,
-                    onClick = { if (available) vm.installAppUpdate() else vm.checkAppUpdate() },
-                )
-            }
-            Separator()
-            Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                val serverText = when {
-                    vm.starting -> "Starting…"
-                    vm.online == true -> if (vm.serverMode == "custom") "Connected" else "Running"
-                    vm.online == false -> "Offline"
-                    else -> "Checking…"
-                }
-                StatusCell("Server", Modifier.weight(1f), onClick = { vm.settingsPage = PAGE_SERVER }) {
-                    Box(
-                        Modifier.size(8.dp).clip(CircleShape).background(
-                            when (vm.online) {
-                                true -> good
-                                false -> palette.err
-                                null -> palette.muted
-                            },
-                        ),
-                    )
-                    T(serverText, size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1)
-                }
-                val version = vm.ytdlpVersion
-                StatusCell("yt-dlp", Modifier.weight(1f), onClick = { vm.settingsPage = PAGE_SERVER }) {
-                    T(
-                        when (version) {
-                            null -> "Checking…"
-                            "" -> "Not installed"
-                            else -> version.split('.').take(3).joinToString(".")
-                        },
-                        size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1,
-                    )
-                    if (!version.isNullOrEmpty() && vm.ytdlpAvailable != null) {
-                        StatusPill(
-                            if (vm.ytdlpAvailable == true) "Update" else "Latest",
-                            if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
+                    vm.appUpdatePercent?.let { percent ->
+                        Box(
+                            Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)).background(palette.line),
+                        ) {
+                            Box(Modifier.fillMaxWidth(percent / 100f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(Accent))
+                        }
+                    }
+                    if (!installing) {
+                        PillButton(
+                            "Cancel", null, { vm.cancelAppUpdate() },
+                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp),
+                            style = PillStyle.Tonal, height = 40.dp,
                         )
+                    } else {
+                        Spacer(Modifier.height(16.dp))
+                    }
+                }
+                failed -> {
+                    Row(
+                        Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(palette.soft), contentAlignment = Alignment.Center) {
+                            VIconView(VIcons.Alert, 22.dp, palette.err)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            T("Update didn’t finish", size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                            T(vm.appUpdateError.orEmpty(), size = 12.16.sp, color = palette.err, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp))
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PillButton("Try again", null, { vm.installAppUpdate() }, Modifier.weight(1f), height = 40.dp)
+                        PillButton(
+                            "Open release page", null, { release?.pageUrl?.takeIf { it.isNotBlank() }?.let { uri.openUri(it) } },
+                            Modifier.weight(1f), style = PillStyle.Tonal, height = 40.dp,
+                        )
+                    }
+                }
+                available -> {
+                    Row(
+                        Modifier.fillMaxWidth().background(Accent.copy(alpha = 0.14f)).padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        logo()
+                        Column(Modifier.weight(1f)) {
+                            T("UPDATE AVAILABLE", size = 11.sp, color = Accent, weight = FontWeight.Bold, letterSpacing = 0.8.sp, maxLines = 1)
+                            T("RibbT ${release?.version.orEmpty()}".trim(), size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                            T("You have ${vm.appVersion}", size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp)
+                        }
+                    }
+                    PillButton(
+                        "Update to ${release?.version.orEmpty()}".trim(), VIcons.Download, { vm.installAppUpdate() },
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp), height = 46.dp,
+                    )
+                    if (!release?.pageUrl.isNullOrBlank()) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Box(
+                                Modifier.heightIn(min = 44.dp).clickable(role = Role.Button) { uri.openUri(release!!.pageUrl) }.padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { T("What’s new", size = 13.sp, color = Accent, weight = FontWeight.SemiBold) }
+                        }
+                    } else {
+                        Spacer(Modifier.height(14.dp))
+                    }
+                }
+                else -> {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        logo()
+                        Column(Modifier.weight(1f)) {
+                            T("RibbT", size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                                T("Version ${vm.appVersion}", size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp)
+                                if (release != null) {
+                                    T(" · ", size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp)
+                                    VIconView(VIcons.Check, 13.dp, good)
+                                    T(" Up to date", size = 12.16.sp, color = good, weight = FontWeight.SemiBold, lineHeight = 15.8.sp, maxLines = 1)
+                                }
+                            }
+                        }
+                        SmallButton(
+                            text = if (vm.appChecking) "Checking…" else "Check",
+                            enabled = !vm.appChecking,
+                            tonal = true,
+                            minWidth = 76.dp,
+                            onClick = { vm.checkAppUpdate() },
+                        )
+                    }
+                }
+            }
+            if (!busy && !failed) {
+                Separator()
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    val serverText = when {
+                        vm.starting -> "Starting…"
+                        vm.online == true -> if (vm.serverMode == "custom") "Connected" else "Running"
+                        vm.online == false -> "Offline"
+                        else -> "Checking…"
+                    }
+                    StatusCell("Server", Modifier.weight(1f), onClick = { vm.settingsPage = PAGE_SERVER }) {
+                        Box(
+                            Modifier.size(8.dp).clip(CircleShape).background(
+                                when (vm.online) {
+                                    true -> good
+                                    false -> palette.err
+                                    null -> palette.muted
+                                },
+                            ),
+                        )
+                        T(serverText, size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                    val version = vm.ytdlpVersion
+                    StatusCell("yt-dlp", Modifier.weight(1f), onClick = { vm.settingsPage = PAGE_SERVER }) {
+                        T(
+                            when (version) {
+                                null -> "Checking…"
+                                "" -> "Not installed"
+                                else -> version.split('.').take(3).joinToString(".")
+                            },
+                            size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1,
+                        )
+                        if (!version.isNullOrEmpty() && vm.ytdlpAvailable != null) {
+                            StatusPill(
+                                if (vm.ytdlpAvailable == true) "Update" else "Latest",
+                                if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
+                            )
+                        }
                     }
                 }
             }

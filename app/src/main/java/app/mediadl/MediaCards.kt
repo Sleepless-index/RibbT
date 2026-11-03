@@ -716,12 +716,17 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
 fun PhotoGrid(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier: Modifier = Modifier) {
     var viewing by remember { mutableStateOf<Int?>(null) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        photos.chunked(2).forEachIndexed { row, pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEachIndexed { column, media ->
-                    GridTile(vm, post, media, Modifier.weight(1f)) { viewing = row * 2 + column }
+        if (photos.size == 1) {
+            // A lone photo takes both columns, like the other layouts.
+            MediaCard(vm, post, photos[0], wide = false)
+        } else {
+            photos.chunked(2).forEachIndexed { row, pair ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEachIndexed { column, media ->
+                        GridTile(vm, post, media, Modifier.weight(1f)) { viewing = row * 2 + column }
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
         if (photos.size > 1) {

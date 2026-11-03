@@ -455,6 +455,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var appUpdateStatus by mutableStateOf<String?>(null)
     /** Download progress of the app update, 0-100; null before it starts, when the size is unknown or when idle. */
     var appUpdatePercent by mutableStateOf<Int?>(null)
+    /** Bytes received and expected (0 when unknown) for the "7.7 of 18.4 MB" line. */
+    var appUpdateDone by mutableStateOf(0L)
+    var appUpdateTotal by mutableStateOf(0L)
+    /** Why the last update attempt failed; shown on the card until the next attempt. */
+    var appUpdateError by mutableStateOf<String?>(null)
+    private var appUpdateToast: Long? = null
+
+    fun cancelAppUpdate() {
+        appUpdateToast?.let { cancelDownload(it) }
+    }
+
+    private fun clearAppUpdateProgress() {
+        appUpdateBusy = false
+        appUpdateStatus = null
+        appUpdatePercent = null
+        appUpdateDone = 0L
+        appUpdateTotal = 0L
+    }
 
     /**
      * Downloads the new APK inside the app (progress shows in the toast, the queue and the Settings row)
@@ -471,8 +489,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         appUpdateBusy = true
+        appUpdateError = null
         appUpdateStatus = "Starting…"
         val toast = addToast("RibbT ${release.version.orEmpty()}".trim(), "Downloading update…", cancellable = true)
+        appUpdateToast = toast
         val job = viewModelScope.launch {
             try {
                 val apk = AppInstaller.download(app, release.apkUrl) { done, total ->
@@ -480,10 +500,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val line = if (fraction != null) "Downloading · ${(fraction * 100).toInt()}%" else "Downloading · ${formatBytes(done)}"
                     appUpdateStatus = line
                     appUpdatePercent = fraction?.let { (it * 100).toInt() }
+                    appUpdateDone = done
+                    appUpdateTotal = total
                     updateToast(toast) { it.copy(progress = fraction, status = line) }
                 }
                 appUpdateStatus = "Installing…"
                 appUpdatePercent = null
+                appUpdateDone = 0L
+                appUpdateTotal = 0L
                 updateToast(toast) { it.copy(progress = null, status = "Confirm the update on the next screen") }
                 AppInstaller.install(app, apk)
                 // Android now shows its own confirmation. The app is replaced and restarted when it finishes.
@@ -491,17 +515,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 appUpdateStatus = null
                 appUpdateBusy = false
             } catch (e: ApiException) {
-                appUpdateBusy = false
-                appUpdateStatus = null
-                appUpdatePercent = null
+                clearAppUpdateProgress()
+                appUpdateError = e.message.orEmpty().lineSequence().firstOrNull().orEmpty().take(90).ifBlank { "The download didn’t finish." }
                 finishToast(toast, ToastPhase.Bad, "Failed · ${e.message.orEmpty().take(90)}", notify = false)
             }
         }
-        trackDownload(toast, job) {
-            appUpdateBusy = false
-            appUpdateStatus = null
-            appUpdatePercent = null
-        }
+        trackDownload(toast, job) { clearAppUpdateProgress() }
     }
 
     fun updateYtdlp() {
