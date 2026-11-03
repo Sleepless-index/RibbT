@@ -14,6 +14,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import com.yausername.youtubedl_common.utils.ZipUtils
 import java.io.File
 import java.util.zip.ZipInputStream
 import kotlin.concurrent.thread
@@ -86,7 +87,7 @@ object BundledToolsSetup {
         val tools = locate(context)
         val marker = File(tools.readyMarker)
         val root = marker.parentFile ?: return
-        val version = "pack2-" + installTime(context)
+        val version = "pack3-" + installTime(context)
         if (marker.isFile && marker.readText() == version && File(tools.libs).isDirectory) return
         root.deleteRecursively()
         root.mkdirs()
@@ -95,22 +96,18 @@ object BundledToolsSetup {
         marker.writeText(version)
     }
 
-    /** ffmpeg's shared libraries, shipped as one zip in the APK's assets. */
+    /**
+     * ffmpeg's shared libraries, shipped as one zip in the APK's assets. The zip holds symbolic links
+     * (libavdevice.so.61 -> libavdevice.so.61.3.100), which only ZipUtils restores correctly, so the
+     * asset is copied to a temporary file first and removed again once unpacked.
+     */
     private fun unpackPack(context: Context, root: File) {
-        val base = root.canonicalPath + File.separator
-        ZipInputStream(context.assets.open(FFMPEG_PACK)).use { input ->
-            var entry = input.nextEntry
-            while (entry != null) {
-                val target = File(root, entry.name)
-                require(target.canonicalPath.startsWith(base)) { "Unexpected path in the ffmpeg pack" }
-                if (entry.isDirectory) {
-                    target.mkdirs()
-                } else {
-                    target.parentFile?.mkdirs()
-                    target.outputStream().use { input.copyTo(it) }
-                }
-                entry = input.nextEntry
-            }
+        val temp = File(context.cacheDir, "ffmpeg-libs.zip")
+        try {
+            context.assets.open(FFMPEG_PACK).use { input -> temp.outputStream().use { input.copyTo(it) } }
+            ZipUtils.unzip(temp, root)
+        } finally {
+            temp.delete()
         }
     }
 
