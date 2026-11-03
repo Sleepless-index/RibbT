@@ -73,7 +73,7 @@ while queue:
         else:
             sys.exit(f"{name} (needed by {current}) not found")
 
-out = "ffmpeg-lean.zip"
+out = "output/ffmpeg-lean.zip"
 total = 0
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
     for name, path in sorted(libs.items()):

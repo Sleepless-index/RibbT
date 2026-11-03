@@ -29,16 +29,16 @@ jobs:
           cp "$GITHUB_WORKSPACE/ci/ffmpeg/build.sh" packages/ffmpeg/build.sh
           cp "$GITHUB_WORKSPACE/ci/ffmpeg/collect.py" collect-ribbt.py
           ./scripts/run-docker.sh bash -c "./build-package.sh -a aarch64 -i -f ffmpeg && python3 collect-ribbt.py"
-          ls -lh ffmpeg-lean.zip
+          ls -lh output/ffmpeg-lean.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-lean
-          path: ${{ runner.temp }}/tp/ffmpeg-lean.zip
+          path: ${{ runner.temp }}/tp/output/ffmpeg-lean.zip
 
       - name: Publish as the ffmpeg-lite release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view ffmpeg-lite >/dev/null 2>&1 || gh release create ffmpeg-lite --title "ffmpeg-lite" --notes "Lean ffmpeg for the RibbT app (built by ffmpeg-lite.yml)."
-          gh release upload ffmpeg-lite "$RUNNER_TEMP/tp/ffmpeg-lean.zip" --clobber
+          gh release upload ffmpeg-lite "$RUNNER_TEMP/tp/output/ffmpeg-lean.zip" --clobber
