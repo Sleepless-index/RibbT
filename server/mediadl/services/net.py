@@ -10,6 +10,7 @@ from urllib3.util.retry import Retry
 
 from ..errors import MediaError, blocked_media_url
 from . import progress, storage
+from .mediatypes import MIME_BY_EXT, sniff_image
 
 from ..config import (
     MAX_REDIRECTS,
@@ -284,3 +285,35 @@ def content_type_of(url, timeout=8):
     content_type = response.headers.get("Content-Type", "").split(";")[0].strip()
     response.close()
     return content_type
+
+
+def image_type_of(url, timeout=8):
+    """What an image URL really is: the first bytes win, then the Content-Type header, then the file extension.
+
+    Some picture servers answer with application/octet-stream (or nothing useful), so trusting the
+    header alone made the "convert images" setting silently do nothing for them.
+    """
+    declared = ""
+    head = b""
+    try:
+        response = open_media(url, {"Range": "bytes=0-31"}, {}, timeout=timeout)
+    except MediaError:
+        response = None
+    if response is not None:
+        try:
+            declared = response.headers.get("Content-Type", "").split(";")[0].strip()
+            head = next(response.iter_content(32), b"") or b""
+        except (requests.RequestException, OSError):
+            head = b""
+        finally:
+            response.close()
+    sniffed = sniff_image(head)
+    if sniffed:
+        return sniffed
+    if declared.startswith("image/"):
+        return declared
+    path = urlparse(url).path.lower()
+    for ext, mime in MIME_BY_EXT.items():
+        if path.endswith(ext) and mime.startswith("image/"):
+            return mime
+    return None

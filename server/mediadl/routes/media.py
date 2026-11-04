@@ -11,7 +11,7 @@ from ..services import subtitles as subtitle_service
 from ..services import ugoira
 from ..services.ffmpeg import probe_bitrate
 from ..services.mediatypes import content_disposition
-from ..services.net import content_type_of, host_ok, resolve_media
+from ..services.net import content_type_of, host_ok, image_type_of, resolve_media
 from ..services.transforms import (
     IMAGE_TRANSFORMS,
     STREAM_TRANSFORMS,
@@ -52,14 +52,16 @@ def media():
     image_container = prefs["images"]["container"]
     wants_image_convert = not inline and image_container != "auto"
 
-    if wants_gif or wants_image_convert:
+    if wants_gif:
         content_type = content_type_of(url) or ""
-        if content_type.startswith("video/") and wants_gif:
+        if content_type.startswith("video/"):
             return stream_ffmpeg(url, name, STREAM_TRANSFORMS["gif"])
-        if content_type.startswith("image/") and wants_image_convert:
-            target = IMAGE_TRANSFORMS[image_container]
-            if content_type != target.mime:
-                return stream_ffmpeg(url, name, target)
+    if wants_image_convert:
+        kind = image_type_of(url) or ""
+        target = IMAGE_TRANSFORMS[image_container]
+        # Animated GIFs and HEIC stay as they are; everything else becomes the chosen format.
+        if kind.startswith("image/") and kind not in ("image/gif", "image/heic", target.mime):
+            return stream_ffmpeg(url, name, target)
 
     return passthrough(url, name, inline, request.headers.get("Range"))
 
