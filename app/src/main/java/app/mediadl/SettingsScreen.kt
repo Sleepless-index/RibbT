@@ -658,7 +658,7 @@ private fun ServerPage(vm: AppViewModel, data: GroupedSettings) {
         CardBox(Modifier.fillMaxWidth()) {
             ToggleRow(
                 "Debug info",
-                "Adds Copy to failed downloads, with details for bug reports.",
+                "Adds Copy details to downloads, with info for bug reports.",
                 vm.debugInfo,
                 icon = VIcons.Copy,
             ) { vm.updateDebugInfo(it) }

@@ -75,5 +75,32 @@ class ConversionProgressTests(unittest.TestCase):
         self.assertEqual(shipped["video"]["bitrate"], "auto")
 
 
+class StreamPhaseTests(unittest.TestCase):
+    def test_a_streamed_conversion_reports_the_converting_phase(self):
+        from unittest import mock
+        from mediadl import create_app
+        from mediadl.services import delivery, ffmpeg, progress
+        from mediadl.services.transforms import IMAGE_TRANSFORMS
+
+        class Job:
+            phases = []
+
+            def set_phase(self, name, detail=""):
+                self.phases.append((name, detail))
+
+            def attach(self, process):
+                pass
+
+        process = mock.Mock()
+        process.stdout.read1.side_effect = [b"data", b""]
+        with mock.patch.object(ffmpeg, "acquire_slot"), \
+                mock.patch.object(ffmpeg, "spawn", return_value=process), \
+                mock.patch.object(ffmpeg, "StderrTail"), \
+                mock.patch.object(ffmpeg, "stop"), \
+                create_app().test_request_context(), progress.bind(Job()):
+            delivery.stream_ffmpeg("https://x", "n", IMAGE_TRANSFORMS["webp"]).close()
+        self.assertEqual(Job.phases, [("converting", "Converting to WEBP")])
+
+
 if __name__ == "__main__":
     unittest.main()

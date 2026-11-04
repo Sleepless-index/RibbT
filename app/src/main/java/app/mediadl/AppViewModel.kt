@@ -813,6 +813,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         val sent = runCatching { org.json.JSONObject(prefs.settingsJson ?: "{}") }.getOrNull()
         fun setting(section: String, key: String) = sent?.optJSONObject(section)?.opt(key)?.toString() ?: "default"
+        val expected = when (saved.kind) {
+            KIND_IMAGE -> mapOf("jpg" to "image/jpeg", "png" to "image/png", "webp" to "image/webp")[setting("images", "container")]
+            KIND_AUDIO -> mapOf("mp3" to "audio/mpeg", "m4a" to "audio/mp4", "opus" to "audio/ogg")[setting("audio", "format")]
+            else -> mapOf("mp4" to "video/mp4", "mkv" to "video/x-matroska")[setting("video", "container")]
+        }
         return buildString {
             appendLine("RibbT debug info")
             appendLine("App: $appVersion · Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}")
@@ -822,6 +827,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             appendLine("Status: Saved")
             appendLine("Time: ${java.util.Date()}")
             appendLine("File: ${saved.name.ifBlank { "unnamed" }} · ${saved.mime.ifBlank { "unknown type" }} · ${formatBytes(saved.bytes)}")
+            if (expected != null && saved.mime !in listOf("image/gif", "image/heic")) {
+                appendLine(if (saved.mime == expected) "Format: as set" else "Format: expected $expected, got ${saved.mime}")
+            }
             appendLine("Saved to: ${saved.label}")
             appendLine(
                 "Settings sent: video ${setting("video", "quality")} / ${setting("video", "bitrate")} / ${setting("video", "container")}" +

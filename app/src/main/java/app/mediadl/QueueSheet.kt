@@ -1,5 +1,12 @@
 package app.mediadl
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
 
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -243,7 +250,19 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                     if (progress != null) {
                         Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(Accent))
                     } else {
-                        Box(Modifier.fillMaxWidth(0.3f).fillMaxHeight().background(Accent.copy(alpha = 0.55f)))
+                        val phase by rememberInfiniteTransition(label = "queue-indeterminate").animateFloat(
+                            initialValue = 0f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                tween(1250, easing = CubicBezierEasing(0.45f, 0.05f, 0.55f, 0.95f)),
+                                RepeatMode.Restart,
+                            ),
+                            label = "queue-phase",
+                        )
+                        BoxWithConstraints(Modifier.fillMaxSize()) {
+                            val barWidth = maxWidth * 0.38f
+                            Box(Modifier.width(barWidth).fillMaxHeight().offset(x = barWidth * (-1f + 3.8f * phase)).background(Accent))
+                        }
                     }
                 }
                 if (item.note.isNotEmpty() || item.speed.isNotEmpty()) {

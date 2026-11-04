@@ -49,6 +49,7 @@ def stream_ffmpeg(url, name, transform, audio_url=None, inline=False):
     slot = ffmpeg.acquire_slot(preview=inline)
     process = None
     try:
+        progress.set_phase("converting", f"Converting to {transform.ext.upper()}")
         process = ffmpeg.spawn(_sources(url, audio_url), transform.args, transform.rw_timeout)
         progress.attach(process)
         stderr = ffmpeg.StderrTail(process)
