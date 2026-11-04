@@ -256,9 +256,9 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
                     }
                 }
             }
-            if (bad && (item.canRetry || item.debug != null)) {
+            if ((bad && (item.canRetry || item.debug != null)) || (item.phase == ToastPhase.Ok && item.debug != null)) {
                 Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (item.canRetry) {
+                    if (bad && item.canRetry) {
                         QueueTextAction("Retry", VIcons.Refresh, AccentOn, Accent) { vm.retryFromQueue(item.id) }
                     }
                     val debug = item.debug

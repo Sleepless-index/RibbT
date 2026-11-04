@@ -803,6 +803,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** The same report for a download that worked, so "it saved, but not how I set it" can be diagnosed. */
+    private fun successDebugText(post: Post, spec: DownloadSpec, saved: SavedFile): String? {
+        if (!debugInfo) return null
+        val ytdlp = when (val version = ytdlpVersion) {
+            null -> "unknown"
+            "" -> "not installed"
+            else -> version
+        }
+        val sent = runCatching { org.json.JSONObject(prefs.settingsJson ?: "{}") }.getOrNull()
+        fun setting(section: String, key: String) = sent?.optJSONObject(section)?.opt(key)?.toString() ?: "default"
+        return buildString {
+            appendLine("RibbT debug info")
+            appendLine("App: $appVersion · Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}")
+            appendLine("Server: ${if (prefs.builtIn) "built-in" else "custom"} · yt-dlp $ytdlp")
+            appendLine("Stage: Download")
+            if (post.link.isNotBlank()) appendLine("Link: ${post.link}")
+            appendLine("Status: Saved")
+            appendLine("Time: ${java.util.Date()}")
+            appendLine("File: ${saved.name.ifBlank { "unnamed" }} · ${saved.mime.ifBlank { "unknown type" }} · ${formatBytes(saved.bytes)}")
+            appendLine("Saved to: ${saved.label}")
+            appendLine(
+                "Settings sent: video ${setting("video", "quality")} / ${setting("video", "bitrate")} / ${setting("video", "container")}" +
+                    " · images ${setting("images", "container")} · gif ${setting("images", "gif_as_gif")}" +
+                    " · audio ${setting("audio", "format")} ${setting("audio", "bitrate")}",
+            )
+            append("Request: ${spec.url.take(700)}")
+        }
+    }
+
     /** The server stopped answering: one toast per drop, then the pill near the mascot. */
     private fun markOffline() {
         val wasOffline = online == false
@@ -1098,6 +1127,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
             jobId?.let { prefs.removePendingJob(it) }
             val folder = saved.label
+            successDebugText(post, spec, saved)?.let { text ->
+                updateToast(toast) { it.copy(debug = listOfNotNull(it.debug, text).joinToString("\n\n").takeLast(6000)) }
+            }
             if (track) downloads[spec.url] = DlState.Done(folder)
             rememberFile(post.link, saved)
             if (record) recordHistory(post, saved)
