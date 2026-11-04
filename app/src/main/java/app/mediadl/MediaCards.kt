@@ -712,7 +712,7 @@ fun CarouselCard(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier
 
 /**
  * Photos in a tidy grid: two equal tiles per row, every tile the same shape. Tap a tile to open it full
- * screen; each tile has its own Download button and a single "Download all" sits under the grid.
+ * screen; each tile has its own Download button.
  */
 @Composable
 fun PhotoGrid(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier: Modifier = Modifier) {
@@ -729,15 +729,6 @@ fun PhotoGrid(vm: AppViewModel, post: Post, photos: List<MediaItem>, modifier: M
                     }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
-            }
-        }
-        if (photos.size > 1) {
-            val allKey = "all:" + post.link
-            val label = "Download all (${photos.size})"
-            when (vm.downloads[allKey]) {
-                is DlState.Busy -> PillButton(label, VIcons.Download, {}, Modifier.fillMaxWidth(), busy = true, spinner = true, height = 46.dp)
-                is DlState.Done -> PillButton("Downloaded", VIcons.Check, {}, Modifier.fillMaxWidth(), style = PillStyle.Done, height = 46.dp)
-                else -> PillButton(label, VIcons.Download, { vm.downloadAll(post, photos) }, Modifier.fillMaxWidth(), height = 46.dp)
             }
         }
     }
