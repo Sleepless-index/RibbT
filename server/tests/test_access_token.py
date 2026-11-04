@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import unittest
 from pathlib import Path
@@ -46,6 +47,29 @@ class AccessTokenTests(unittest.TestCase):
             job = mock.Mock(cookie="")
             response = app.test_client().get("/api/media?u=http://x", headers=jobs.internal_headers(job))
         self.assertNotEqual(response.status_code, 401)  # refused for its own reason (not https), not for the token
+
+    def test_a_jobs_request_keeps_the_callers_settings(self):
+        from flask import request
+        from mediadl import create_app
+        from mediadl.preferences import from_cookie
+        from mediadl.config import SETTINGS_COOKIE
+        from mediadl.services import jobs
+        app = create_app()
+        seen = {}
+
+        @app.get("/api/media-probe")
+        def probe():
+            seen["prefs"] = from_cookie(request.cookies.get(SETTINGS_COOKIE))
+            return "ok"
+
+        cookie = SETTINGS_COOKIE + "=%7B%22images%22%3A%7B%22container%22%3A%22webp%22%7D%7D"
+        job = jobs.Job("settingsprobe", "/api/media-probe", "probe", cookie)
+        with mock.patch.object(jobs, "_app", app):
+            try:
+                jobs._produce(job)
+            finally:
+                shutil.rmtree(job.dir, ignore_errors=True)
+        self.assertEqual(seen["prefs"]["images"]["container"], "webp")
 
 
 if __name__ == "__main__":

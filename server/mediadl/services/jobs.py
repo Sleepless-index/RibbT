@@ -199,7 +199,7 @@ def _produce(job):
     job.dir.mkdir(parents=True, exist_ok=True)
     headers = internal_headers(job)
     with progress.bind(job):
-        response = _app.test_client().get(job.path, headers=headers, buffered=False)
+        response = _app.test_client(use_cookies=False).get(job.path, headers=headers, buffered=False)
         try:
             if response.status_code >= 400:
                 text = response.get_data(as_text=True).strip()
