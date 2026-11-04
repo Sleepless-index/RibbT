@@ -528,7 +528,7 @@ private fun ZoomableImage(url: String?, description: String, active: Boolean, on
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var animation by remember { mutableStateOf<Job?>(null) }
-    val request = remember(url) { ImageRequest.Builder(context).data(url).size(Size.ORIGINAL).build() }
+    val request = remember(url) { ImageRequest.Builder(context).data(url).size(Size(4096, 4096)).build() }
     LaunchedEffect(active) {
         if (!active) {
             animation?.cancel()
@@ -566,7 +566,8 @@ private fun ZoomableImage(url: String?, description: String, active: Boolean, on
                     animation = scope.launch {
                         animate(0f, 1f, animationSpec = tween(240)) { t, _ ->
                             scale = from + (target - from) * t
-                            offset = fromOffset + (toOffset - fromOffset) * t
+                            val next = fromOffset + (toOffset - fromOffset) * t
+                            offset = if (next.x.isFinite() && next.y.isFinite()) next else Offset.Zero
                         }
                     }
                 })
@@ -596,8 +597,9 @@ private fun ZoomableImage(url: String?, description: String, active: Boolean, on
                             // Keep the point between the fingers fixed while scaling, then follow the fingers.
                             val focus = centroid - pan - Offset(size.width / 2f, size.height / 2f)
                             val moved = (offset - focus) * (next / scale) + focus + pan
-                            scale = next
-                            offset = if (next <= 1.01f) Offset.Zero else limit(next, moved)
+                            val safe = if (moved.x.isFinite() && moved.y.isFinite()) moved else offset
+                            scale = if (next.isFinite()) next else 1f
+                            offset = if (scale <= 1.01f) Offset.Zero else limit(scale, safe)
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
