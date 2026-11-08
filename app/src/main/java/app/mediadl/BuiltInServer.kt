@@ -42,6 +42,10 @@ object BuiltInServer {
     @Volatile var ready = false
         internal set
 
+    /** Goes up every time the service shuts down (the notification's Stop button, for one), so the app can notice. */
+    var stopCount by androidx.compose.runtime.mutableIntStateOf(0)
+        internal set
+
     /** Set when starting failed, so Settings can say why instead of just "offline". */
     @Volatile var failure: String? = null
         internal set
@@ -207,6 +211,7 @@ class ServerService : Service() {
         runCatching { Python.getInstance().getModule("ribbt_server").callAttr("stop") }
         BuiltInServer.ready = false
         BuiltInServer.port = 0
+        BuiltInServer.stopCount++
         super.onDestroy()
     }
 

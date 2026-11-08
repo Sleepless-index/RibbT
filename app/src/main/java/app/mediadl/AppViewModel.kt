@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -19,6 +20,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -194,6 +196,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val token = prefs.serverToken
         if (token.isEmpty()) return url
         return url + (if ('?' in path) "&" else "?") + "k=" + android.net.Uri.encode(token)
+    }
+
+    init {
+        // The built-in server was shut down (the notification's Stop button): show it as offline right away.
+        viewModelScope.launch {
+            snapshotFlow { BuiltInServer.stopCount }.drop(1).collect {
+                if (prefs.builtIn && !BuiltInServer.ready && !starting) online = false
+            }
+        }
     }
 
     fun refresh() {
