@@ -200,6 +200,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             var reachable = api.ping()
             if (!reachable && prefs.builtIn) {
+                // Stopped from its notification, or not started yet: (re)start it; asking twice is harmless.
+                if (!BuiltInServer.ready) BuiltInServer.start(getApplication())
                 // The built-in server takes a few seconds to boot (longer right after an install).
                 starting = true
                 online = null

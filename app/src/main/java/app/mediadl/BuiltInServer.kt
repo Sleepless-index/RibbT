@@ -141,6 +141,15 @@ class ServerService : Service() {
             .setContentTitle("RibbT is ready")
             .setContentText("The built-in downloader is running.")
             .setContentIntent(open)
+            .addAction(
+                0,
+                "Stop",
+                PendingIntent.getService(
+                    this, 1,
+                    Intent(this, ServerService::class.java).setAction(ACTION_STOP),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -153,6 +162,13 @@ class ServerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // The notification's Stop button: shut the server down (a download in progress is cancelled).
+        // The app starts it again the next time it opens.
+        if (intent?.action == ACTION_STOP) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (!starting) {
             starting = true
             BuiltInServer.failure = null
@@ -196,5 +212,6 @@ class ServerService : Service() {
 
     private companion object {
         const val NOTIFICATION_ID = 1
+        const val ACTION_STOP = "app.mediadl.STOP_SERVER"
     }
 }
