@@ -7,6 +7,10 @@ import android.content.IntentFilter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.MutableTransitionState
@@ -269,10 +273,21 @@ private fun StatusCard(vm: AppViewModel) {
         // The logo the user picked, so this card looks like the app on their home screen.
         LogoMark(AppLogo.fromKey(vm.appLogo), Modifier.size(48.dp), corner = 15f / 48f)
     }
+    val mode = when {
+        busy -> 0
+        failed -> 1
+        available -> 2
+        else -> 3
+    }
     CardBox(Modifier.fillMaxWidth(), color = if (failed) palette.errBg else null) {
-        Column {
-            when {
-                busy -> {
+        Column(Modifier.animateContentSize(tween(260))) {
+            AnimatedContent(
+                targetState = mode,
+                transitionSpec = { (fadeIn(tween(240, delayMillis = 90)) togetherWith fadeOut(tween(120))).using(SizeTransform(clip = false)) },
+                label = "update-card",
+            ) { shown ->
+              when (shown) {
+                0 -> {
                     val installing = vm.appUpdateStatus == "Installing…"
                     Row(
                         Modifier.fillMaxWidth().padding(16.dp),
@@ -315,7 +330,7 @@ private fun StatusCard(vm: AppViewModel) {
                         Spacer(Modifier.height(16.dp))
                     }
                 }
-                failed -> {
+                1 -> {
                     Row(
                         Modifier.fillMaxWidth().padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -337,7 +352,7 @@ private fun StatusCard(vm: AppViewModel) {
                         )
                     }
                 }
-                available -> {
+                2 -> {
                     Row(
                         Modifier.fillMaxWidth().background(Accent.copy(alpha = 0.14f)).padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -354,16 +369,7 @@ private fun StatusCard(vm: AppViewModel) {
                         "Update to ${release?.version.orEmpty()}".trim(), VIcons.Download, { vm.installAppUpdate() },
                         Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp), height = 46.dp,
                     )
-                    if (!release?.pageUrl.isNullOrBlank()) {
-                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Box(
-                                Modifier.heightIn(min = 44.dp).clickable(role = Role.Button) { uri.openUri(release!!.pageUrl) }.padding(horizontal = 16.dp),
-                                contentAlignment = Alignment.Center,
-                            ) { T("What’s new", size = 13.sp, color = Accent, weight = FontWeight.SemiBold) }
-                        }
-                    } else {
-                        Spacer(Modifier.height(14.dp))
-                    }
+                    Spacer(Modifier.height(16.dp))
                 }
                 else -> {
                     Row(
@@ -393,7 +399,10 @@ private fun StatusCard(vm: AppViewModel) {
                     }
                 }
             }
-            if (!busy && !failed) {
+              }
+            }
+            AnimatedVisibility(!busy && !failed, enter = fadeIn(tween(240)) + expandVertically(tween(260)), exit = fadeOut(tween(120)) + shrinkVertically(tween(200))) {
+              Column {
                 Separator()
                 Row(
                     Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
@@ -435,6 +444,7 @@ private fun StatusCard(vm: AppViewModel) {
                         }
                     }
                 }
+              }
             }
         }
     }
