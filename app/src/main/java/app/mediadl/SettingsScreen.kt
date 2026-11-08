@@ -195,8 +195,6 @@ private fun SettingsHome(vm: AppViewModel) {
     // Looks for a new RibbT once per session when Settings opens, quietly.
     LaunchedEffect(Unit) { if (vm.appRelease == null && !vm.appChecking) vm.checkAppUpdate(silent = true) }
 
-    StatusCard(vm)
-
     // The media sections (Video, Images, ...) live on the Downloads page together with the save options.
     val mediaSections = data.sections.filter { it != PAGE_SERVER && it != PAGE_DOWNLOADING }
     val themeLabel = when (vm.theme) {
@@ -248,10 +246,16 @@ private fun SettingsHome(vm: AppViewModel) {
         }
     }
 
+    // Updates sit at the bottom, below the settings themselves.
+    Column {
+        SectionTitle("Updates")
+        StatusCard(vm)
+    }
+
     if (vm.server == null) OfflineHint(vm)
 }
 
-/** The top card of Settings: RibbT's own update (it changes shape with its state), then the server and yt-dlp. */
+/** The card at the bottom of Settings: RibbT's own update (it changes shape with its state), then the server and yt-dlp. */
 @Composable
 private fun StatusCard(vm: AppViewModel) {
     val palette = LocalPalette.current
@@ -1173,7 +1177,7 @@ private fun FilenamePreview(style: String) {
     val chevron by animateFloatAsState(if (open) 180f else 0f, tween(180), label = "preview-chevron")
     Column(
         Modifier
-            .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(palette.bg)
