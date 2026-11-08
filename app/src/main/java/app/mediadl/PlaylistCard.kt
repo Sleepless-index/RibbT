@@ -69,7 +69,7 @@ fun PlaylistCard(vm: AppViewModel, list: Playlist, modifier: Modifier = Modifier
                     Modifier
                         .weight(1f)
                         .height(34.dp)
-                        .clip(RoundedCornerShape(9.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(if (on) palette.card else androidx.compose.ui.graphics.Color.Transparent)
                         .clickable(role = Role.RadioButton) { vm.updatePlaylistAudio(audio) },
                     verticalAlignment = Alignment.CenterVertically,
@@ -134,7 +134,7 @@ fun PlaylistCard(vm: AppViewModel, list: Playlist, modifier: Modifier = Modifier
                     Box(
                         Modifier
                             .size(20.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(if (on) Accent else palette.sep),
                         contentAlignment = Alignment.Center,
                     ) {

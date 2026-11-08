@@ -191,7 +191,7 @@ private fun QueueRow(vm: AppViewModel, item: DlToast) {
         // The file's preview, with the service's logo on the corner.
         Box(Modifier.size(thumbSize)) {
             Box(
-                Modifier.fillMaxSize().clip(RoundedCornerShape(15.dp)).background(palette.soft),
+                Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).background(palette.soft),
                 contentAlignment = Alignment.Center,
             ) {
                 if (item.thumb != null) {

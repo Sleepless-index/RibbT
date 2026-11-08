@@ -742,7 +742,7 @@ private fun GridTile(vm: AppViewModel, post: Post, media: MediaItem, modifier: M
     var loading by remember(media.preview) { mutableStateOf(true) }
     val fade by animateFloatAsState(if (loading) 0f else 1f, tween(300), label = "tile-fade")
     val spec = media.downloads.firstOrNull()
-    Column(modifier.clip(RoundedCornerShape(22.dp)).background(palette.card)) {
+    Column(modifier.clip(RoundedCornerShape(20.dp)).background(palette.card)) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -844,7 +844,7 @@ private fun MediaChip(text: String, modifier: Modifier) {
     Box(
         modifier
             .padding(10.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color(0xB3000000))
             .padding(horizontal = 9.dp, vertical = 4.dp),
     ) { T(text, size = 11.5.sp, color = Color.White, weight = FontWeight.SemiBold, maxLines = 1, lineHeight = 14.sp) }
@@ -889,7 +889,7 @@ private fun VideoControls(vm: AppViewModel, post: Post, media: MediaItem, cover:
                         Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(11.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(if (on) palette.card else Color.Transparent)
                             .clickable(role = Role.Tab) { tab = key },
                         horizontalArrangement = Arrangement.Center,

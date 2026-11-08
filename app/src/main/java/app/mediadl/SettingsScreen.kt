@@ -336,7 +336,7 @@ private fun StatusCard(vm: AppViewModel) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(15.dp)).background(palette.soft), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(palette.soft), contentAlignment = Alignment.Center) {
                             VIconView(VIcons.Alert, 22.dp, palette.err)
                         }
                         Column(Modifier.weight(1f)) {
@@ -360,8 +360,7 @@ private fun StatusCard(vm: AppViewModel) {
                     ) {
                         logo()
                         Column(Modifier.weight(1f)) {
-                            T("UPDATE AVAILABLE", size = 11.sp, color = Accent, weight = FontWeight.Bold, letterSpacing = 0.8.sp, maxLines = 1)
-                            T("RibbT ${release?.version.orEmpty()}".trim(), size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+                            T("RibbT ${release?.version.orEmpty()}".trim(), size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
                             T("You have ${vm.appVersion}", size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp)
                         }
                     }
@@ -436,12 +435,7 @@ private fun StatusCard(vm: AppViewModel) {
                             },
                             size = 14.sp, weight = FontWeight.SemiBold, maxLines = 1,
                         )
-                        if (!version.isNullOrEmpty() && vm.ytdlpAvailable != null) {
-                            StatusPill(
-                                if (vm.ytdlpAvailable == true) "Update" else "Latest",
-                                if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
-                            )
-                        }
+                        if (!version.isNullOrEmpty() && vm.ytdlpAvailable == true) StatusPill("Update", PillTone.Accent)
                     }
                 }
               }
@@ -455,7 +449,7 @@ private fun StatusCell(label: String, modifier: Modifier, onClick: () -> Unit, c
     val palette = LocalPalette.current
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(palette.soft)
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -701,7 +695,7 @@ private fun ServerHero(vm: AppViewModel) {
     ) {
         Box(Modifier.size(48.dp)) {
             Box(
-                Modifier.fillMaxSize().clip(RoundedCornerShape(15.dp)).background(Accent.copy(alpha = 0.10f)),
+                Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).background(Accent.copy(alpha = 0.10f)),
                 contentAlignment = Alignment.Center,
             ) { VIconView(VIcons.Server, 22.dp, Accent) }
             Box(
@@ -726,11 +720,8 @@ private fun ServerHero(vm: AppViewModel) {
             T(if (builtIn) "Built-in server" else "Custom server", size = 15.2.sp, weight = FontWeight.SemiBold, maxLines = 1)
             T(status, size = 12.16.sp, color = palette.muted, lineHeight = 15.8.sp, modifier = Modifier.padding(top = 2.dp))
         }
-        when {
-            vm.starting -> StatusPill("Starting", PillTone.Accent)
-            vm.online == true -> StatusPill(if (builtIn) "Running" else "Connected", PillTone.Good)
-            vm.online == false && builtIn -> SmallButton(text = "Retry", enabled = true, onClick = { vm.refresh() })
-        }
+        // The dot and the line of text already say whether it is running; only a failure needs a button.
+        if (!vm.starting && vm.online == false && builtIn) SmallButton(text = "Retry", enabled = true, onClick = { vm.refresh() })
     }
 }
 
@@ -748,12 +739,9 @@ private fun YtdlpRow(vm: AppViewModel) {
             "" -> "Not installed on the server"
             else -> "Version $version"
         },
-        badge = if (showPill) {
-            if (vm.ytdlpAvailable == true) "Update available" else "Up to date"
-        } else {
-            null
-        },
-        badgeTone = if (vm.ytdlpAvailable == true) PillTone.Accent else PillTone.Good,
+        // Only news worth acting on gets a badge; "up to date" is already in the version line.
+        badge = if (showPill && vm.ytdlpAvailable == true) "Update available" else null,
+        badgeTone = PillTone.Accent,
         icon = VIcons.Refresh,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -833,7 +821,7 @@ private fun NavRow(icon: VIcon, title: String, summary: String?, value: String? 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Accent.copy(alpha = 0.10f)),
+            Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(Accent.copy(alpha = 0.10f)),
             contentAlignment = Alignment.Center,
         ) { VIconView(icon, 20.dp, Accent) }
         Column(Modifier.weight(1f).padding(start = 14.dp, end = 10.dp)) {
@@ -871,7 +859,7 @@ private fun RowShell(
     ) {
         if (icon != null) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Accent.copy(alpha = 0.10f)),
+                Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(Accent.copy(alpha = 0.10f)),
                 contentAlignment = Alignment.Center,
             ) { VIconView(icon, 20.dp, Accent) }
         }
@@ -933,7 +921,7 @@ internal fun Dropdown(
     val palette = LocalPalette.current
     var expanded by remember { mutableStateOf(false) }
     val current = options.firstOrNull { it.value == selected }?.label ?: selected
-    val buttonShape = RoundedCornerShape(10.dp)
+    val buttonShape = RoundedCornerShape(12.dp)
     val menuShape = RoundedCornerShape(14.dp)
     val density = LocalDensity.current
 
@@ -1118,7 +1106,7 @@ private fun AddressRow(vm: AppViewModel) {
         Box(
             Modifier
                 .widthIn(min = 150.dp, max = 190.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(palette.bg)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
         ) {
@@ -1140,7 +1128,7 @@ private fun AddressRow(vm: AppViewModel) {
         Box(
             Modifier
                 .widthIn(min = 150.dp, max = 190.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(palette.bg)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
         ) {
@@ -1342,7 +1330,7 @@ private fun IconSquareButton(icon: VIcon, label: String, onClick: () -> Unit) {
     Box(
         Modifier
             .size(34.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(if (pressed) palette.line else palette.sep)
             .clickable(interactionSource = source, indication = null, onClickLabel = label, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -1360,7 +1348,7 @@ internal fun SmallButton(
     val palette = LocalPalette.current
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(12.dp)
     val background = when {
         tonal -> if (pressed) palette.line else palette.sep
         else -> if (pressed) AccentDark else Accent
@@ -1408,7 +1396,7 @@ private fun Segments(options: List<Choice>, selected: String, onSelect: (String)
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(11.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(if (on) palette.card else Color.Transparent)
                     .clickable(role = Role.RadioButton) { onSelect(option.value) },
                 contentAlignment = Alignment.Center,

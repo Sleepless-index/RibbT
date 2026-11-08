@@ -71,6 +71,8 @@ fun T(
         lineHeight = if (lineHeight == TextUnit.Unspecified) size * 1.4f else lineHeight,
         letterSpacing = letterSpacing,
         fontFamily = fontFamily ?: AppFont,
+        // Digits all the same width, so percentages, sizes and speeds don't jitter as they change.
+        style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
         overflow = if (maxLines == Int.MAX_VALUE) TextOverflow.Clip else TextOverflow.Ellipsis,
     )
 }

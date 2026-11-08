@@ -277,7 +277,7 @@ private fun PasteClearButton(filled: Boolean, onClick: () -> Unit, modifier: Mod
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val press by animateFloatAsState(if (pressed) 0.92f else 1f, tween(120, easing = FastOutSlowInEasing), label = "press")
-    val shape = RoundedCornerShape(9.dp)
+    val shape = RoundedCornerShape(8.dp)
     Box(
         modifier
             .size(38.dp)
@@ -383,7 +383,7 @@ private fun InfoCard(vm: AppViewModel, post: Post, modifier: Modifier) {
                                 painter = painterResource(logo),
                                 contentDescription = null,
                                 contentScale = ContentScale.Fit,
-                                modifier = Modifier.padding(end = 6.dp).size(16.dp).clip(RoundedCornerShape(5.dp)),
+                                modifier = Modifier.padding(end = 6.dp).size(16.dp).clip(RoundedCornerShape(8.dp)),
                             )
                         }
                         T(

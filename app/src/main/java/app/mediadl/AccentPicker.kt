@@ -201,7 +201,7 @@ private fun PickerBody(vm: AppViewModel) {
             Modifier
                 .fillMaxWidth()
                 .height(22.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .onSizeChanged { barSize = it }
                 .pointerInput(Unit) { detectTapGestures { point -> hueAt(point.x); commit() } }
                 .pointerInput(Unit) {
@@ -222,13 +222,13 @@ private fun PickerBody(vm: AppViewModel) {
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(Accent).border(1.dp, palette.line, RoundedCornerShape(10.dp)))
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Accent).border(1.dp, palette.line, RoundedCornerShape(12.dp)))
             Spacer(Modifier.width(10.dp))
             Row(
                 Modifier
                     .weight(1f)
                     .height(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(palette.sep)
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,

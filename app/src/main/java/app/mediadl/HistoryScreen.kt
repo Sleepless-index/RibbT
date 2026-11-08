@@ -249,7 +249,7 @@ private fun ServiceChip(label: String, platform: String?, selected: Boolean, onC
             Image(
                 painter = painterResource(logo),
                 contentDescription = null,
-                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)),
+                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(8.dp)),
             )
         }
         T(label, size = 14.sp, color = if (selected) palette.bg else palette.text, weight = FontWeight.SemiBold, maxLines = 1)
@@ -481,7 +481,7 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                 Modifier
                     .fillMaxWidth()
                     .padding(12.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(palette.bg),
                 contentAlignment = Alignment.Center,
             ) {
@@ -515,7 +515,7 @@ private fun HistoryDetail(vm: AppViewModel, entry: HistoryEntry, onDismiss: () -
                                 painter = painterResource(logo),
                                 contentDescription = null,
                                 contentScale = ContentScale.Fit,
-                                modifier = Modifier.padding(end = 6.dp).size(20.dp).clip(RoundedCornerShape(6.dp)),
+                                modifier = Modifier.padding(end = 6.dp).size(20.dp).clip(RoundedCornerShape(8.dp)),
                             )
                         }
                         T(platformLabel, size = 11.5.sp, color = Color.White, weight = FontWeight.SemiBold, maxLines = 1)

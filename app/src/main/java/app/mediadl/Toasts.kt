@@ -245,7 +245,7 @@ private fun ToastCard(
 @Composable
 private fun ToastAction(label: String, textColor: Color, background: Color, edge: Color, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(12.dp)
     Box(
         Modifier
             .clip(shape)
@@ -313,7 +313,7 @@ private fun ProgressBar(progress: Float?, modifier: Modifier) {
 @Composable
 private fun ToastIconAction(icon: VIcon, label: String, tint: Color, background: Color, edge: Color, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
-    val shape = RoundedCornerShape(11.dp)
+    val shape = RoundedCornerShape(12.dp)
     Box(
         Modifier
             .padding(start = 6.dp)

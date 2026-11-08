@@ -115,8 +115,8 @@ fun ParseSkeleton(modifier: Modifier = Modifier) {
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(10.dp)).shimmer())
-                    Box(Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(10.dp)).shimmer())
+                    Box(Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(12.dp)).shimmer())
+                    Box(Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(12.dp)).shimmer())
                 }
             }
         }

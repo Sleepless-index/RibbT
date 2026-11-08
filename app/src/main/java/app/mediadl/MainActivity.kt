@@ -178,7 +178,7 @@ private val NavSpring = CubicBezierEasing(0.34f, 1.35f, 0.64f, 1f)
 @Composable
 private fun NavBar(vm: AppViewModel, running: Int, unread: Boolean, onQueue: () -> Unit, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
-    val shape = RoundedCornerShape(30.dp)
+    val shape = RoundedCornerShape(26.dp)
     val gap = 4.dp
     val index by animateFloatAsState(
         when (vm.tab) { Tab.Home -> 0f; Tab.History -> 2f; Tab.Settings -> 3f },
@@ -206,7 +206,7 @@ private fun NavBar(vm: AppViewModel, running: Int, unread: Boolean, onQueue: () 
                     .width(slot)
                     .height(46.dp)
                     .graphicsLayer { translationX = index * (slot + gap).toPx() }
-                    .clip(RoundedCornerShape(23.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Accent.copy(alpha = 0.14f)),
             )
             Row(
@@ -256,7 +256,7 @@ private fun NavSlot(
         modifier
             .height(46.dp)
             .graphicsLayer { scaleX = press; scaleY = press }
-            .clip(RoundedCornerShape(23.dp))
+            .clip(RoundedCornerShape(20.dp))
             .clickable(interactionSource = source, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
