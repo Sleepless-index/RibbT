@@ -4,9 +4,9 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:scaleX="1.4" android:scaleY="1.4" android:pivotX="54" android:pivotY="54">
-        <path android:pathData="M54.00,30.20 L73.98,41.76 L54.00,53.31 L34.02,41.76 Z" android:fillColor="#000000" android:fillAlpha=".4" />
-        <path android:pathData="M33.43,42.79 L53.41,54.34 L53.41,77.46 L33.43,65.90 Z" android:fillColor="#000000" android:fillAlpha="1" />
-        <path android:pathData="M74.57,42.79 L74.57,65.90 L54.59,77.46 L54.59,54.34 Z" android:fillColor="#000000" android:fillAlpha=".7" />
+    <group android:scaleX="1.15" android:scaleY="1.15" android:pivotX="54" android:pivotY="53.3">
+        <path android:pathData="M34.02,41.76 L54,53.31 L54,76.4 L34.02,64.87 Z" android:fillColor="#000000" android:fillAlpha="1" />
+        <path android:pathData="M54,53.31 L73.98,41.76 L73.98,64.87 L54,76.4 Z" android:fillColor="#000000" android:fillAlpha=".7" />
+        <path android:pathData="M54,30.2 L73.98,41.76 L54,53.31 L34.02,41.76 Z" android:fillColor="#000000" android:fillAlpha=".4" />
     </group>
 </vector>
