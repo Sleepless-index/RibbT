@@ -127,7 +127,6 @@ def audio_transform(fmt, bitrate, tags=None, cover=False):
         *picture,
         "-c:a", codec,
         "-b:a", f"{bitrate}k",
-        "-map_metadata", "0",
         *(("-id3v2_version", "3") if ext == "mp3" else ()),
         *tag_args,
         "-f", container,
@@ -157,7 +156,6 @@ def video_transform(container, cap_bps, mux=False):
         "-crf", "20",
         "-maxrate", str(cap_bps),
         "-bufsize", str(cap_bps * 2),
-        "-map_metadata", "0",
         *tail,
     )
     return Transform(args=args, ext=ext, mime=mime, rw_timeout=VIDEO_RW_TIMEOUT)

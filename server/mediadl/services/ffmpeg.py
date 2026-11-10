@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import threading
 
 from ..config import FFMPEG_CONCURRENCY, FFMPEG_PREVIEW_CONCURRENCY, FFMPEG_SLOT_WAIT_SECONDS
@@ -98,6 +99,20 @@ def input_args(headers):
     return args
 
 
+# Saved files carry only what RibbT adds itself (title, artist, cover). The source's own tags, above all its
+# creation date, are dropped: a gallery sorts videos by that date, so a 2020 clip landed 2,000 photos down.
+STRIP_SOURCE_INFO = ["-map_metadata", "-1", "-map_chapters", "-1"]
+
+
+def strip_source_info(args):
+    """The options that drop the source's tags. A video is dated the moment it is saved: with no date at all some
+    galleries read it as 1904 and sort it to the very bottom instead."""
+    out = list(STRIP_SOURCE_INFO)
+    if "mp4" in args or "matroska" in args:
+        out += ["-metadata", "creation_time=" + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())]
+    return out
+
+
 def _tls_options():
     ca_file = os.environ.get("RIBBT_CA_FILE")
     return ["-ca_file", ca_file] if ca_file else []
@@ -126,7 +141,7 @@ def spawn(urls, args, rw_timeout, stdout=subprocess.PIPE, local=()):
         command += [*_input_options(headers, rw_timeout), "-i", final_url]
     for path in local:
         command += ["-i", path]
-    command += args
+    command += [*strip_source_info(args), *args]
     try:
         return subprocess.Popen(command, stdout=stdout, stderr=subprocess.PIPE, env=child_env())
     except OSError as exc:
@@ -138,7 +153,7 @@ def spawn_local(paths, args, stdout=subprocess.PIPE):
     command = [FFMPEG, "-hide_banner", "-loglevel", "warning", "-nostdin", "-y"]
     for path in paths:
         command += ["-i", path]
-    command += args
+    command += [*strip_source_info(args), *args]
     try:
         return subprocess.Popen(command, stdout=stdout, stderr=subprocess.PIPE, env=child_env())
     except OSError as exc:
