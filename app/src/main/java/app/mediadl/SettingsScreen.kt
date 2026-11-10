@@ -397,7 +397,6 @@ private fun StatusCard(vm: AppViewModel) {
                         )
                     }
                 }
-            }
               }
             }
             AnimatedVisibility(!busy && !failed, enter = fadeIn(tween(240)) + expandVertically(tween(260)), exit = fadeOut(tween(120)) + shrinkVertically(tween(200))) {
