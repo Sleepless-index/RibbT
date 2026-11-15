@@ -98,8 +98,10 @@ class JobTests(unittest.TestCase):
         cls.client = cls.app.test_client()
 
     def run_job(self, files, path, name="x"):
+        # These jobs use made-up bytes, so videos are passed through as they are (no ffmpeg remux).
         with mock.patch.object(net, "open_media", fake_open_media(files)), \
-                mock.patch.object(delivery, "open_media", fake_open_media(files)):
+                mock.patch.object(delivery, "open_media", fake_open_media(files)), \
+                mock.patch.object(delivery.ffmpeg, "FFMPEG", None if "audio=" not in path else delivery.ffmpeg.FFMPEG):
             response = self.client.post("/api/jobs", json={"path": path, "name": name})
             self.assertEqual(response.status_code, 202)
             job_id = response.get_json()["id"]
@@ -143,7 +145,8 @@ class JobTests(unittest.TestCase):
         def opener(url, extra=None, cache=None, timeout=30):
             return Short(os.urandom(100_000))
 
-        with mock.patch.object(net, "open_media", opener), mock.patch.object(delivery, "open_media", opener):
+        with mock.patch.object(net, "open_media", opener), mock.patch.object(delivery, "open_media", opener), \
+                mock.patch.object(delivery.ffmpeg, "FFMPEG", None):
             job_id = self.client.post("/api/jobs", json={"path": f"/api/video?u={VIDEO_URL}&name=c"}).get_json()["id"]
             data = wait_for(self.client, job_id, ("ready", "error"))
         self.assertEqual(data["state"], "error")

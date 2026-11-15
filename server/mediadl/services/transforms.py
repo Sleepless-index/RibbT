@@ -108,6 +108,12 @@ def mux_transform(container):
     return Transform(args=(*MUX_MAPS, "-c", "copy", *tail), ext=ext, mime=mime, rw_timeout=VIDEO_RW_TIMEOUT)
 
 
+def remux_transform(container):
+    """Same streams, new wrapper: no re-encoding, but the source's own date and tags are left behind."""
+    tail, ext, mime = _VIDEO_CONTAINERS.get(container) or _VIDEO_CONTAINERS["mp4"]
+    return Transform(args=("-c", "copy", *tail), ext=ext, mime=mime, rw_timeout=VIDEO_RW_TIMEOUT)
+
+
 def audio_transform(fmt, bitrate, tags=None, cover=False):
     """Re-encode to the chosen audio format with tags and, when a second input is the cover, album art."""
     codec, container, ext, mime = _AUDIO_FORMATS.get(fmt) or _AUDIO_FORMATS["mp3"]

@@ -234,6 +234,19 @@ def transcode_audio(url, name, make_transform, cover_url=None, hls=False):
     )
 
 
+def clean_copy(url, name, container, range_header=None):
+    """A video saved as it is, rewrapped without re-encoding so it carries no date from its source.
+
+    A site's own file has the date it was encoded inside it, and a gallery sorts by that date, not by when the
+    file was saved. Without ffmpeg (or for a ranged request) the file is passed through untouched.
+    """
+    from .transforms import remux_transform
+
+    if not ffmpeg.FFMPEG or range_header:
+        return passthrough(url, name, False, range_header)
+    return transcode_to_file(url, name, remux_transform(container), reason="Preparing the file")
+
+
 def mux_to_file(url, audio_url, name, container, cap_bps):
     """Join a video-only and an audio-only stream. Copies both unless the video is over the cap."""
     from .transforms import mux_transform, video_transform

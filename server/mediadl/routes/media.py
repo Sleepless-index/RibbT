@@ -6,7 +6,7 @@ from flask import Blueprint, Response, request
 from ..adapters import pick_adapter
 from ..config import TWITTER_MEDIA_HOSTS
 from ..errors import MediaError, blocked_media_url
-from ..services.delivery import mux_to_file, passthrough, stream_ffmpeg, transcode_audio, transcode_to_file
+from ..services.delivery import clean_copy, mux_to_file, passthrough, stream_ffmpeg, transcode_audio, transcode_to_file
 from ..services import subtitles as subtitle_service
 from ..services import ugoira
 from ..services.ffmpeg import probe_bitrate
@@ -86,7 +86,7 @@ def video():
         # YouTube-style: picture and sound are separate files. Fetch both, then join them.
         return mux_to_file(url, audio_url, name, container, cap)
     if cap is None:
-        return passthrough(url, name, False, request.headers.get("Range"))
+        return clean_copy(url, name, container, request.headers.get("Range"))
 
     final_url, headers = resolve_media(url)
     if not final_url:
@@ -96,7 +96,7 @@ def video():
     if source_bps is not None and source_bps <= cap:
         if container == "mkv":
             return stream_ffmpeg(final_url, name, STREAM_TRANSFORMS["mkv"])
-        return passthrough(url, name, False, request.headers.get("Range"))
+        return clean_copy(url, name, container, request.headers.get("Range"))
 
     return transcode_to_file(
         final_url, name, video_transform(container, cap),
