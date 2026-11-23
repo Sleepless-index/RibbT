@@ -4,6 +4,7 @@ from .bilibili import BilibiliAdapter
 from .danbooru import DanbooruAdapter
 from .gelbooru import GelbooruAdapter
 from .imgur import ImgurAdapter
+from .iwara import IwaraAdapter
 from .pinterest import PinterestAdapter
 from .pixiv import PixivAdapter
 from .rednote import RedNoteAdapter
@@ -32,6 +33,7 @@ ADAPTERS = (
     YandereAdapter(),
     ImgurAdapter(),
     PixivAdapter(),
+    IwaraAdapter(),
 )
 
 LINK_PATH = r"(?:/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*)?"

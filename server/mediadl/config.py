@@ -122,6 +122,7 @@ MEDIA_SOURCES = (
     MediaSource(hosts=("gelbooru.com",), referers=("https://gelbooru.com/",)),
     MediaSource(hosts=("yande.re",), referers=("https://yande.re/",)),
     MediaSource(hosts=("imgur.com",), referers=("https://imgur.com/",)),
+    MediaSource(hosts=("iwara.tv",), referers=("https://www.iwara.tv/",)),
     MediaSource(hosts=("pximg.net",), referers=("https://www.pixiv.net/",)),
     MediaSource(hosts=("pinimg.com",), referers=("https://www.pinterest.com/",)),
     MediaSource(

@@ -286,6 +286,7 @@ private fun StatusCard(vm: AppViewModel) {
                 transitionSpec = { (fadeIn(tween(240, delayMillis = 90)) togetherWith fadeOut(tween(120))).using(SizeTransform(clip = false)) },
                 label = "update-card",
             ) { shown ->
+              Column(Modifier.fillMaxWidth()) {
               when (shown) {
                 0 -> {
                     val installing = vm.appUpdateStatus == "Installing…"
@@ -397,6 +398,7 @@ private fun StatusCard(vm: AppViewModel) {
                         )
                     }
                 }
+              }
               }
             }
             AnimatedVisibility(!busy && !failed, enter = fadeIn(tween(240)) + expandVertically(tween(260)), exit = fadeOut(tween(120)) + shrinkVertically(tween(200))) {
