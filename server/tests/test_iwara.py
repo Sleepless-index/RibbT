@@ -42,6 +42,13 @@ class IwaraTests(unittest.TestCase):
         self.assertEqual(adapter.rank(cands, {"video": {"quality": "best"}})[0]["src"], "Source")
         self.assertEqual(adapter.rank(cands, {"video": {"quality": "360"}})[0]["height"], 360)
 
+    def test_a_blocked_request_says_so_in_plain_words(self):
+        blocked = ValueError("Could not parse that Iwara link. ([iwara] x: Failed to parse JSON (caused by JSONDecodeError))")
+        with mock.patch("mediadl.adapters.iwara.dump_info", side_effect=blocked):
+            with self.assertRaises(ValueError) as caught:
+                pick_adapter(LINK).extract(LINK)
+        self.assertIn("Cloudflare", str(caught.exception))
+
     def test_other_pages_are_refused(self):
         with self.assertRaises(ValueError):
             pick_adapter("https://www.iwara.tv/profile/someone").extract("https://www.iwara.tv/profile/someone")

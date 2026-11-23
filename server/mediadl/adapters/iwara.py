@@ -28,7 +28,17 @@ class IwaraAdapter(PlatformAdapter):
     def extract(self, url):
         if not VIDEO_RE.match(urlparse(url).path):
             raise ValueError("That doesn't look like an Iwara video link.")
-        info = dump_info(url, "Iwara")
+        try:
+            info = dump_info(url, "Iwara")
+        except ValueError as error:
+            text = str(error)
+            if "parse JSON" in text or "403" in text or "Forbidden" in text:
+                # Iwara sits behind a Cloudflare check that blocks downloaders; the site answers with nothing.
+                raise ValueError(
+                    "Iwara blocked the request (it sits behind a Cloudflare check). Try Settings → Server → "
+                    "yt-dlp → the nightly build, or import your browser's cookies.txt for iwara.tv."
+                ) from error
+            raise
 
         post = new_post(
             id=str(info.get("id") or ""),
