@@ -1,3 +1,4 @@
+import hashlib
 import sys
 import unittest
 from pathlib import Path
@@ -6,18 +7,45 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from mediadl.adapters import find_link, pick_adapter  # noqa: E402
+from mediadl.adapters import iwara  # noqa: E402
 
-LINK = "https://www.iwara.tv/video/k2ayoueezfkx6gvq/some-title"
-INFO = {
-    "id": "k2ayoueezfkx6gvq", "title": "A video", "uploader": "Someone", "duration": 75,
-    "thumbnail": "https://i.iwara.tv/image/thumbnail/x/thumbnail-00.jpg",
-    "formats": [
-        {"format_id": "preview", "url": "https://files.iwara.tv/p.mp4", "height": None, "vcodec": None},
-        {"format_id": "360", "url": "https://files.iwara.tv/360.mp4", "height": 360, "vcodec": None},
-        {"format_id": "Source", "url": "https://files.iwara.tv/src.mp4", "height": None, "vcodec": None, "quality": 3},
-        {"format_id": "540", "url": "https://files.iwara.tv/540.mp4", "height": 540, "vcodec": None},
-    ],
+LINK = "https://www.iwara.tv/video/ebvzmck7e0cv90lok/succubus-hutao"
+FILE_URL = "https://filesq.iwara.tv/file/f0d79f2d-1a0d?expires=1795418052065&hash=abc"
+VIDEO = {
+    "id": "ebvzmck7e0cv90lok", "title": "A video", "user": {"name": "Someone"}, "thumbnail": 3,
+    "file": {"id": "f0d79f2d"}, "fileUrl": FILE_URL,
 }
+LISTING = [
+    {"name": "Source", "src": {"view": "//a.iwara.tv/view?x=src"}},
+    {"name": "540", "src": {"view": "//hime.iwara.tv/view?x=540"}},
+    {"name": "360", "src": {"view": "//mikoto.iwara.tv/view?x=360"}},
+    {"name": "preview", "src": {"view": "//b.iwara.tv/view?x=preview"}},
+]
+
+
+class FakeResponse:
+    def __init__(self, data, status=200):
+        self._data, self.status_code = data, status
+
+    def json(self):
+        if self._data is None:
+            raise ValueError("no body")
+        return self._data
+
+
+class FakeSession:
+    def __init__(self, answers):
+        self.answers, self.calls = answers, []
+
+    def get(self, url, headers=None, timeout=None):
+        self.calls.append((url, headers))
+        return FakeResponse(self.answers[url.split("?")[0]])
+
+
+def _extract(answers):
+    session = FakeSession(answers)
+    with mock.patch.object(iwara, "get_session", return_value=session):
+        return pick_adapter(LINK).extract(LINK), session
 
 
 class IwaraTests(unittest.TestCase):
@@ -26,28 +54,44 @@ class IwaraTests(unittest.TestCase):
             self.assertEqual(pick_adapter(link).name, "iwara")
         self.assertEqual(find_link("look www.iwara.tv/video/abc123 now"), "https://www.iwara.tv/video/abc123")
 
-    def test_video_lists_real_sizes_best_first_and_skips_the_preview(self):
-        with mock.patch("mediadl.adapters.iwara.dump_info", return_value=INFO):
-            post = pick_adapter(LINK).extract(LINK)
+    def test_sizes_come_from_the_file_list_best_first_without_the_preview(self):
+        post, session = _extract({
+            "https://apiq.iwara.tv/video/ebvzmck7e0cv90lok": VIDEO,
+            "https://filesq.iwara.tv/file/f0d79f2d-1a0d": LISTING,
+        })
         urls = [c["url"] for c in post["_videos"][0]["cands"]]
-        self.assertEqual(urls[0], "https://files.iwara.tv/540.mp4")
-        self.assertIn("https://files.iwara.tv/src.mp4", urls)
-        self.assertNotIn("https://files.iwara.tv/p.mp4", urls)
-        self.assertEqual(post["duration"], "1:15")
+        self.assertEqual(urls, ["https://a.iwara.tv/view?x=src", "https://hime.iwara.tv/view?x=540", "https://mikoto.iwara.tv/view?x=360"])
+        self.assertEqual(post["author"], "Someone")
+        self.assertIn("thumbnail-03.jpg", str(post["_cover"]))
+
+    def test_requests_carry_the_browser_headers_and_the_signed_version(self):
+        _, session = _extract({
+            "https://apiq.iwara.tv/video/ebvzmck7e0cv90lok": VIDEO,
+            "https://filesq.iwara.tv/file/f0d79f2d-1a0d": LISTING,
+        })
+        for _, headers in session.calls:
+            self.assertEqual(headers["Origin"], "https://www.iwara.tv")
+        expected = hashlib.sha1(b"f0d79f2d-1a0d_1795418052065_mSvL05GfEmeEmsEYfGCnVpEjYgTJraJN").hexdigest()
+        self.assertEqual(session.calls[1][1]["X-Version"], expected)
 
     def test_best_quality_prefers_the_source_file(self):
-        with mock.patch("mediadl.adapters.iwara.dump_info", return_value=INFO):
-            adapter = pick_adapter(LINK)
-            cands = adapter.extract(LINK)["_videos"][0]["cands"]
+        post, _ = _extract({
+            "https://apiq.iwara.tv/video/ebvzmck7e0cv90lok": VIDEO,
+            "https://filesq.iwara.tv/file/f0d79f2d-1a0d": LISTING,
+        })
+        adapter = pick_adapter(LINK)
+        cands = post["_videos"][0]["cands"]
         self.assertEqual(adapter.rank(cands, {"video": {"quality": "best"}})[0]["src"], "Source")
         self.assertEqual(adapter.rank(cands, {"video": {"quality": "360"}})[0]["height"], 360)
 
-    def test_a_blocked_request_says_so_in_plain_words(self):
-        blocked = ValueError("Could not parse that Iwara link. ([iwara] x: Failed to parse JSON (caused by JSONDecodeError))")
-        with mock.patch("mediadl.adapters.iwara.dump_info", side_effect=blocked):
-            with self.assertRaises(ValueError) as caught:
-                pick_adapter(LINK).extract(LINK)
-        self.assertIn("Cloudflare", str(caught.exception))
+    def test_private_and_blocked_videos_say_so(self):
+        with self.assertRaises(ValueError) as caught:
+            _extract({"https://apiq.iwara.tv/video/ebvzmck7e0cv90lok": {"message": "errors.privateVideo"}})
+        self.assertIn("private", str(caught.exception))
+        session = FakeSession({"https://apiq.iwara.tv/video/ebvzmck7e0cv90lok": None})
+        with mock.patch.object(iwara, "get_session", return_value=session), self.assertRaises(ValueError) as caught:
+            pick_adapter(LINK).extract(LINK)
+        self.assertIn("blocking", str(caught.exception))
 
     def test_other_pages_are_refused(self):
         with self.assertRaises(ValueError):

@@ -1,14 +1,46 @@
+import hashlib
 import re
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
-from ..services.candidates import candidate, codec_from_ytdlp, image_candidates
+import requests
+
+from ..config import DESKTOP_UA
+from ..services.candidates import candidate, image_candidates
+from ..services.net import get_session
 from .base import PlatformAdapter, new_post, video_group
-from .ytdlp import clock_text, dump_info
 
 TITLE_LIMIT = 80
-VIDEO_RE = re.compile(r"^/videos?/[A-Za-z0-9]+", re.I)
-# Iwara lists a tiny "preview" clip next to the real sizes (Source, 540, 360); it is never what anyone wants.
+VIDEO_RE = re.compile(r"^/videos?/([A-Za-z0-9]+)", re.I)
+API = "https://apiq.iwara.tv"
+# The site's own front end sends these with every call; without them the API answers with an empty page.
+API_HEADERS = {"User-Agent": DESKTOP_UA, "Origin": "https://www.iwara.tv", "Referer": "https://www.iwara.tv/"}
+# Part of the key the site's front end signs the file-list request with.
+VERSION_SALT = "mSvL05GfEmeEmsEYfGCnVpEjYgTJraJN"
+# Iwara also lists a tiny "preview" clip next to the real sizes; it is never what anyone wants.
 SKIPPED_FORMATS = ("preview",)
+
+
+def _get_json(url, headers, what):
+    try:
+        response = get_session().get(url, headers=headers, timeout=20)
+    except requests.RequestException:
+        raise ValueError(f"Could not reach Iwara ({what}). Try again.")
+    try:
+        data = response.json()
+    except ValueError:
+        raise ValueError(f"Iwara didn't answer ({what}, status {response.status_code}). It may be blocking the request.")
+    return data
+
+
+def _version_header(file_url):
+    parsed = urlparse(file_url)
+    expires = (parse_qs(parsed.query).get("expires") or [""])[0]
+    last = parsed.path.rstrip("/").split("/")[-1]
+    return hashlib.sha1("_".join((last, expires, VERSION_SALT)).encode()).hexdigest()
+
+
+def _absolute(url):
+    return ("https:" + url) if url.startswith("//") else url
 
 
 class IwaraAdapter(PlatformAdapter):
@@ -16,7 +48,7 @@ class IwaraAdapter(PlatformAdapter):
     label = "Iwara"
     features = ("Video",)
     hosts = ("iwara.tv",)
-    note = "Some videos need you to be signed in; import your cookies in Settings → Server."
+    note = "Private videos aren't supported."
 
     def rank(self, candidates, prefs):
         ranked = super().rank(candidates, prefs)
@@ -26,46 +58,52 @@ class IwaraAdapter(PlatformAdapter):
         return ranked
 
     def extract(self, url):
-        if not VIDEO_RE.match(urlparse(url).path):
+        match = VIDEO_RE.match(urlparse(url).path)
+        if not match:
             raise ValueError("That doesn't look like an Iwara video link.")
-        try:
-            info = dump_info(url, "Iwara")
-        except ValueError as error:
-            text = str(error)
-            if "parse JSON" in text or "403" in text or "Forbidden" in text:
-                # Iwara sits behind a Cloudflare check that blocks downloaders; the site answers with nothing.
-                raise ValueError(
-                    "Iwara blocked the request (it sits behind a Cloudflare check). Try Settings → Server → "
-                    "yt-dlp → the nightly build, or import your browser's cookies.txt for iwara.tv."
-                ) from error
-            raise
+        video_id = match.group(1)
 
-        post = new_post(
-            id=str(info.get("id") or ""),
-            title=(info.get("title") or "")[:TITLE_LIMIT],
-            author=info.get("uploader") or info.get("uploader_id") or "",
-            kind="video",
-        )
-        formats = [
-            f for f in (info.get("formats") or [])
-            if f.get("url") and f.get("vcodec") != "none"
-            and str(f.get("format_id") or "").lower() not in SKIPPED_FORMATS
-        ]
-        formats.sort(key=lambda f: (f.get("height") or 0, f.get("quality") or 0, f.get("tbr") or 0), reverse=True)
+        video = _get_json(f"{API}/video/{video_id}", API_HEADERS, "video info")
+        if not isinstance(video, dict) or video.get("message"):
+            message = str((video or {}).get("message") or "")
+            if "private" in message.lower():
+                raise ValueError("That Iwara video is private.")
+            raise ValueError("Iwara says that video isn't available." if message else "Could not read that Iwara video.")
+        file_url = video.get("fileUrl")
+        if not file_url:
+            raise ValueError("That Iwara video is hosted somewhere else and can't be downloaded from here.")
+
+        listing = _get_json(file_url, {**API_HEADERS, "X-Version": _version_header(file_url)}, "file list")
+        if not isinstance(listing, list):
+            raise ValueError("Iwara didn't give a file list for that video.")
+
+        formats = []
+        for entry in listing:
+            name = str(entry.get("name") or "")
+            src = entry.get("src") or {}
+            link = _absolute(src.get("view") or src.get("download") or "")
+            if link and name.lower() not in SKIPPED_FORMATS:
+                formats.append((name, link))
+        # Source first (the original), then the numbered sizes from the biggest down.
+        formats.sort(key=lambda f: (f[0] != "Source", -(int(f[0]) if f[0].isdigit() else 0)))
         candidates = [
-            candidate(
-                f["url"],
-                src=f.get("format_id") or None,
-                codec=codec_from_ytdlp(f.get("vcodec")),
-                height=f.get("height"),
-                size=f.get("filesize") or f.get("filesize_approx"),
-            )
-            for f in formats
+            candidate(link, src=name, codec=None, height=int(name) if name.isdigit() else None, size=None)
+            for name, link in formats
         ]
         if not candidates:
             raise ValueError("No downloadable stream found for that Iwara video.")
+
+        post = new_post(
+            id=video_id,
+            title=(video.get("title") or "")[:TITLE_LIMIT],
+            author=((video.get("user") or {}).get("name") or (video.get("user") or {}).get("username") or ""),
+            kind="video",
+        )
         post["_videos"].append(video_group(candidates))
-        post["duration"] = clock_text(info.get("duration"))
-        if info.get("thumbnail"):
-            post["_cover"] = image_candidates({"urlDefault": info["thumbnail"]})
+        file_id = (video.get("file") or {}).get("id")
+        thumbnail = video.get("thumbnail")
+        if file_id and isinstance(thumbnail, int):
+            post["_cover"] = image_candidates(
+                {"urlDefault": f"https://files.iwara.tv/image/thumbnail/{file_id}/thumbnail-{thumbnail:02d}.jpg"}
+            )
         return post
